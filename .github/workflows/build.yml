@@ -1,0 +1,189 @@
+# Builds Dolmen for macOS, Linux and Windows.
+#
+# - Every push and pull request: tests, then a build per platform (downloadable
+#   from the run's "Artifacts").
+# - Pushing a tag like v1.2.3: the same builds are attached to a GitHub release,
+#   which the in-app "check for updates" button reads.
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  WAILS_VERSION: v2.17.0
+  NODE_VERSION: "22"
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Frontend tests
+        working-directory: frontend
+        run: |
+          npm ci
+          npx ng test --watch=false
+
+      - name: Go tests
+        run: |
+          # main embeds frontend/dist; the tests do not need the real bundle.
+          mkdir -p frontend/dist && touch frontend/dist/.keep
+          go vet -tags webkit2_41 ./...
+          go test -tags webkit2_41 ./...
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-latest
+            platform: darwin/universal
+          - name: Linux
+            os: ubuntu-24.04
+            platform: linux/amd64
+            # Ubuntu 24.04 ships WebKitGTK 4.1 only.
+            tags: webkit2_41
+          - name: Windows
+            os: windows-latest
+            platform: windows/amd64
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+
+      - name: Version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            version="$GITHUB_REF_NAME"
+          else
+            version="0.0.0-dev+${GITHUB_SHA::7}"
+          fi
+          # Numeric x.y.z for the macOS bundle / Windows file version.
+          numeric="$(echo "${version#v}" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+).*/\1/')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "numeric=$numeric" >> "$GITHUB_OUTPUT"
+          echo "Building $version ($numeric)"
+
+      - name: Stamp version into wails.json
+        run: |
+          jq --arg v "${{ steps.version.outputs.numeric }}" \
+            '.info = ((.info // {}) + {productName: "Dolmen", productVersion: $v, companyName: "Dolmen", copyright: "Dolmen contributors"})' \
+            wails.json > wails.tmp.json
+          mv wails.tmp.json wails.json
+
+      - name: Build
+        run: |
+          ldflags="-s -w -X main.version=${{ steps.version.outputs.version }} -X main.repo=${{ github.repository }} -X main.commit=${GITHUB_SHA}"
+          tags=""
+          if [[ -n "${{ matrix.tags }}" ]]; then tags="-tags ${{ matrix.tags }}"; fi
+          wails build -clean -trimpath -platform "${{ matrix.platform }}" $tags -ldflags "$ldflags"
+
+      - name: Package
+        id: package
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          mkdir -p dist
+          case "${{ runner.os }}" in
+            macOS)
+              name="dolmen-${version}-macos-universal.zip"
+              ditto -c -k --keepParent build/bin/dolmen.app "dist/$name"
+              ;;
+            Linux)
+              name="dolmen-${version}-linux-amd64.tar.gz"
+              tar -C build/bin -czf "dist/$name" dolmen
+              ;;
+            Windows)
+              name="dolmen-${version}-windows-amd64.zip"
+              (cd build/bin && 7z a -tzip "../../dist/$name" dolmen.exe > /dev/null)
+              ;;
+          esac
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: dist/${{ steps.package.outputs.name }}
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          # v1.2.3-rc.1 and similar are published as pre-releases.
+          prerelease: ${{ contains(github.ref_name, '-') }}

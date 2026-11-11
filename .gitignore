@@ -1,0 +1,15 @@
+# Build output
+build/bin
+/dolmen
+frontend/dist
+frontend/.angular
+frontend/out-tsc
+
+# Dependencies
+node_modules
+
+# Wails-generated checksum of frontend/package.json
+frontend/package.json.md5
+
+# macOS
+.DS_Store

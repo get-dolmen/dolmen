@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <!-- Tile: warm dark stone, lighter at the top like evening sky -->
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a3832"/>
+      <stop offset="0.55" stop-color="#25231f"/>
+      <stop offset="1" stop-color="#171614"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.62" r="0.5">
+      <stop offset="0" stop-color="#8fb886" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#8fb886" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Stones: moss accent with a soft top light -->
+    <linearGradient id="cap" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b9d6ae"/>
+      <stop offset="1" stop-color="#7fa877"/>
+    </linearGradient>
+    <linearGradient id="stone" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#94bb8a"/>
+      <stop offset="1" stop-color="#6f9667"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+    <filter id="tileShadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+    <clipPath id="clip"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
+  </defs>
+
+  <!-- macOS icon grid: 824px tile inside the 1024 canvas -->
+  <g filter="url(#tileShadow)">
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#tile)"/>
+  </g>
+  <g clip-path="url(#clip)">
+    <rect x="100" y="100" width="824" height="824" fill="url(#glow)"/>
+    <!-- ground -->
+    <path d="M100 742 C 300 726, 720 726, 924 742 L 924 924 L 100 924 Z" fill="#141311" opacity="0.85"/>
+    <path d="M196 744 C 380 732, 650 732, 828 744" fill="none" stroke="#8fb886" stroke-opacity="0.35" stroke-width="10" stroke-linecap="round"/>
+  </g>
+  <rect x="100.5" y="100.5" width="823" height="823" rx="185" fill="none" stroke="#ffffff" stroke-opacity="0.07" stroke-width="2"/>
+
+  <!-- the dolmen -->
+  <g filter="url(#shadow)">
+    <!-- uprights -->
+    <path d="M318 488 L 432 480 L 446 740 L 304 740 Z" fill="url(#stone)"/>
+    <path d="M598 472 L 712 466 L 726 740 L 584 740 Z" fill="url(#stone)"/>
+    <!-- capstone, slightly tilted -->
+    <path d="M232 384 C 226 352 252 330 292 327 L 744 296 C 784 293 812 314 808 348 L 802 404 C 799 432 778 448 748 450 L 286 470 C 256 471 238 457 236 430 Z" fill="url(#cap)"/>
+    <!-- highlight on the capstone's top edge -->
+    <path d="M292 337 L 744 306" stroke="#e3f0dc" stroke-opacity="0.55" stroke-width="8" stroke-linecap="round"/>
+  </g>
+</svg>

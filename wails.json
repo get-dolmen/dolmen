@@ -1,0 +1,13 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "dolmen",
+  "outputfilename": "dolmen",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run start",
+  "frontend:dev:serverUrl": "http://localhost:4200",
+  "author": {
+    "name": "Cle\u0301ment",
+    "email": "23141589+clementherve@users.noreply.github.com"
+  }
+}

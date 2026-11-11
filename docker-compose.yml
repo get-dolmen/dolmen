@@ -1,0 +1,24 @@
+# Databases for integration tests:  docker compose up -d && go test -tags integration ./internal/...
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: dolmen
+      POSTGRES_PASSWORD: dolmen
+      POSTGRES_DB: dolmen
+    ports: ["55432:5432"]
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: dolmen
+      MYSQL_DATABASE: dolmen
+      MYSQL_USER: dolmen
+      MYSQL_PASSWORD: dolmen
+    ports: ["53306:3306"]
+  oracle:
+    image: gvenzl/oracle-free:23-slim
+    environment:
+      ORACLE_PASSWORD: dolmen
+      APP_USER: dolmen
+      APP_USER_PASSWORD: dolmen
+    ports: ["51521:1521"]

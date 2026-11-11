@@ -108,19 +108,25 @@ jobs:
       - name: Install Wails CLI
         run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
 
-      - name: NSIS
+      - name: Install NSIS
         if: runner.os == 'Windows'
         run: |
-          # windows-latest ships NSIS, but it is not always on PATH.
-          nsis_dir="/c/Program Files (x86)/NSIS"
-          if ! command -v makensis >/dev/null 2>&1 && [ -d "$nsis_dir" ]; then
-            echo "$nsis_dir" >> "$GITHUB_PATH"
-            export PATH="$nsis_dir:$PATH"
-          fi
+          # NSIS is not part of the windows-latest image, so install it with Chocolatey.
           if ! command -v makensis >/dev/null 2>&1; then
+            choco install nsis --yes --no-progress
+          fi
+          nsis_dir="/c/Program Files (x86)/NSIS"
+          nsis_dir_win='C:\Program Files (x86)\NSIS'
+          if [ ! -d "$nsis_dir" ]; then
+            nsis_dir="/c/Program Files/NSIS"
+            nsis_dir_win='C:\Program Files\NSIS'
+          fi
+          if [ ! -x "$nsis_dir/makensis.exe" ]; then
             echo "NSIS (makensis) is not installed" >&2
             exit 1
           fi
+          echo "$nsis_dir_win" >> "$GITHUB_PATH"
+          export PATH="$nsis_dir:$PATH"
           makensis /VERSION
 
       - name: Version

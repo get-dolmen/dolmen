@@ -1,0 +1,194 @@
+import { Injectable, inject } from '@angular/core';
+import { Dialog } from '@angular/cdk/dialog';
+import { Api, errorText } from './api';
+import { ConnectionStore } from './connection.store';
+import { EditorBridge } from './editor-bridge';
+import { RunStore } from './run.store';
+import { SchemaStore } from './schema.store';
+import { TabStore } from './tab.store';
+import { TableBridge } from './table-bridge';
+import { TxStore } from './tx.store';
+import { ScratchStore } from './scratch.store';
+import { Toasts } from './toast';
+import { Ui, MOD } from './ui';
+import { qualified, selectTop } from './sql';
+import type { ConnectionView, DbTable } from './models';
+import { ClipboardSetText } from '../../../wailsjs/runtime/runtime';
+import { ConnectionDialog } from '../features/connections/connection-dialog';
+
+export interface Command {
+  id: string;
+  label: string;
+  hint?: string;
+  run: () => void;
+}
+
+/** Every user action lives here so hotkeys, menus and the palette share one implementation. */
+@Injectable({ providedIn: 'root' })
+export class Commands {
+  private api = inject(Api);
+  private tabs = inject(TabStore);
+  private runs = inject(RunStore);
+  private conns = inject(ConnectionStore);
+  private schema = inject(SchemaStore);
+  private editor = inject(EditorBridge);
+  private toasts = inject(Toasts);
+  private dialog = inject(Dialog);
+  private ui = inject(Ui);
+  private tables = inject(TableBridge);
+  private tx = inject(TxStore);
+  private scratches = inject(ScratchStore);
+
+  list(): Command[] {
+    const active = this.tabs.active();
+    const conn = this.conns.get(active?.connId);
+    const cmds: Command[] = [
+      { id: 'run', label: 'Run statement at cursor', hint: `${MOD}↵`, run: () => this.run() },
+      { id: 'run-all', label: 'Run whole script', hint: `${MOD}⇧↵`, run: () => this.runAll() },
+      { id: 'cancel', label: 'Cancel running query', hint: 'Esc', run: () => this.cancel() },
+      { id: 'new-tab', label: 'New tab', hint: `${MOD}T`, run: () => this.newTab() },
+      { id: 'close-tab', label: 'Close tab', hint: `${MOD}W`, run: () => this.closeTab() },
+      { id: 'toggle-sidebar', label: 'Toggle schema sidebar', hint: `${MOD}B`, run: () => this.ui.sidebarOpen.update((v) => !v) },
+      { id: 'new-connection', label: 'New connection…', run: () => this.newConnection() },
+      { id: 'import-scratch', label: 'Open a .sql file as scratch…', run: () => void this.scratches.importFile() },
+    ];
+    if (active?.kind === 'sql') {
+      cmds.push(
+        { id: 'save-scratch', label: `Save ${active.name}`, hint: `${MOD}S`, run: () => void this.scratches.save(active.id) },
+        { id: 'export-scratch', label: `Save ${active.name} as file…`, run: () => void this.scratches.exportFile(active.id) },
+        { id: 'duplicate-scratch', label: `Duplicate ${active.name}`, run: () => void this.scratches.duplicate(active.id) },
+        { id: 'delete-scratch', label: `Delete ${active.name}…`, run: () => void this.scratches.remove(active.id) },
+      );
+    }
+    if (active && !conn?.readOnly) {
+      const tx = this.tx.get(active.id);
+      if (tx.open) {
+        cmds.push(
+          { id: 'commit', label: `Commit transaction (${tx.statements} statements)`, run: () => void this.tx.commit() },
+          { id: 'rollback', label: 'Roll back transaction', run: () => void this.tx.rollback() },
+        );
+      }
+      cmds.push(active.txMode === 'manual'
+        ? { id: 'tx-auto', label: 'Transactions: switch to auto-commit', run: () => this.tx.setMode(active.id, 'auto') }
+        : { id: 'tx-manual', label: 'Transactions: switch to manual (commit / rollback)', run: () => this.tx.setMode(active.id, 'manual') });
+    }
+    if (conn) {
+      cmds.push(
+        { id: 'edit-connection', label: `Edit connection “${conn.name}”…`, run: () => this.editConnection(conn) },
+        conn.connected
+          ? { id: 'disconnect', label: `Disconnect “${conn.name}”`, run: () => void this.conns.disconnect(conn.id) }
+          : { id: 'connect', label: `Connect “${conn.name}”`, run: () => void this.conns.connect(conn.id) },
+        { id: 'refresh-schema', label: `Refresh schema of “${conn.name}”`, run: () => void this.schema.refresh(conn.id) },
+      );
+    }
+    return cmds;
+  }
+
+  /** In a data tab, Run reloads the grid. */
+  run() {
+    if (this.tableHandle()) return this.tableHandle()!.refresh();
+    void this.runs.run('cursor');
+  }
+  runAll() {
+    if (this.tableHandle()) return this.tableHandle()!.refresh();
+    void this.runs.run('all');
+  }
+
+  /** ⌘S: applies pending edits in a data tab; elsewhere it only forces the autosave. */
+  save() {
+    const h = this.tableHandle();
+    if (h) h.apply();
+    else if (this.tabs.active()?.kind === 'sql') void this.scratches.save(this.tabs.activeId());
+  }
+
+  private tableHandle() {
+    const t = this.tabs.active();
+    return t?.kind === 'table' ? this.tables.get(t.id) : undefined;
+  }
+
+  /** Opens (or focuses) the data editor of a table. */
+  openTableData(connId: string, database: string, t: DbTable) {
+    const existing = this.tabs.tabs().find((x) => x.kind === 'table' && x.connId === connId && (x.database || '') === (database || '')
+      && x.table?.schema === t.schema && x.table?.name === t.name);
+    if (existing) return this.tabs.activate(existing.id);
+    this.tabs.createTable(connId, database, { schema: t.schema, name: t.name, type: t.type });
+  }
+  cancel() { this.runs.cancel(); }
+
+  /** New tab; without arguments it reuses the current tab's connection and database. */
+  newTab(connId?: string, database?: string) {
+    const active = this.tabs.active();
+    const conn = connId ?? active?.connId ?? this.conns.connected()[0]?.id ?? '';
+    const db = database ?? (conn === active?.connId ? active.database : '');
+    this.tabs.create(conn, '', undefined, db);
+    queueMicrotask(() => this.editor.focus());
+  }
+
+  closeTab(id = this.tabs.activeId()) {
+    const t = this.tabs.get(id);
+    if (t?.kind === 'table' && t.dirty && !confirm(`Discard unsaved changes to ${t.name}?`)) return;
+    const tx = this.tx.get(id);
+    if (tx.open && !confirm(`${t?.name ?? 'This tab'} has an open transaction (${tx.statements} statements). Closing rolls it back. Close anyway?`)) return;
+    this.tx.forget(id);
+    this.runs.forget(id);
+    void this.tabs.close(id);
+  }
+
+  newConnection() { this.openConnectionDialog(); }
+  editConnection(c: ConnectionView) { this.openConnectionDialog(c); }
+
+  private openConnectionDialog(c?: ConnectionView) {
+    const ref = this.dialog.open<ConnectionView | undefined>(ConnectionDialog, { data: c, width: '520px', maxWidth: '94vw' });
+    ref.closed.subscribe((saved) => {
+      if (!saved) return;
+      // A brand-new connection is attached to the current tab when it has none.
+      const tab = this.tabs.active();
+      if (!c && tab && !this.conns.get(tab.connId)) this.tabs.setConnection(tab.id, saved.id);
+      void this.conns.connect(saved.id);
+    });
+  }
+
+  /** Opens a new tab with SELECT * … on the table's database and runs it. */
+  async selectTop(connId: string, t: DbTable, database = '') {
+    const conn = this.conns.get(connId);
+    if (!conn) return;
+    const def = this.schema.get(this.schema.scope(connId, database))?.defaultSchema;
+    const sql = selectTop(conn.kind, qualified(conn.kind, t.schema, t.name, def));
+    if (!(await this.scratches.createIn({ connId, database, schema: t.schema, table: t.name }, sql))) return;
+    // Let the editor pick up the new tab's model before running.
+    setTimeout(() => this.runAll(), 0);
+  }
+
+  async showDDL(connId: string, t: DbTable, database = '') {
+    try {
+      const ddl = await this.api.tableDDL(connId, database, t.schema, t.name, t.type);
+      await this.scratches.createIn({ connId, database, schema: t.schema, table: t.name }, ddl.trim() + '\n', this.scratches.freeName(`${t.name}.ddl`));
+    } catch (e) {
+      this.toasts.error(errorText(e));
+    }
+  }
+
+  /** New empty scratch filed under a table. */
+  newScratchFor(connId: string, t: DbTable, database = '') {
+    void this.scratches.createIn({ connId, database, schema: t.schema, table: t.name });
+  }
+
+  insertName(connId: string, schema: string, name: string, database = '') {
+    const conn = this.conns.get(connId);
+    if (!conn) return;
+    this.editor.insert(qualified(conn.kind, schema, name, this.schema.get(this.schema.scope(connId, database))?.defaultSchema));
+    this.editor.focus();
+  }
+
+  async copy(text: string) {
+    try {
+      if (!(await ClipboardSetText(text))) throw new Error();
+    } catch {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        this.toasts.error('Clipboard is not available');
+      }
+    }
+  }
+}

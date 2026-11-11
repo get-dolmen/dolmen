@@ -1,0 +1,87 @@
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { Api, errorText } from './api';
+import { Toasts } from './toast';
+import type { ConnectionConfig, ConnectionView } from './models';
+
+@Injectable({ providedIn: 'root' })
+export class ConnectionStore {
+  private api = inject(Api);
+  private toasts = inject(Toasts);
+
+  readonly connections = signal<ConnectionView[]>([]);
+  /** IDs currently connecting. */
+  readonly pending = signal<ReadonlySet<string>>(new Set());
+  readonly byId = computed(() => new Map(this.connections().map((c) => [c.id, c])));
+  readonly connected = computed(() => this.connections().filter((c) => c.connected));
+
+  /** Called after a connection is opened or closed, so schema caches can reset. */
+  private listeners: ((id: string, connected: boolean) => void)[] = [];
+  onChange(fn: (id: string, connected: boolean) => void) { this.listeners.push(fn); }
+
+  async refresh() {
+    try {
+      this.connections.set(await this.api.listConnections());
+    } catch (e) {
+      this.toasts.error(errorText(e));
+    }
+  }
+
+  get(id: string | undefined) { return id ? this.byId().get(id) : undefined; }
+
+  async save(cfg: ConnectionConfig): Promise<ConnectionView> {
+    const saved = await this.api.saveConnection(cfg);
+    await this.refresh();
+    this.emit(saved.id, saved.connected);
+    return saved;
+  }
+
+  async remove(id: string) {
+    await this.api.deleteConnection(id);
+    await this.refresh();
+    this.emit(id, false);
+  }
+
+  /** Opens the connection if needed. Returns false (after a toast) on failure. */
+  async ensureConnected(id: string): Promise<boolean> {
+    const c = this.get(id);
+    if (!c) return false;
+    if (c.connected) return true;
+    return this.connect(id);
+  }
+
+  async connect(id: string): Promise<boolean> {
+    if (this.pending().has(id)) return false;
+    this.setPending(id, true);
+    try {
+      await this.api.connect(id);
+      this.patch(id, { connected: true });
+      this.emit(id, true);
+      return true;
+    } catch (e) {
+      this.toasts.error(`${this.get(id)?.name ?? 'Connection'}: ${errorText(e)}`);
+      return false;
+    } finally {
+      this.setPending(id, false);
+    }
+  }
+
+  async disconnect(id: string) {
+    await this.api.disconnect(id);
+    this.patch(id, { connected: false });
+    this.emit(id, false);
+  }
+
+  private patch(id: string, p: Partial<ConnectionView>) {
+    this.connections.update((cs) => cs.map((c) => (c.id === id ? { ...c, ...p } : c)));
+  }
+
+  private setPending(id: string, on: boolean) {
+    const s = new Set(this.pending());
+    if (on) s.add(id); else s.delete(id);
+    this.pending.set(s);
+  }
+
+  private emit(id: string, connected: boolean) {
+    for (const l of this.listeners) l(id, connected);
+  }
+}

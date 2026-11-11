@@ -127,7 +127,8 @@ jobs:
           fi
           echo "$nsis_dir_win" >> "$GITHUB_PATH"
           export PATH="$nsis_dir:$PATH"
-          makensis /VERSION
+          # Git Bash rewrites "/VERSION" into a Windows path, so disable that.
+          MSYS_NO_PATHCONV=1 makensis /VERSION
 
       - name: Version
         id: version

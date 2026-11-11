@@ -1,5 +1,8 @@
 Unicode true
 
+# Smaller installer: compress the payload with LZMA.
+SetCompressor /SOLID lzma
+
 ####
 ## Please note: Template replacements don't work in this file. They are provided with default defines like
 ## mentioned underneath.
@@ -54,6 +57,8 @@ ManifestDPIAware true
 !define MUI_UNICON "..\icon.ico"
 # !define MUI_WELCOMEFINISHPAGE_BITMAP "resources\leftimage.bmp" #Include this to add a bitmap on the left side of the Welcome Page. Must be a size of 164x314
 !define MUI_FINISHPAGE_NOAUTOCLOSE # Wait on the INSTFILES page so the user can take a look into the details of the installation steps
+!define MUI_FINISHPAGE_RUN "$INSTDIR\${PRODUCT_EXECUTABLE}" # Offer to launch Dolmen when the installer finishes.
+!define MUI_FINISHPAGE_RUN_TEXT "Launch ${INFO_PRODUCTNAME}"
 !define MUI_ABORTWARNING # This will warn the user if they exit from the installer.
 
 !insertmacro MUI_PAGE_WELCOME # Welcome to the installer page.
@@ -97,6 +102,7 @@ Section
     !insertmacro wails.files
 
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
+    CreateShortCut "$SMPROGRAMS\Uninstall ${INFO_PRODUCTNAME}.lnk" "$INSTDIR\uninstall.exe"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
 
     !insertmacro wails.associateFiles
@@ -113,6 +119,7 @@ Section "uninstall"
     RMDir /r $INSTDIR
 
     Delete "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk"
+    Delete "$SMPROGRAMS\Uninstall ${INFO_PRODUCTNAME}.lnk"
     Delete "$DESKTOP\${INFO_PRODUCTNAME}.lnk"
 
     !insertmacro wails.unassociateFiles

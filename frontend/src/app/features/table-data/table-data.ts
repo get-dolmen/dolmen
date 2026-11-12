@@ -58,9 +58,20 @@ const PAGE_SIZES = [100, 500, 1000];
         <span class="range">{{ rangeText() }}</span>
         <button class="ib" (click)="reload(offset() - limit())" [disabled]="offset() === 0 || loading()" title="Previous page" aria-label="Previous page"><dm-icon name="left" /></button>
         <button class="ib" (click)="reload(offset() + limit())" [disabled]="!p.hasMore || loading()" title="Next page" aria-label="Next page"><dm-icon name="right" /></button>
-        <select class="size" [ngModel]="limit()" (ngModelChange)="setLimit($event)" aria-label="Rows per page">
-          @for (n of sizes; track n) { <option [ngValue]="n">{{ n }} rows</option> }
-        </select>
+        <span class="sizes">
+          <button class="size" (click)="openSizeMenu($event)" [attr.aria-expanded]="!!sizeMenu()" aria-haspopup="menu" aria-label="Rows per page">
+            {{ limit() }} rows<dm-icon name="chevron" [size]="10" />
+          </button>
+          @if (sizeMenu(); as m) {
+            <div class="menu" role="menu" [style.left.px]="m.x" [style.top.px]="m.y" (dmClickOutside)="sizeMenu.set(null)">
+              @for (n of sizes; track n) {
+                <button class="menu-item" role="menuitemradio" [attr.aria-checked]="n === limit()" [class.active]="n === limit()" (click)="setLimit(n)">
+                  {{ n }} rows
+                </button>
+              }
+            </div>
+          }
+        </span>
       }
     </div>
 
@@ -145,7 +156,10 @@ const PAGE_SIZES = [100, 500, 1000];
     .search { width: 200px; height: 26px; margin: 0 2px; padding: 0 8px; border: 1px solid var(--accent); border-radius: 6px; background: var(--bg-panel); outline: none; font-size: 12px; }
     .ro { font-size: var(--fs-xs); color: var(--text-muted); margin-right: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
     .range { font-size: var(--fs-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; margin-right: 2px; white-space: nowrap; }
-    .size { height: 26px; margin-left: 4px; padding: 0 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-panel); font-size: var(--fs-xs); color: var(--text-muted); }
+    .sizes { display: inline-flex; flex: none; }
+    .size { display: inline-flex; align-items: center; gap: 4px; height: 26px; margin-left: 4px; padding: 0 6px; border: 1px solid var(--border); border-radius: 6px;
+            background: var(--bg-panel); font-size: var(--fs-xs); color: var(--text-muted); cursor: pointer; white-space: nowrap; }
+    .size:hover { border-color: var(--border-strong); color: var(--text); }
     .clauses { display: flex; height: 34px; border-bottom: 1px solid var(--border); flex: none; }
     .clause { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0 10px; color: var(--text-faint); cursor: text; }
     .clause + .clause { border-left: 1px solid var(--border); }
@@ -202,6 +216,7 @@ export class TableData implements TableHandle, OnDestroy {
   readonly searchOpen = signal(false);
   readonly quick = signal('');
   readonly copyMenu = signal<{ x: number; y: number } | null>(null);
+  readonly sizeMenu = signal<{ x: number; y: number } | null>(null);
   readonly formats = COPY_FORMATS;
   /** Sort chosen from a column header; typing an ORDER BY replaces it. */
   private sortState = signal<{ col: string; dir: 'asc' | 'desc' } | null>(null);
@@ -267,8 +282,14 @@ export class TableData implements TableHandle, OnDestroy {
   ngOnDestroy() { this.bridge.detach(this.tab().id); }
 
   setLimit(n: number) {
+    this.sizeMenu.set(null);
     this.limit.set(n);
     void this.reload(0);
+  }
+
+  openSizeMenu(e: MouseEvent) {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    this.sizeMenu.set(clampMenu(rect.right - 140, rect.bottom + 4, 140, 40 + PAGE_SIZES.length * 26));
   }
 
   refresh() { void this.reload(this.offset()); }

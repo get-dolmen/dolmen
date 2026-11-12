@@ -13,6 +13,7 @@ const PATHS: Record<string, string> = {
   copy: 'M5.5 5.5h7v8h-7zM3.5 10.5v-8h7',
   left: 'M10 3.5 5.5 8l4.5 4.5',
   right: 'M6 3.5 10.5 8 6 12.5',
+  chevron: 'M4 6.5 8 10.5 12 6.5',
   filter: 'M2 3h12l-4.5 5.5V13l-3-1.5v-3Z',
   sort: 'M3 4h10M3 8h7M3 12h4',
   key: 'M10 9.5a3.5 3.5 0 1 0-3.4-2.7L2 11.4V14h2.6v-1.5h1.5V11h1.5l1-1a3.5 3.5 0 0 0 1.4.5ZM10.8 5.2h.01',

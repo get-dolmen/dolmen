@@ -52,7 +52,12 @@ export class Api {
   exportResult = (tabId: string, resultId: string, format: 'csv' | 'json') => App.ExportResult(tabId, resultId, format);
 
   version = () => App.Version() as Promise<{ version: string; repo: string; commit: string }>;
-  checkForUpdate = () => App.CheckForUpdate() as Promise<{ current: string; latest: string; newer: boolean; url: string; notes?: string }>;
+  checkForUpdate = () => App.CheckForUpdate() as Promise<{
+    current: string; latest: string; newer: boolean; url: string; notes?: string;
+    asset?: { name: string; size: number; url: string };
+  }>;
+  installUpdate = (tag: string) => App.InstallUpdate(tag) as unknown as Promise<{ version: string; relaunch: boolean; message?: string }>;
+  restartApp = () => App.RestartApp();
   openReleasePage = (url: string) => App.OpenReleasePage(url);
 
   listHistory = (connId: string, search: string, limit = 200) =>

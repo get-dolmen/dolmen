@@ -14,6 +14,7 @@ A desktop SQL client for **PostgreSQL, MySQL, Oracle and SQLite**, built with Go
 - **Query history** per connection, searchable.
 - **Appearance:** light, dark or system theme; the scratch files sit under the explorer (bottom right) or in a dedicated, resizable left panel. Both choices live in *Settings* (⌘,) and are remembered per machine.
 - **Git sync (optional):** keep saved connections, their folders and every scratch file in a small git repository and exchange it with a remote. Each sync merges both sides by item (newest edit wins), propagates deletions, and pushes after pulling when the remote moved. Turning on the master password encrypts the bundle with AES-256-GCM (key derived with PBKDF2); without it, the repository holds connection passwords in plain text.
+- **Updates in place:** the version button in the status bar checks GitHub for a newer release and installs it without leaving the app: the build for the platform is downloaded, checked against the release's `SHA256SUMS.txt`, and swapped in over the running app, which then restarts itself. On Windows the downloaded NSIS installer finishes the upgrade, since replacing a per-machine install needs its elevation.
 
 ## Install
 
@@ -73,7 +74,7 @@ go test -tags integration ./internal/query/
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
-The version, repository and commit are stamped into the binary (`-ldflags -X main.version=… -X main.repo=…`). The version button in the status bar shows them and, when clicked, asks GitHub for the latest release. Tags with a suffix (`v1.2.0-rc.1`) are published as pre-releases and are not offered as updates. Local builds report `dev build`.
+The version, repository and commit are stamped into the binary (`-ldflags -X main.version=… -X main.repo=…`). The version button in the status bar shows them and, when clicked, asks GitHub for the latest release. A newer release offers *Download & install*: Dolmen downloads the asset for the platform, checks its SHA-256 against the release's `SHA256SUMS.txt` (both come from the same release, so this catches a corrupted download, not a compromised release), and swaps it in over the running app — the `.app` bundle on macOS, the binary on Linux — then restarts itself. On Windows it downloads and opens the NSIS installer instead, because a per-machine install needs its elevation; the update completes after Dolmen closes. *Release page* stays one click away, and is the only option for platforms without a published build. Tags with a suffix (`v1.2.0-rc.1`) are published as pre-releases and are not offered as updates. Local builds report `dev build` and cannot update themselves.
 
 ## Layout
 
@@ -87,6 +88,7 @@ internal/conn            saved connections (JSON) and open pools
 internal/history         query history (SQLite)
 internal/scratch         tab files + manifest
 internal/gitsync         git bundle, merge, tombstone and master-password encryption
+internal/selfupdate      release download, checksum check and in-place install
 internal/export          CSV / JSON writers
 frontend/src/app/core    stores (signals), API wrapper, commands, hotkeys
 frontend/src/app/features  topbar, tabs, editor (Monaco), results (AG Grid), schema sidebar, palette, dialogs

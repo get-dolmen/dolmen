@@ -1,17 +1,8 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
-	"time"
-
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // Set at build time by the release workflow:
@@ -32,67 +23,6 @@ type VersionInfo struct {
 // Version reports the running build.
 func (a *App) Version() VersionInfo {
 	return VersionInfo{Version: version, Repo: repo, Commit: commit}
-}
-
-type UpdateInfo struct {
-	Current string `json:"current"`
-	Latest  string `json:"latest"`
-	Newer   bool   `json:"newer"`
-	URL     string `json:"url"`
-	Notes   string `json:"notes,omitempty"`
-}
-
-// CheckForUpdate asks GitHub for the latest published release of this
-// project. It only runs when the user clicks the version button.
-func (a *App) CheckForUpdate() (UpdateInfo, error) {
-	info := UpdateInfo{Current: version}
-	if repo == "" {
-		return info, errors.New("update checks are only available in release builds")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/repos/"+repo+"/releases/latest", nil)
-	if err != nil {
-		return info, err
-	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "Dolmen-update-check")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return info, fmt.Errorf("could not reach GitHub: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
-		return info, errors.New("no release has been published yet")
-	}
-	if resp.StatusCode != http.StatusOK {
-		return info, fmt.Errorf("GitHub answered %s", resp.Status)
-	}
-	var rel struct {
-		TagName string `json:"tag_name"`
-		HTMLURL string `json:"html_url"`
-		Body    string `json:"body"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
-		return info, err
-	}
-	info.Latest, info.URL = rel.TagName, rel.HTMLURL
-	if len(rel.Body) > 2000 {
-		rel.Body = rel.Body[:2000] + "…"
-	}
-	info.Notes = rel.Body
-	info.Newer = newerVersion(rel.TagName, version)
-	return info, nil
-}
-
-// OpenReleasePage opens a GitHub page of this project in the browser.
-func (a *App) OpenReleasePage(link string) error {
-	u, err := url.Parse(link)
-	if err != nil || u.Scheme != "https" || u.Host != "github.com" || (repo != "" && !strings.HasPrefix(u.Path, "/"+repo+"/")) {
-		return errors.New("refusing to open a non-release link")
-	}
-	runtime.BrowserOpenURL(a.ctx, link)
-	return nil
 }
 
 // newerVersion reports whether candidate is a later semantic version than

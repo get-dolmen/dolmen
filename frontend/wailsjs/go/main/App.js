@@ -82,6 +82,10 @@ export function ImportScratch(arg1, arg2, arg3) {
   return window['go']['main']['App']['ImportScratch'](arg1, arg2, arg3);
 }
 
+export function InstallUpdate(arg1) {
+  return window['go']['main']['App']['InstallUpdate'](arg1);
+}
+
 export function LinkScratch(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['LinkScratch'](arg1, arg2, arg3, arg4, arg5);
 }
@@ -152,6 +156,10 @@ export function ReleaseTabSession(arg1) {
 
 export function RenameScratch(arg1, arg2) {
   return window['go']['main']['App']['RenameScratch'](arg1, arg2);
+}
+
+export function RestartApp() {
+  return window['go']['main']['App']['RestartApp']();
 }
 
 export function Rollback(arg1) {

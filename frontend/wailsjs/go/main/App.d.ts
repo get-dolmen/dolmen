@@ -49,6 +49,8 @@ export function FetchMore(arg1:string,arg2:string,arg3:number):Promise<query.Fet
 
 export function ImportScratch(arg1:string,arg2:string,arg3:string):Promise<scratch.Tab>;
 
+export function InstallUpdate(arg1:string):Promise<main.InstallResult>;
+
 export function LinkScratch(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<void>;
 
 export function ListColumns(arg1:string,arg2:string,arg3:string,arg4:string):Promise<Array<driver.Column>>;
@@ -84,6 +86,8 @@ export function ReadTable(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:
 export function ReleaseTabSession(arg1:string):Promise<void>;
 
 export function RenameScratch(arg1:string,arg2:string):Promise<string>;
+
+export function RestartApp():Promise<void>;
 
 export function Rollback(arg1:string):Promise<query.TxStatus>;
 

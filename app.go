@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -36,6 +37,12 @@ type App struct {
 	folders *folder.Store
 	sync    *gitsync.Service
 	initErr error
+
+	// Set by InstallUpdate: whether an update was installed, and the argv
+	// that starts the freshly installed build once this process exits.
+	updateMu        sync.Mutex
+	updateInstalled bool
+	pendingRestart  []string
 }
 
 func NewApp() *App { return &App{} }

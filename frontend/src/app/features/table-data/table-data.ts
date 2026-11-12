@@ -20,6 +20,7 @@ import { buildChanges, isChanged, normalizeEdit, previewSQL, rowChanged, type Gr
 import { ColumnHeader, type ColumnHeaderParams } from './column-header';
 
 const PAGE_SIZES = [100, 500, 1000];
+const REFRESH_SECONDS = [5, 10, 30, 60];
 
 /** Editable view of one table: paging, filter, sort, and pending edits applied in one transaction. */
 @Component({
@@ -28,6 +29,20 @@ const PAGE_SIZES = [100, 500, 1000];
   template: `
     <div class="toolbar" role="toolbar" aria-label="Table data">
       <button class="ib" (click)="refresh()" [disabled]="loading()" [title]="'Reload (' + mod + '↵)'" aria-label="Reload"><dm-icon name="refresh" /></button>
+      <button class="ib auto" [class.on]="autoRefresh()" (click)="openAutoMenu($event)" [attr.aria-expanded]="!!autoMenu()" aria-haspopup="menu"
+              [title]="autoRefresh() ? 'Auto refresh on: every ' + autoLabel() : 'Auto refresh off'" aria-label="Auto refresh">
+        <dm-icon name="clock" />
+      </button>
+      @if (autoMenu(); as m) {
+        <div class="menu" role="menu" [style.left.px]="m.x" [style.top.px]="m.y" (dmClickOutside)="autoMenu.set(null)">
+          <div class="menu-label">Auto refresh</div>
+          <button class="menu-item" role="menuitemradio" [attr.aria-checked]="!autoRefresh()" [class.active]="!autoRefresh()" (click)="setAutoRefresh(0)">Off</button>
+          @for (s of refreshChoices; track s) {
+            <button class="menu-item" role="menuitemradio" [attr.aria-checked]="autoRefresh() && refreshSeconds() === s"
+                    [class.active]="autoRefresh() && refreshSeconds() === s" (click)="setAutoRefresh(s)">Every {{ label(s) }}</button>
+          }
+        </div>
+      }
       <span class="sep"></span>
 
       @let p = page();
@@ -212,6 +227,7 @@ export class TableData implements TableHandle, OnDestroy {
   readonly theme = gridTheme;
   readonly mod = MOD;
   readonly sizes = PAGE_SIZES;
+  readonly refreshChoices = REFRESH_SECONDS;
 
   where = '';
   orderBy = '';
@@ -229,6 +245,10 @@ export class TableData implements TableHandle, OnDestroy {
   readonly formats = COPY_FORMATS;
   readonly totalCount = signal<number | null>(null);
   readonly counting = signal(false);
+  readonly autoMenu = signal<{ x: number; y: number } | null>(null);
+  readonly autoRefresh = signal(false);
+  readonly refreshSeconds = signal(REFRESH_SECONDS[0]);
+  private refreshTimer?: ReturnType<typeof setInterval>;
   /** Sort chosen from a column header; typing an ORDER BY replaces it. */
   private sortState = signal<{ col: string; dir: 'asc' | 'desc' } | null>(null);
 
@@ -294,7 +314,48 @@ export class TableData implements TableHandle, OnDestroy {
     void this.reload(0);
   }
 
-  ngOnDestroy() { this.bridge.detach(this.tab().id); }
+  ngOnDestroy() {
+    this.stopAutoRefresh();
+    this.bridge.detach(this.tab().id);
+  }
+
+  openAutoMenu(e: MouseEvent) {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    this.autoMenu.set(clampMenu(rect.left, rect.bottom + 4, 170, 40 + (REFRESH_SECONDS.length + 1) * 26));
+  }
+
+  setAutoRefresh(seconds: number) {
+    this.autoMenu.set(null);
+    if (seconds > 0) this.refreshSeconds.set(seconds);
+    this.autoRefresh.set(seconds > 0);
+    this.startAutoRefresh();
+  }
+
+  label(seconds: number) { return seconds === 60 ? 'minute' : `${seconds} s`; }
+  autoLabel() { return this.label(this.refreshSeconds()); }
+
+  private startAutoRefresh() {
+    this.stopAutoRefresh();
+    if (!this.autoRefresh()) return;
+    this.refreshTimer = setInterval(() => void this.autoReload(), this.refreshSeconds() * 1000);
+  }
+
+  private stopAutoRefresh() {
+    if (this.refreshTimer) clearInterval(this.refreshTimer);
+    this.refreshTimer = undefined;
+  }
+
+  /** Refreshes the current page unless the user is busy with it. */
+  private async autoReload() {
+    if (!this.autoRefresh() || document.visibilityState !== 'visible') return;
+    if (this.loading() || this.applying() || this.counting() || this.pending()) return;
+    if (this.grid?.getEditingCells().length) return;
+    const selected = new Set((this.grid?.getSelectedRows() ?? []).map((r) => r.id));
+    await this.reload(this.offset(), true);
+    if (selected.size) {
+      this.grid?.forEachNode((n) => n.setSelected(!!n.data && selected.has(n.data.id)));
+    }
+  }
 
   setLimit(n: number) {
     this.sizeMenu.set(null);
@@ -322,23 +383,26 @@ export class TableData implements TableHandle, OnDestroy {
     };
   }
 
-  async reload(offset: number) {
-    if (this.pending() && !confirm(`Discard ${this.pending()} pending change(s)?`)) return;
+  async reload(offset: number, silent = false) {
+    if (!silent && this.pending() && !confirm(`Discard ${this.pending()} pending change(s)?`)) return;
     const t = this.tab();
     if (!t.table) return;
     if (!(await this.conns.ensureConnected(t.connId))) return;
-    this.loading.set(true);
-    this.error.set('');
+    if (!silent) {
+      this.loading.set(true);
+      this.error.set('');
+    }
     this.totalCount.set(null);
     try {
       const { page: p, tx } = await this.api.readTable(t.id, t.connId, t.database, t.txMode === 'manual', this.pageRequest(offset));
       this.tx.set(t.id, tx);
       this.offset.set(p.offset);
       this.setPage(p);
+      if (silent) this.error.set('');
     } catch (e) {
       this.error.set(errorText(e));
     } finally {
-      this.loading.set(false);
+      if (!silent) this.loading.set(false);
     }
   }
 

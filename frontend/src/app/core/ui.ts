@@ -3,12 +3,16 @@ import { Injectable, effect, signal } from '@angular/core';
 const KEY = 'dolmen.ui';
 
 export type Theme = 'system' | 'light' | 'dark';
+/** Where the scratch files live: under the explorer (bottom right) or in their own left panel. */
+export type ScratchPosition = 'explorer' | 'left';
 
 interface Persisted {
   sidebarOpen: boolean;
   sidebarWidth: number;
   editorRatio: number;
   theme: Theme;
+  scratchPosition: ScratchPosition;
+  scratchWidth: number;
 }
 
 function load(): Partial<Persisted> {
@@ -21,6 +25,10 @@ function load(): Partial<Persisted> {
 
 function validTheme(t: unknown): t is Theme {
   return t === 'system' || t === 'light' || t === 'dark';
+}
+
+function validScratchPosition(p: unknown): p is ScratchPosition {
+  return p === 'explorer' || p === 'left';
 }
 
 /** Sets the colour scheme on the document; "system" leaves the OS media query in charge. */
@@ -57,6 +65,9 @@ export class Ui {
   readonly editorRatio = signal(this.saved.editorRatio ?? 0.55);
   /** Light / dark appearance; "system" follows the OS. */
   readonly theme = signal<Theme>(validTheme(this.saved.theme) ? this.saved.theme : 'system');
+  /** Scratches sit under the explorer by default, or in a dedicated left panel. */
+  readonly scratchPosition = signal<ScratchPosition>(validScratchPosition(this.saved.scratchPosition) ? this.saved.scratchPosition : 'explorer');
+  readonly scratchWidth = signal(this.saved.scratchWidth ?? 260);
   readonly paletteOpen = signal(false);
   readonly paletteQuery = signal('');
   /** Bumped to ask the sidebar to reveal a table. */
@@ -72,6 +83,8 @@ export class Ui {
         sidebarWidth: this.sidebarWidth(),
         editorRatio: this.editorRatio(),
         theme: this.theme(),
+        scratchPosition: this.scratchPosition(),
+        scratchWidth: this.scratchWidth(),
       };
       try {
         localStorage.setItem(KEY, JSON.stringify(p));
@@ -82,5 +95,10 @@ export class Ui {
   openPalette(query = '') {
     this.paletteQuery.set(query);
     this.paletteOpen.set(true);
+  }
+
+  /** Moves the scratch files between the explorer and a dedicated left panel. */
+  toggleScratchPosition() {
+    this.scratchPosition.update((p) => (p === 'left' ? 'explorer' : 'left'));
   }
 }

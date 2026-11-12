@@ -139,7 +139,9 @@ const CONN_DRAG_TYPE = 'application/x-dolmen-connection';
         </div>
       }
     </div>
-    <dm-scratch-list class="scratches" [filter]="filter()" />
+    @if (ui.scratchPosition() === 'explorer') {
+      <dm-scratch-list class="scratches" [filter]="filter()" />
+    }
 
     @if (menu(); as m) {
       <div class="menu" [style.left.px]="m.x" [style.top.px]="m.y" (dmClickOutside)="menu.set(null)">
@@ -232,7 +234,7 @@ export class SchemaSidebar {
   readonly conns = inject(ConnectionStore);
   readonly schema = inject(SchemaStore);
   private tabs = inject(TabStore);
-  private ui = inject(Ui);
+  readonly ui = inject(Ui);
   private tx = inject(TxStore);
   private el = inject<ElementRef<HTMLElement>>(ElementRef);
 

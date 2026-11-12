@@ -50,6 +50,11 @@ export class Commands {
       { id: 'new-tab', label: 'New tab', hint: `${MOD}T`, run: () => this.newTab() },
       { id: 'close-tab', label: 'Close tab', hint: `${MOD}W`, run: () => this.closeTab() },
       { id: 'toggle-sidebar', label: 'Toggle schema sidebar', hint: `${MOD}B`, run: () => this.ui.sidebarOpen.update((v) => !v) },
+      {
+        id: 'toggle-scratches',
+        label: this.ui.scratchPosition() === 'left' ? 'Move scratch files under the explorer' : 'Move scratch files to a left panel',
+        run: () => this.ui.toggleScratchPosition(),
+      },
       { id: 'new-connection', label: 'New connection…', run: () => this.newConnection() },
       { id: 'import-scratch', label: 'Open a .sql file as scratch…', run: () => void this.scratches.importFile() },
       { id: 'settings', label: 'Settings…', hint: `${MOD},`, run: () => this.openSettings() },

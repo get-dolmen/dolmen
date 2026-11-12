@@ -28,6 +28,28 @@ import { Ui, type Theme } from '../../core/ui';
               }
             </div>
           </div>
+
+          <div class="field">
+            <span class="label">Scratch files</span>
+            <div class="choices two" role="radiogroup" aria-label="Scratch panel position">
+              <button type="button" class="choice" role="radio" [class.on]="ui.scratchPosition() === 'explorer'"
+                      [attr.aria-checked]="ui.scratchPosition() === 'explorer'" (click)="ui.scratchPosition.set('explorer')">
+                <span class="preview dock" aria-hidden="true">
+                  <span class="work"><span class="explorer"><span class="scratches"></span></span></span>
+                </span>
+                <span class="name">Explorer</span>
+                <span class="hint">Bottom of the right sidebar</span>
+              </button>
+              <button type="button" class="choice" role="radio" [class.on]="ui.scratchPosition() === 'left'"
+                      [attr.aria-checked]="ui.scratchPosition() === 'left'" (click)="ui.scratchPosition.set('left')">
+                <span class="preview dock" aria-hidden="true">
+                  <span class="work"><span class="left-dock"></span><span class="main-pane"></span><span class="explorer"></span></span>
+                </span>
+                <span class="name">Left panel</span>
+                <span class="hint">Full-height pane, above the tab bar</span>
+              </button>
+            </div>
+          </div>
         </section>
       </div>
       <footer>
@@ -43,6 +65,8 @@ import { Ui, type Theme } from '../../core/ui';
     .field { display: flex; flex-direction: column; gap: 6px; }
     .field > .label { font-size: var(--fs-sm); color: var(--text-muted); }
     .choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .choices.two { grid-template-columns: repeat(2, 1fr); }
+    .field + .field { margin-top: 14px; }
     .choice { display: flex; flex-direction: column; align-items: stretch; gap: 5px; padding: 8px; text-align: left;
               border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--bg-panel); color: var(--text); cursor: pointer; }
     .choice:hover { background: var(--bg-hover); }
@@ -58,6 +82,12 @@ import { Ui, type Theme } from '../../core/ui';
     .preview[data-preview='system'] .pane { background: linear-gradient(105deg, #ffffff 50%, #22211e 50%); }
     .name { font-weight: 600; }
     .hint { font-size: var(--fs-xs); color: var(--text-faint); line-height: 1.25; }
+    .preview.dock { padding: 0; background: var(--bg); }
+    .preview.dock .work { display: flex; flex: 1; gap: 3px; padding: 4px; }
+    .preview.dock .explorer { display: flex; flex: 0 0 34%; flex-direction: column; justify-content: flex-end; padding: 3px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 2px; }
+    .preview.dock .scratches { height: 40%; background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 1px; }
+    .preview.dock .main-pane { flex: 1; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 2px; }
+    .preview.dock .left-dock { flex: 0 0 34%; background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 2px; }
   `,
 })
 export class SettingsDialog {

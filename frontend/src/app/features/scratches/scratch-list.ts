@@ -4,6 +4,7 @@ import { ConnectionStore } from '../../core/connection.store';
 import { ScratchStore } from '../../core/scratch.store';
 import { SchemaStore } from '../../core/schema.store';
 import { TabStore } from '../../core/tab.store';
+import { Ui } from '../../core/ui';
 import { ClickOutside, clampMenu } from '../../shared/click-outside';
 import { Autofocus } from '../../shared/autofocus';
 import { Icon } from '../../shared/icon';
@@ -50,6 +51,11 @@ type Menu =
       <span class="spacer"></span>
       <button class="ib" (click)="cmds.newTab()" title="New scratch" aria-label="New scratch"><dm-icon name="plus" [size]="14" /></button>
       <button class="ib" (click)="store.importFile()" title="Open a .sql file as scratch" aria-label="Open a SQL file"><dm-icon name="folderOpen" [size]="14" /></button>
+      <button class="ib" (click)="ui.toggleScratchPosition()"
+              [title]="ui.scratchPosition() === 'left' ? 'Move scratches under the explorer' : 'Move scratches to a left panel'"
+              [attr.aria-label]="ui.scratchPosition() === 'left' ? 'Dock scratches in the explorer' : 'Dock scratches on the left'">
+        <dm-icon [name]="ui.scratchPosition() === 'left' ? 'panelBottom' : 'panelLeft'" [size]="14" />
+      </button>
     </div>
 
     @if (!collapsed()) {
@@ -153,6 +159,7 @@ export class ScratchList {
   readonly store = inject(ScratchStore);
   readonly tabs = inject(TabStore);
   readonly cmds = inject(Commands);
+  readonly ui = inject(Ui);
   private conns = inject(ConnectionStore);
   private schema = inject(SchemaStore);
 

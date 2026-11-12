@@ -6,6 +6,7 @@ import { Ui } from './core/ui';
 import { SqlEditor } from './features/editor/sql-editor';
 import { Palette } from './features/palette/palette';
 import { ResultsPanelComponent } from './features/results/results-panel';
+import { ScratchList } from './features/scratches/scratch-list';
 import { SchemaSidebar } from './features/schema/schema-sidebar';
 import { Statusbar } from './features/statusbar';
 import { TabBar } from './features/tabs/tab-bar';
@@ -14,10 +15,15 @@ import { Topbar } from './features/topbar/topbar';
 
 @Component({
   selector: 'app-root',
-  imports: [Topbar, TabBar, SqlEditor, ResultsPanelComponent, SchemaSidebar, Statusbar, Palette, TableData],
+  imports: [Topbar, TabBar, SqlEditor, ResultsPanelComponent, SchemaSidebar, ScratchList, Statusbar, Palette, TableData],
   template: `
     <dm-topbar />
     <div class="main">
+      @if (ui.scratchPosition() === 'left') {
+        <dm-scratch-list class="scratch-left" [style.width.px]="ui.scratchWidth()" />
+        <div class="split v" role="separator" aria-orientation="vertical" aria-label="Resize scratches"
+             (pointerdown)="dragScratches($event)" (dblclick)="ui.scratchWidth.set(260)"></div>
+      }
       <section class="work" [class.ro]="readOnly()">
         <dm-tab-bar />
         <!-- SQL tabs share one editor; it stays mounted (hidden) while a data tab is active. -->
@@ -56,6 +62,7 @@ import { Topbar } from './features/topbar/topbar';
     .editor { flex: 0 0 55%; min-height: 80px; }
     .results { flex: 1 1 0; min-height: 90px; }
     .sidebar { flex: none; min-width: 180px; max-width: 60vw; border-left: 1px solid var(--border); }
+    .scratch-left { flex: none; min-width: 180px; max-width: 50vw; height: 100%; border-top: 0; border-right: 1px solid var(--border); background: var(--bg); }
     .split { flex: none; position: relative; z-index: 2; }
     .split::after { content: ''; position: absolute; }
     .split.h { height: 1px; background: var(--border); cursor: row-resize; }
@@ -97,6 +104,12 @@ export class App {
   dragSidebar(e: PointerEvent) {
     this.drag(e, 'col-resize', (ev) => {
       this.ui.sidebarWidth.set(Math.round(Math.min(window.innerWidth * 0.6, Math.max(180, window.innerWidth - ev.clientX))));
+    });
+  }
+
+  dragScratches(e: PointerEvent) {
+    this.drag(e, 'col-resize', (ev) => {
+      this.ui.scratchWidth.set(Math.round(Math.min(window.innerWidth * 0.5, Math.max(180, ev.clientX))));
     });
   }
 

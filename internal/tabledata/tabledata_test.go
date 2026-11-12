@@ -56,6 +56,12 @@ func TestRead(t *testing.T) {
 	if err != nil || len(p.Rows) != 2 || p.Rows[0][1] != "Grace" {
 		t.Fatalf("filter/sort: %+v %v", p, err)
 	}
+	if n, err := Count(ctx, o, o.DB, PageRequest{Schema: "main", Table: "people"}); err != nil || n != 4 {
+		t.Fatalf("count all: %d %v", n, err)
+	}
+	if n, err := Count(ctx, o, o.DB, PageRequest{Schema: "main", Table: "people", Where: "age > 30"}); err != nil || n != 2 {
+		t.Fatalf("count filter: %d %v", n, err)
+	}
 
 	if p, _ := Read(ctx, o, o.DB, PageRequest{Schema: "main", Table: "adults", Type: "view"}); p.Editable || p.ReadOnly == "" {
 		t.Error("views must not be editable")

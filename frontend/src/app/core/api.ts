@@ -35,6 +35,9 @@ export class Api {
   readTable = (tabId: string, connId: string, db: string, manual: boolean,
     req: { schema: string; table: string; type: string; where: string; orderBy: string; offset: number; limit: number }) =>
     App.ReadTable(tabId, connId, db, manual, req as any) as unknown as Promise<{ page: TablePage; tx: TxStatus }>;
+  countTableRows = (tabId: string, connId: string, db: string, manual: boolean,
+    req: { schema: string; table: string; type: string; where: string; orderBy: string; offset: number; limit: number }) =>
+    App.CountTableRows(tabId, connId, db, manual, req as any) as unknown as Promise<{ count: number; tx: TxStatus }>;
   applyTableChanges = (tabId: string, connId: string, db: string, manual: boolean, req: { schema: string; table: string; changes: TableChange[] }) =>
     App.ApplyTableChanges(tabId, connId, db, manual, req as any) as unknown as Promise<{ result: ApplyResult; tx: TxStatus }>;
 

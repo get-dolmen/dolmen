@@ -55,7 +55,11 @@ const PAGE_SIZES = [100, 500, 1000];
       <span class="spacer"></span>
       @if (p && !p.editable) { <span class="ro" [title]="p.readOnly ?? ''">🔒 {{ p.readOnly }}</span> }
       @if (p) {
-        <span class="range">{{ rangeText() }}</span>
+        <span class="range-wrap">
+          <button class="range" (click)="countRows()" [disabled]="counting()" [title]="totalCount() === null ? 'Count all rows' : 'Count the rows again'" aria-label="Count all rows">
+            @if (counting()) { <span class="spinner sm"></span> } @else { {{ rangeText() }} }
+          </button>
+        </span>
         <button class="ib" (click)="reload(offset() - limit())" [disabled]="offset() === 0 || loading()" title="Previous page" aria-label="Previous page"><dm-icon name="left" /></button>
         <button class="ib" (click)="reload(offset() + limit())" [disabled]="!p.hasMore || loading()" title="Next page" aria-label="Next page"><dm-icon name="right" /></button>
         <span class="sizes">
@@ -155,7 +159,11 @@ const PAGE_SIZES = [100, 500, 1000];
     .sep { width: 1px; height: 18px; margin: 0 6px; background: var(--border-strong); flex: none; }
     .search { width: 200px; height: 26px; margin: 0 2px; padding: 0 8px; border: 1px solid var(--accent); border-radius: 6px; background: var(--bg-panel); outline: none; font-size: 12px; }
     .ro { font-size: var(--fs-xs); color: var(--text-muted); margin-right: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
-    .range { font-size: var(--fs-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; margin-right: 2px; white-space: nowrap; }
+    .range-wrap { display: inline-flex; flex: none; }
+    .range { display: inline-flex; align-items: center; height: 26px; padding: 0 6px; border: 0; border-radius: 6px; background: none; cursor: pointer;
+             font-size: var(--fs-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; margin-right: 2px; white-space: nowrap; }
+    .range:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
+    .range:disabled { cursor: default; }
     .sizes { display: inline-flex; flex: none; }
     .size { display: inline-flex; align-items: center; gap: 4px; height: 26px; margin-left: 4px; padding: 0 6px; border: 1px solid var(--border); border-radius: 6px;
             background: var(--bg-panel); font-size: var(--fs-xs); color: var(--text-muted); cursor: pointer; white-space: nowrap; }
@@ -173,6 +181,7 @@ const PAGE_SIZES = [100, 500, 1000];
     .grid { height: 100%; width: 100%; }
     .loading { position: absolute; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--bg-panel) 50%, transparent); }
     .spinner { width: 18px; height: 18px; border: 2px solid var(--accent-soft); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    .spinner.sm { width: 11px; height: 11px; border-width: 1.5px; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .preview { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: min(720px, calc(100% - 32px)); max-height: 70%; display: flex; flex-direction: column;
                background: var(--bg-raised); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); z-index: 10; overflow: hidden; }
@@ -218,6 +227,8 @@ export class TableData implements TableHandle, OnDestroy {
   readonly copyMenu = signal<{ x: number; y: number } | null>(null);
   readonly sizeMenu = signal<{ x: number; y: number } | null>(null);
   readonly formats = COPY_FORMATS;
+  readonly totalCount = signal<number | null>(null);
+  readonly counting = signal(false);
   /** Sort chosen from a column header; typing an ORDER BY replaces it. */
   private sortState = signal<{ col: string; dir: 'asc' | 'desc' } | null>(null);
 
@@ -247,7 +258,11 @@ export class TableData implements TableHandle, OnDestroy {
     const p = this.page();
     if (!p) return '';
     if (!p.rows.length) return 'No rows';
-    return `${(this.offset() + 1).toLocaleString()}–${(this.offset() + p.rows.length).toLocaleString()}${p.hasMore ? '+' : ''}`;
+    const from = (this.offset() + 1).toLocaleString();
+    const to = (this.offset() + p.rows.length).toLocaleString();
+    const total = this.totalCount();
+    if (total !== null) return `${from}–${to} of ${total.toLocaleString()}`;
+    return `${from}–${to}${p.hasMore ? '+' : ''}`;
   });
 
   readonly defaultColDef: ColDef<GridRow> = {
@@ -299,6 +314,14 @@ export class TableData implements TableHandle, OnDestroy {
     void this.reload(0);
   }
 
+  private pageRequest(offset: number) {
+    const t = this.tab();
+    return {
+      schema: t.table!.schema, table: t.table!.name, type: t.table!.type,
+      where: this.where, orderBy: this.orderBy, offset: Math.max(0, offset), limit: this.limit(),
+    };
+  }
+
   async reload(offset: number) {
     if (this.pending() && !confirm(`Discard ${this.pending()} pending change(s)?`)) return;
     const t = this.tab();
@@ -306,11 +329,9 @@ export class TableData implements TableHandle, OnDestroy {
     if (!(await this.conns.ensureConnected(t.connId))) return;
     this.loading.set(true);
     this.error.set('');
+    this.totalCount.set(null);
     try {
-      const { page: p, tx } = await this.api.readTable(t.id, t.connId, t.database, t.txMode === 'manual', {
-        schema: t.table.schema, table: t.table.name, type: t.table.type,
-        where: this.where, orderBy: this.orderBy, offset: Math.max(0, offset), limit: this.limit(),
-      });
+      const { page: p, tx } = await this.api.readTable(t.id, t.connId, t.database, t.txMode === 'manual', this.pageRequest(offset));
       this.tx.set(t.id, tx);
       this.offset.set(p.offset);
       this.setPage(p);
@@ -318,6 +339,25 @@ export class TableData implements TableHandle, OnDestroy {
       this.error.set(errorText(e));
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  /** Counts every row matching the current filter, not just the loaded page. */
+  async countRows() {
+    if (this.counting()) return;
+    const t = this.tab();
+    if (!t.table) return;
+    if (!(await this.conns.ensureConnected(t.connId))) return;
+    this.counting.set(true);
+    this.error.set('');
+    try {
+      const { count, tx } = await this.api.countTableRows(t.id, t.connId, t.database, t.txMode === 'manual', this.pageRequest(this.offset()));
+      this.tx.set(t.id, tx);
+      this.totalCount.set(count);
+    } catch (e) {
+      this.error.set(errorText(e));
+    } finally {
+      this.counting.set(false);
     }
   }
 

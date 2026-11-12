@@ -171,6 +171,32 @@ func Read(ctx context.Context, o *conn.Open, q Querier, req PageRequest) (*Page,
 	return page, nil
 }
 
+// Count returns how many rows the table holds under the request's filter.
+// It runs on the same querier as Read so an open transaction sees its own
+// uncommitted changes.
+func Count(ctx context.Context, o *conn.Open, q Querier, req PageRequest) (int64, error) {
+	sqlText := "SELECT COUNT(*) FROM " + qualified(o.Driver, req.Schema, req.Table)
+	if w := strings.TrimSpace(req.Where); w != "" {
+		sqlText += " WHERE " + w
+	}
+	var n int64
+	rows, err := q.QueryContext(ctx, sqlText)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return 0, err
+		}
+		return 0, errors.New("the count query returned no row")
+	}
+	if err := rows.Scan(&n); err != nil {
+		return 0, err
+	}
+	return n, rows.Err()
+}
+
 // Change is one pending grid edit.
 type Change struct {
 	Op     string         `json:"op"`     // insert | update | delete

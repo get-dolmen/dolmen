@@ -508,6 +508,30 @@ func (a *App) ReadTable(tabID, connID, database string, manual bool, req tableda
 	return TableReadResult{Page: page, Tx: tx}, err
 }
 
+// TableCountResult reports how many rows a table holds under a filter.
+type TableCountResult struct {
+	Count int64          `json:"count"`
+	Tx    query.TxStatus `json:"tx"`
+}
+
+// CountTableRows counts the rows a table page shows, honouring the WHERE
+// clause of the data editor and the tab's open transaction.
+func (a *App) CountTableRows(tabID, connID, database string, manual bool, req tabledata.PageRequest) (TableCountResult, error) {
+	if err := a.ready(); err != nil {
+		return TableCountResult{}, err
+	}
+	ctx, cancel := metaCtx()
+	defer cancel()
+	var n int64
+	tx, err := a.exec.WithSession(ctx, tabID, connID, database, manual, false,
+		func(ctx context.Context, o *conn.Open, q query.Querier) (int, error) {
+			c, err := tabledata.Count(ctx, o, q, req)
+			n = c
+			return 0, err
+		})
+	return TableCountResult{Count: n, Tx: tx}, err
+}
+
 // TableApplyResult reports written rows plus the tab's transaction state.
 type TableApplyResult struct {
 	Result *tabledata.ApplyResult `json:"result"`

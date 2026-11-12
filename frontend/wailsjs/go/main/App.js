@@ -30,6 +30,10 @@ export function Connect(arg1) {
   return window['go']['main']['App']['Connect'](arg1);
 }
 
+export function CountTableRows(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['CountTableRows'](arg1, arg2, arg3, arg4, arg5);
+}
+
 export function CreateScratch(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
   return window['go']['main']['App']['CreateScratch'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }

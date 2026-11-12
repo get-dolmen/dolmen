@@ -22,6 +22,8 @@ export function Commit(arg1:string):Promise<query.TxStatus>;
 
 export function Connect(arg1:string):Promise<void>;
 
+export function CountTableRows(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:tabledata.PageRequest):Promise<main.TableCountResult>;
+
 export function CreateScratch(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string):Promise<scratch.Tab>;
 
 export function DeleteConnection(arg1:string):Promise<void>;

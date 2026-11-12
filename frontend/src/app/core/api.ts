@@ -28,6 +28,8 @@ export class Api {
     App.ListColumns(connId, db, schema, table) as Promise<DbColumn[]>;
   tableDDL = (connId: string, db: string, schema: string, table: string, type: string) =>
     App.TableDDL(connId, db, schema, table, type);
+  dropTable = (connId: string, db: string, schema: string, table: string, type: string) =>
+    App.DropTable(connId, db, schema, table, type);
   quoteIdent = (connId: string, name: string) => App.QuoteIdent(connId, name);
 
   readTable = (tabId: string, connId: string, db: string, manual: boolean,

@@ -396,6 +396,32 @@ func (a *App) TableDDL(connID, database, schema, table, typ string) (string, err
 	return o.Driver.TableDDL(ctx, o.DB, schema, table, typ)
 }
 
+// DropTable drops a table or a view from the connection's database.
+func (a *App) DropTable(connID, database, schema, table, typ string) error {
+	if strings.TrimSpace(table) == "" {
+		return errors.New("a table name is required")
+	}
+	o, err := a.open(connID, database)
+	if err != nil {
+		return err
+	}
+	if o.Config.ReadOnly {
+		return errors.New("read-only connection: cannot drop objects")
+	}
+	kind := "TABLE"
+	if typ == "view" {
+		kind = "VIEW"
+	}
+	target := o.Driver.QuoteIdent(table)
+	if schema != "" {
+		target = o.Driver.QuoteIdent(schema) + "." + target
+	}
+	ctx, cancel := metaCtx()
+	defer cancel()
+	_, err = o.DB.ExecContext(ctx, "DROP "+kind+" "+target)
+	return err
+}
+
 // QuoteIdent quotes an identifier for the connection's dialect.
 func (a *App) QuoteIdent(connID, name string) (string, error) {
 	o, err := a.open(connID, "")

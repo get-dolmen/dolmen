@@ -32,6 +32,8 @@ export function DeleteScratch(arg1:string):Promise<void>;
 
 export function Disconnect(arg1:string):Promise<void>;
 
+export function DropTable(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<void>;
+
 export function DuplicateScratch(arg1:string,arg2:string,arg3:string):Promise<scratch.Tab>;
 
 export function Execute(arg1:query.ExecRequest):Promise<query.ExecResponse>;

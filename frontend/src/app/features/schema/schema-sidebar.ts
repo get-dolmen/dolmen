@@ -157,6 +157,8 @@ const CONN_DRAG_TYPE = 'application/x-dolmen-connection';
             <button class="menu-item" (click)="menuAction('insert')">Insert name</button>
             <button class="menu-item" (click)="menuAction('copy')">Copy name</button>
             <button class="menu-item" (click)="menuAction('ddl')">Show DDL</button>
+            <div class="menu-sep"></div>
+            <button class="menu-item danger" (click)="menuAction('drop')">Drop {{ m.table.type === 'view' ? 'view' : 'table' }}…</button>
           }
           @case ('db') {
             <button class="menu-item" (click)="menuAction('newtab')">New tab on this database</button>
@@ -535,6 +537,7 @@ export class SchemaSidebar {
           case 'insert': return this.cmds.insertName(connId, t.schema, t.name, database);
           case 'copy': return void this.cmds.copy(t.name);
           case 'ddl': return void this.cmds.showDDL(connId, t, database);
+          case 'drop': return void this.cmds.dropTable(connId, t, database);
         }
         return;
       }

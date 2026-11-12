@@ -50,6 +50,10 @@ export function Disconnect(arg1) {
   return window['go']['main']['App']['Disconnect'](arg1);
 }
 
+export function DropTable(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['DropTable'](arg1, arg2, arg3, arg4, arg5);
+}
+
 export function DuplicateScratch(arg1, arg2, arg3) {
   return window['go']['main']['App']['DuplicateScratch'](arg1, arg2, arg3);
 }

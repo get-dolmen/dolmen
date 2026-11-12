@@ -168,6 +168,27 @@ export class Commands {
     }
   }
 
+  /** Drops a table or view after a confirmation, then refreshes the explorer. */
+  async dropTable(connId: string, t: DbTable, database = '') {
+    const what = t.type === 'view' ? 'view' : 'table';
+    const label = t.schema ? `${t.schema}.${t.name}` : t.name;
+    if (!confirm(`Drop the ${what} ${label}?\n\nThis cannot be undone.`)) return;
+    try {
+      await this.api.dropTable(connId, database, t.schema, t.name, t.type);
+      this.toasts.success(`Dropped ${what} ${label}`);
+      await this.schema.refresh(connId);
+      // Close its data tabs: the table no longer exists.
+      for (const tab of this.tabs.tabs().filter((x) => x.kind === 'table' && x.connId === connId
+        && (x.database || '') === (database || '') && x.table?.schema === t.schema && x.table?.name === t.name)) {
+        this.tx.forget(tab.id);
+        this.runs.forget(tab.id);
+        void this.tabs.close(tab.id);
+      }
+    } catch (e) {
+      this.toasts.error(errorText(e));
+    }
+  }
+
   /** New empty scratch filed under a table. */
   newScratchFor(connId: string, t: DbTable, database = '') {
     void this.scratches.createIn({ connId, database, schema: t.schema, table: t.name });

@@ -3,13 +3,13 @@
 A desktop SQL client for **PostgreSQL, MySQL, Oracle and SQLite**, built with Go ([Wails v2](https://wails.io)) and Angular.
 
 - **Scratch files:** SQL files linked to a connection (and database), autosaved, kept when their tab closes. The *Scratches* section of the explorer files them in connection → database → table folders (drag a scratch onto a folder to move it; *Select top 100*, *Show DDL* and *New scratch for this table* file theirs under the table): open, rename (F2), duplicate, save as a `.sql` file, delete; or open a `.sql` file from disk as a scratch. ⌘S saves immediately.
-- **Explorer on the right:** connections → schemas → tables/views → columns, lazy-loaded, with a filter. The context menu has *Select top 100*, *Show DDL*, *Insert name* and *Copy name*.
+- **Explorer on the right:** connections (grouped in nested folders) → schemas → tables/views → columns, lazy-loaded, with a filter. The context menu has *Select top 100*, *Show DDL*, *Drop table/view*, *Insert name* and *Copy name*.
 - **Search palette (⌘P / Ctrl+P):** fuzzy search across tables of every open connection, tabs, connections and commands (`>` prefix = commands only).
 - **Read-only connections:** enforced twice, by the database session (Postgres `default_transaction_read_only`, MySQL `transaction_read_only`, SQLite `mode=ro` + `query_only`, Oracle `SET TRANSACTION READ ONLY`) and by a statement guard that only lets queries through.
 - **Execution:** run the statement at the cursor (⌘↵), the selection, or the whole script (⌘⇧↵). Cancel with Esc. Each tab has its own DB session, so `SET`, temp tables and transactions persist between runs.
 - **Transactions:** per tab, *Tx: Auto* (each statement commits) or *Tx: Manual*: a transaction stays open across runs until **Commit** / **Rollback** (typed `COMMIT` / `ROLLBACK` work too). Data tabs submit into that transaction (with a savepoint per batch) and show its uncommitted rows. Closing or switching a tab with an open transaction asks first.
-- **Table data editor:** double-click a table to browse and edit it: server-side WHERE / ORDER BY and paging, add / delete rows, SET NULL, a SQL preview of pending changes, and Submit (⌘S).
-- **Results:** virtualised grid (AG Grid), 1,000-row pages with *Fetch more*, NULLs shown distinctly, copy as TSV (⌘C), and export to CSV/JSON. Exports stream every remaining row.
+- **Table data editor:** double-click a table to browse and edit it: server-side WHERE / ORDER BY and paging, add / delete rows, SET NULL, a SQL preview of pending changes, and Submit (⌘S). Click the row range to count the whole table, turn on auto refresh (5 s to a minute), and right-click a cell to copy it, filter on its value, set it to NULL, revert it or delete its row.
+- **Results:** virtualised grid (AG Grid), 1,000-row pages with *Fetch more*, NULLs shown distinctly, copy as TSV, CSV, JSON or Markdown (⌘C), and export to CSV/JSON. Exports stream every remaining row.
 - **Schema-aware autocomplete** in Monaco: tables, schemas and columns, resolving aliases (`o.` → columns of `orders o`).
 - **Query history** per connection, searchable.
 

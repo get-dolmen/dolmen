@@ -142,6 +142,10 @@ export function PickSQLiteFile() {
   return window['go']['main']['App']['PickSQLiteFile']();
 }
 
+export function PickSSHKey() {
+  return window['go']['main']['App']['PickSSHKey']();
+}
+
 export function QuoteIdent(arg1, arg2) {
   return window['go']['main']['App']['QuoteIdent'](arg1, arg2);
 }

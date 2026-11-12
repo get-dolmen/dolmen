@@ -34,6 +34,7 @@ export namespace driver {
 	    color?: string;
 	    folderId?: string;
 	    options?: Record<string, string>;
+	    ssh?: sshtunnel.Config;
 	    updatedAt?: number;
 	
 	    static createFrom(source: any = {}) {
@@ -55,8 +56,27 @@ export namespace driver {
 	        this.color = source["color"];
 	        this.folderId = source["folderId"];
 	        this.options = source["options"];
+	        this.ssh = this.convertValues(source["ssh"], sshtunnel.Config);
 	        this.updatedAt = source["updatedAt"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class Table {
 	    schema: string;
@@ -220,8 +240,11 @@ export namespace main {
 	    color?: string;
 	    folderId?: string;
 	    options?: Record<string, string>;
+	    ssh?: sshtunnel.Config;
 	    updatedAt?: number;
 	    hasPassword: boolean;
+	    hasSSHPassword: boolean;
+	    hasSSHPassphrase: boolean;
 	    connected: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -243,10 +266,31 @@ export namespace main {
 	        this.color = source["color"];
 	        this.folderId = source["folderId"];
 	        this.options = source["options"];
+	        this.ssh = this.convertValues(source["ssh"], sshtunnel.Config);
 	        this.updatedAt = source["updatedAt"];
 	        this.hasPassword = source["hasPassword"];
+	        this.hasSSHPassword = source["hasSSHPassword"];
+	        this.hasSSHPassphrase = source["hasSSHPassphrase"];
 	        this.connected = source["connected"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class DatabaseList {
 	    supported: boolean;
@@ -734,6 +778,39 @@ export namespace scratch {
 		    }
 		    return a;
 		}
+	}
+
+}
+
+export namespace sshtunnel {
+	
+	export class Config {
+	    enabled: boolean;
+	    host?: string;
+	    port?: number;
+	    user?: string;
+	    method?: string;
+	    password?: string;
+	    keyPath?: string;
+	    passphrase?: string;
+	    insecureHostKey?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Config(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.host = source["host"];
+	        this.port = source["port"];
+	        this.user = source["user"];
+	        this.method = source["method"];
+	        this.password = source["password"];
+	        this.keyPath = source["keyPath"];
+	        this.passphrase = source["passphrase"];
+	        this.insecureHostKey = source["insecureHostKey"];
+	    }
 	}
 
 }

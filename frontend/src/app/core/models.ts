@@ -4,6 +4,22 @@
 
 export type DbKind = 'postgres' | 'mysql' | 'oracle' | 'sqlite';
 
+export type SSHAuthMethod = 'password' | 'key' | 'agent';
+
+/** A jump host in front of the database server. */
+export interface SSHConfig {
+  enabled: boolean;
+  host?: string;
+  port?: number;
+  user?: string;
+  method?: SSHAuthMethod;
+  password?: string;
+  keyPath?: string;
+  passphrase?: string;
+  /** Skip the known_hosts check. */
+  insecureHostKey?: boolean;
+}
+
 export interface ConnectionConfig {
   id: string;
   name: string;
@@ -18,6 +34,7 @@ export interface ConnectionConfig {
   color?: string;
   folderId?: string;
   options?: Record<string, string>;
+  ssh?: SSHConfig;
 }
 
 /** A folder grouping connections in the explorer (folders can be nested). */
@@ -29,6 +46,8 @@ export interface ConnectionFolder {
 
 export interface ConnectionView extends ConnectionConfig {
   hasPassword: boolean;
+  hasSSHPassword: boolean;
+  hasSSHPassphrase: boolean;
   connected: boolean;
 }
 

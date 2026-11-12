@@ -16,6 +16,7 @@ export class Api {
   connect = (id: string) => App.Connect(id);
   disconnect = (id: string) => App.Disconnect(id);
   pickSQLiteFile = () => App.PickSQLiteFile();
+  pickSSHKey = () => App.PickSSHKey();
 
   listFolders = () => App.ListFolders() as unknown as Promise<ConnectionFolder[]>;
   saveFolder = (f: ConnectionFolder) => App.SaveFolder(f as any) as unknown as Promise<ConnectionFolder>;

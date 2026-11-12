@@ -5,7 +5,7 @@ import { Api, errorText } from '../../core/api';
 import { ConnectionStore } from '../../core/connection.store';
 import {
   CONNECTION_COLORS, DEFAULT_PORTS, KIND_LABELS,
-  type ConnectionConfig, type ConnectionView, type DbKind,
+  type ConnectionConfig, type ConnectionView, type DbKind, type SSHConfig,
 } from '../../core/models';
 
 @Component({
@@ -43,9 +43,23 @@ import {
             <label class="port">Port
               <input class="input" name="port" type="number" [(ngModel)]="form.port" [placeholder]="defaultPort()" />
             </label>
-            <label class="full">{{ form.kind === 'oracle' ? 'Service name' : 'Database' }}
-              <input class="input" name="database" [(ngModel)]="form.database"
-                     [placeholder]="form.kind === 'oracle' ? 'FREEPDB1' : form.kind === 'postgres' ? 'postgres' : 'optional'" />
+            @if (form.kind === 'oracle') {
+              <label>Connect with
+                <select class="input" name="oracleMode" [(ngModel)]="oracleMode">
+                  <option value="service">Service name</option>
+                  <option value="sid">SID</option>
+                </select>
+              </label>
+              <label>Role
+                <select class="input" name="oracleRole" [(ngModel)]="oracleRole">
+                  <option value="">Normal</option>
+                  <option value="SYSDBA">SYSDBA</option>
+                  <option value="SYSOPER">SYSOPER</option>
+                </select>
+              </label>
+            }
+            <label class="full">{{ databaseLabel() }}
+              <input class="input" name="database" [(ngModel)]="form.database" [placeholder]="databasePlaceholder()" />
             </label>
             <label>User
               <input class="input" name="user" [(ngModel)]="form.user" />
@@ -65,6 +79,65 @@ import {
               <small class="muted">Blocks writes in the database session and rejects anything but queries.</small>
             </span>
           </label>
+
+          @if (form.kind !== 'sqlite') {
+            <label class="check">
+              <input type="checkbox" name="sshEnabled" [(ngModel)]="ssh.enabled" />
+              <span>
+                <b>SSH tunnel</b>
+                <small class="muted">Reach the server through a jump host.</small>
+              </span>
+            </label>
+            @if (ssh.enabled) {
+              <div class="ssh grid">
+                <label class="host">SSH host
+                  <input class="input" name="sshHost" [(ngModel)]="ssh.host" placeholder="bastion.example.com" />
+                </label>
+                <label class="port">SSH port
+                  <input class="input" name="sshPort" type="number" [(ngModel)]="ssh.port" placeholder="22" />
+                </label>
+                <label>SSH user
+                  <input class="input" name="sshUser" [(ngModel)]="ssh.user" placeholder="deploy" />
+                </label>
+                <label>Authentication
+                  <select class="input" name="sshMethod" [(ngModel)]="ssh.method">
+                    <option value="password">Password</option>
+                    <option value="key">Private key</option>
+                    <option value="agent">SSH agent</option>
+                  </select>
+                </label>
+                @if (ssh.method === 'password') {
+                  <label class="full">SSH password
+                    <input class="input" name="sshPassword" type="password" [(ngModel)]="ssh.password"
+                           [placeholder]="view?.hasSSHPassword ? '•••••• (unchanged)' : ''" />
+                  </label>
+                }
+                @if (ssh.method === 'key') {
+                  <label class="full">Private key
+                    <span class="row">
+                      <input class="input mono" name="sshKeyPath" [(ngModel)]="ssh.keyPath" placeholder="~/.ssh/id_ed25519" />
+                      <button type="button" class="btn" (click)="pickKey()">Browse…</button>
+                    </span>
+                  </label>
+                  <label class="full">Key passphrase
+                    <input class="input" name="sshPassphrase" type="password" [(ngModel)]="ssh.passphrase"
+                           [placeholder]="view?.hasSSHPassphrase ? '•••••• (unchanged)' : 'none'" />
+                  </label>
+                }
+                @if (ssh.method === 'agent') {
+                  <p class="hint full">Uses the keys loaded in <code>SSH_AUTH_SOCK</code>.</p>
+                }
+                <label class="check full">
+                  <input type="checkbox" name="sshInsecure" [(ngModel)]="ssh.insecureHostKey" />
+                  <span>
+                    <b>Skip host key check</b>
+                    <small class="muted">Otherwise the server is checked against ~/.ssh/known_hosts when that file exists.</small>
+                  </span>
+                </label>
+              </div>
+            }
+          }
+
           <div class="colors" role="radiogroup" aria-label="Colour">
             <span class="muted">Colour</span>
             @for (c of colors; track c) {
@@ -100,6 +173,8 @@ import {
     label { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-sm); color: var(--text-muted); }
     .row { display: flex; gap: 6px; }
     .opts { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+    .ssh { padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-panel); }
+    .hint { margin: 0; font-size: var(--fs-xs); color: var(--text-faint); }
     .check { flex-direction: row; align-items: flex-start; gap: 8px; color: var(--text); cursor: pointer; }
     .check input { margin-top: 3px; accent-color: var(--accent); }
     .check span { display: flex; flex-direction: column; gap: 1px; }
@@ -126,6 +201,15 @@ export class ConnectionDialog {
     ? { ...this.view, password: '' }
     : { id: '', name: '', kind: 'postgres', host: 'localhost', readOnly: false, color: CONNECTION_COLORS[0] };
 
+  /** Oracle service names live in `database`; the mode only changes the options. */
+  oracleMode: 'service' | 'sid' = this.form.options?.['SID'] ? 'sid' : 'service';
+  oracleRole = this.form.options?.['DBA PRIVILEGE'] ?? '';
+
+  /** Working copy of the tunnel settings, kept even when the tunnel is off. */
+  ssh: SSHConfig = this.view?.ssh
+    ? { ...this.view.ssh }
+    : { enabled: false, port: 22, method: 'password' };
+
   readonly busy = signal<'' | 'test' | 'save'>('');
   readonly status = signal<{ text: string; error: boolean } | null>(null);
   private kind = signal(this.form.kind);
@@ -136,10 +220,21 @@ export class ConnectionDialog {
     return [this.form.host || 'localhost', this.form.database].filter(Boolean).join(' / ');
   }
 
+  databaseLabel() {
+    if (this.form.kind !== 'oracle') return 'Database';
+    return this.oracleMode === 'sid' ? 'SID' : 'Service name';
+  }
+
+  databasePlaceholder() {
+    if (this.form.kind === 'oracle') return this.oracleMode === 'sid' ? 'ORCL' : 'FREEPDB1';
+    return this.form.kind === 'postgres' ? 'postgres' : 'optional';
+  }
+
   setKind(k: DbKind) {
     this.form.kind = k;
     this.kind.set(k);
     this.form.port = undefined;
+    if (k === 'sqlite') this.ssh.enabled = false;
     this.status.set(null);
   }
 
@@ -148,10 +243,31 @@ export class ConnectionDialog {
     if (path) this.form.filePath = path;
   }
 
+  async pickKey() {
+    const path = await this.api.pickSSHKey();
+    if (path) this.ssh.keyPath = path;
+  }
+
   private config(): ConnectionConfig {
     const f = { ...this.form };
     if (!f.name?.trim()) f.name = this.placeholderName();
     f.port = f.port ? Number(f.port) : undefined;
+
+    const options = { ...(f.options ?? {}) };
+    if (f.kind === 'oracle') {
+      if (this.oracleMode === 'sid' && f.database) options['SID'] = f.database;
+      else delete options['SID'];
+      if (this.oracleRole) options['DBA PRIVILEGE'] = this.oracleRole;
+      else delete options['DBA PRIVILEGE'];
+    } else {
+      delete options['SID'];
+      delete options['DBA PRIVILEGE'];
+    }
+    f.options = Object.keys(options).length ? options : undefined;
+
+    f.ssh = this.ssh.enabled
+      ? { ...this.ssh, port: this.ssh.port ? Number(this.ssh.port) : 22, method: this.ssh.method || 'password' }
+      : undefined;
     return f;
   }
 

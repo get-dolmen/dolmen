@@ -79,6 +79,8 @@ export function OpenScratch(arg1:string):Promise<scratch.Tab>;
 
 export function PickSQLiteFile():Promise<string>;
 
+export function PickSSHKey():Promise<string>;
+
 export function QuoteIdent(arg1:string,arg2:string):Promise<string>;
 
 export function ReadTable(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:tabledata.PageRequest):Promise<main.TableReadResult>;

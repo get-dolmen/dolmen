@@ -3,7 +3,7 @@ import { buildScratchTree, flattenTree, ownDbLabel, type FolderNode } from './sc
 import type { ConnectionView, ScratchInfo } from '../../core/models';
 
 const conn = (id: string, name: string, kind: ConnectionView['kind'], extra: Partial<ConnectionView> = {}): ConnectionView =>
-  ({ id, name, kind, readOnly: false, hasPassword: false, connected: true, ...extra });
+  ({ id, name, kind, readOnly: false, hasPassword: false, hasSSHPassword: false, hasSSHPassphrase: false, connected: true, ...extra });
 const scratch = (id: string, name: string, connId: string, database = '', table = '', schema = ''): ScratchInfo =>
   ({ id, name, connId, database, table, schema, createdAt: 0, updatedAt: 0, size: 1 });
 

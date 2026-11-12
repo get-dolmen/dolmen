@@ -12,6 +12,8 @@ A desktop SQL client for **PostgreSQL, MySQL, Oracle and SQLite**, built with Go
 - **Results:** virtualised grid (AG Grid), 1,000-row pages with *Fetch more*, NULLs shown distinctly, copy as TSV, CSV, JSON or Markdown (⌘C), and export to CSV/JSON. Exports stream every remaining row.
 - **Schema-aware autocomplete** in Monaco: tables, schemas and columns, resolving aliases (`o.` → columns of `orders o`).
 - **Query history** per connection, searchable.
+- **Appearance:** light, dark or system theme; the scratch files sit under the explorer (bottom right) or in a dedicated, resizable left panel. Both choices live in *Settings* (⌘,) and are remembered per machine.
+- **Git sync (optional):** keep saved connections, their folders and every scratch file in a small git repository and exchange it with a remote. Each sync merges both sides by item (newest edit wins), propagates deletions, and pushes after pulling when the remote moved. Turning on the master password encrypts the bundle with AES-256-GCM (key derived with PBKDF2); without it, the repository holds connection passwords in plain text.
 
 ## Install
 
@@ -39,6 +41,7 @@ The macOS build is not signed or notarized. The install script clears the quaran
 | New / close tab | ⌘T / ⌘W | Ctrl+T / Ctrl+W |
 | Next / previous tab | Ctrl+Tab, ⌘⇧] / ⌘⇧[ | Ctrl+Tab |
 | Toggle explorer | ⌘B | Ctrl+B |
+| Settings | ⌘, | Ctrl+, |
 
 ## Development
 
@@ -83,9 +86,10 @@ internal/query           per-tab sessions, execution, cancel, paging, value norm
 internal/conn            saved connections (JSON) and open pools
 internal/history         query history (SQLite)
 internal/scratch         tab files + manifest
+internal/gitsync         git bundle, merge, tombstone and master-password encryption
 internal/export          CSV / JSON writers
 frontend/src/app/core    stores (signals), API wrapper, commands, hotkeys
 frontend/src/app/features  topbar, tabs, editor (Monaco), results (AG Grid), schema sidebar, palette, dialogs
 ```
 
-App data lives in the OS config directory (`~/Library/Application Support/dolmen` on macOS). Connection passwords are currently stored in `connections.json` (mode 0600); OS keychain support is planned.
+App data lives in the OS config directory (`~/Library/Application Support/dolmen` on macOS). Connection passwords are currently stored in `connections.json` (mode 0600); OS keychain support is planned. Git sync keeps its repository in `sync/` and its settings in `sync.json` (the master password is never stored). The repository tracks one bundle, `dolmen.json` or `dolmen.enc.json`; use a private remote when the bundle is not encrypted.

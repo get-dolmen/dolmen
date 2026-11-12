@@ -3,6 +3,7 @@ import { ConnectionStore } from '../../core/connection.store';
 import { EditorBridge, type EditorHandle, type RunTarget } from '../../core/editor-bridge';
 import { SchemaStore } from '../../core/schema.store';
 import { TabStore } from '../../core/tab.store';
+import { Ui, applyThemeAttribute } from '../../core/ui';
 import { monacoLanguage } from '../../core/sql';
 import { applyTheme, initMonaco, monaco, setCompletionSource } from './monaco-setup';
 
@@ -21,6 +22,7 @@ export class SqlEditor implements EditorHandle, OnDestroy {
   private conns = inject(ConnectionStore);
   private schema = inject(SchemaStore);
   private bridge = inject(EditorBridge);
+  private ui = inject(Ui);
   private host = viewChild.required<ElementRef<HTMLDivElement>>('host');
 
   readonly flash = signal(false);
@@ -32,6 +34,15 @@ export class SqlEditor implements EditorHandle, OnDestroy {
 
   constructor() {
     afterNextRender(() => this.create());
+
+    // Repaint Monaco from the CSS tokens when the light/dark setting changes.
+    effect(() => {
+      const theme = this.ui.theme();
+      untracked(() => {
+        applyThemeAttribute(theme);
+        applyTheme();
+      });
+    });
 
     // Swap models when the active tab changes; drop models of closed tabs.
     effect(() => {

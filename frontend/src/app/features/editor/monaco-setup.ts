@@ -4,6 +4,7 @@ import 'monaco-editor/languages/definitions/sql/register';
 import 'monaco-editor/languages/definitions/pgsql/register';
 import 'monaco-editor/languages/definitions/mysql/register';
 import { KEYWORDS, ident } from '../../core/sql';
+import { isDarkTheme } from '../../core/ui';
 import type { DbColumn, DbKind, DbTable } from '../../core/models';
 import { completionContext, expectsTable, parseTableRefs, statementAround } from './completion';
 
@@ -29,7 +30,7 @@ function css(name: string) {
 
 /** (Re)defines the editor themes from the CSS tokens so Monaco matches the app. */
 export function applyTheme() {
-  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  const dark = isDarkTheme();
   const colors = {
     'editor.background': css('--bg-panel'),
     'editor.foreground': css('--text'),

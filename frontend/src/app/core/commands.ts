@@ -15,6 +15,7 @@ import { qualified, selectTop } from './sql';
 import type { ConnectionView, DbTable } from './models';
 import { ClipboardSetText } from '../../../wailsjs/runtime/runtime';
 import { ConnectionDialog } from '../features/connections/connection-dialog';
+import { SettingsDialog } from '../features/settings/settings-dialog';
 
 export interface Command {
   id: string;
@@ -51,6 +52,7 @@ export class Commands {
       { id: 'toggle-sidebar', label: 'Toggle schema sidebar', hint: `${MOD}B`, run: () => this.ui.sidebarOpen.update((v) => !v) },
       { id: 'new-connection', label: 'New connection…', run: () => this.newConnection() },
       { id: 'import-scratch', label: 'Open a .sql file as scratch…', run: () => void this.scratches.importFile() },
+      { id: 'settings', label: 'Settings…', hint: `${MOD},`, run: () => this.openSettings() },
     ];
     if (active?.kind === 'sql') {
       cmds.push(
@@ -136,6 +138,10 @@ export class Commands {
 
   newConnection() { this.openConnectionDialog(); }
   editConnection(c: ConnectionView) { this.openConnectionDialog(c); }
+
+  openSettings() {
+    this.dialog.open(SettingsDialog, { width: 'auto', maxWidth: '94vw' });
+  }
 
   private openConnectionDialog(c?: ConnectionView) {
     const ref = this.dialog.open<ConnectionView | undefined>(ConnectionDialog, { data: c, width: '520px', maxWidth: '94vw' });

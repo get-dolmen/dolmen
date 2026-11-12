@@ -6,11 +6,12 @@ import { TxStore } from '../../core/tx.store';
 import { TabStore } from '../../core/tab.store';
 import { Ui, MOD, isMac } from '../../core/ui';
 import { ClickOutside, clampMenu } from '../../shared/click-outside';
+import { Icon } from '../../shared/icon';
 import { KIND_LABELS, type ConnectionView } from '../../core/models';
 
 @Component({
   selector: 'dm-topbar',
-  imports: [ClickOutside],
+  imports: [ClickOutside, Icon],
   host: { '[class.mac]': 'mac' },
   template: `
     <div class="left">
@@ -67,6 +68,9 @@ import { KIND_LABELS, type ConnectionView } from '../../core/models';
       <button class="btn ghost icon" (click)="ui.sidebarOpen.set(!ui.sidebarOpen())" [class.on]="ui.sidebarOpen()"
               [title]="'Toggle explorer (' + mod + 'B)'" aria-label="Toggle explorer">
         <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor"/><rect x="10" y="3" width="4" height="10" fill="currentColor" opacity=".5"/></svg>
+      </button>
+      <button class="btn ghost icon" (click)="cmds.openSettings()" [title]="'Settings (' + mod + ',)'" aria-label="Settings">
+        <dm-icon name="settings" [size]="16" />
       </button>
     </div>
 

@@ -2,7 +2,14 @@ import { Injectable, effect, signal } from '@angular/core';
 
 const KEY = 'dolmen.ui';
 
-interface Persisted { sidebarOpen: boolean; sidebarWidth: number; editorRatio: number; }
+export type Theme = 'system' | 'light' | 'dark';
+
+interface Persisted {
+  sidebarOpen: boolean;
+  sidebarWidth: number;
+  editorRatio: number;
+  theme: Theme;
+}
 
 function load(): Partial<Persisted> {
   try {
@@ -10,6 +17,30 @@ function load(): Partial<Persisted> {
   } catch {
     return {};
   }
+}
+
+function validTheme(t: unknown): t is Theme {
+  return t === 'system' || t === 'light' || t === 'dark';
+}
+
+/** Sets the colour scheme on the document; "system" leaves the OS media query in charge. */
+export function applyThemeAttribute(t: Theme) {
+  if (t === 'system') delete document.documentElement.dataset['theme'];
+  else document.documentElement.dataset['theme'] = t;
+}
+
+/** Applies the saved theme before Angular bootstraps, so the window never flashes the wrong colours. */
+export function applyStoredTheme() {
+  const t = load().theme;
+  applyThemeAttribute(validTheme(t) ? t : 'system');
+}
+
+/** True when the app currently renders dark colours (explicit setting or OS preference). */
+export function isDarkTheme(): boolean {
+  const t = document.documentElement.dataset['theme'];
+  if (t === 'dark') return true;
+  if (t === 'light') return false;
+  return matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
 export const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -24,14 +55,24 @@ export class Ui {
   readonly sidebarWidth = signal(this.saved.sidebarWidth ?? 280);
   /** Editor share of the vertical space, 0..1. */
   readonly editorRatio = signal(this.saved.editorRatio ?? 0.55);
+  /** Light / dark appearance; "system" follows the OS. */
+  readonly theme = signal<Theme>(validTheme(this.saved.theme) ? this.saved.theme : 'system');
   readonly paletteOpen = signal(false);
   readonly paletteQuery = signal('');
   /** Bumped to ask the sidebar to reveal a table. */
   readonly reveal = signal<{ connId: string; database: string; schema: string; table: string } | null>(null);
 
   constructor() {
+    // Paint the remembered theme as soon as the store exists, then on every change.
+    effect(() => applyThemeAttribute(this.theme()));
+
     effect(() => {
-      const p: Persisted = { sidebarOpen: this.sidebarOpen(), sidebarWidth: this.sidebarWidth(), editorRatio: this.editorRatio() };
+      const p: Persisted = {
+        sidebarOpen: this.sidebarOpen(),
+        sidebarWidth: this.sidebarWidth(),
+        editorRatio: this.editorRatio(),
+        theme: this.theme(),
+      };
       try {
         localStorage.setItem(KEY, JSON.stringify(p));
       } catch { /* storage unavailable */ }

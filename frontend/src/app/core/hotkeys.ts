@@ -39,6 +39,8 @@ export class Hotkeys {
       this.ui.sidebarOpen.update((v) => !v);
     } else if (mod && !e.shiftKey && key === 's') {
       this.cmds.save();
+    } else if (mod && !e.shiftKey && key === ',') {
+      this.cmds.openSettings();
     } else if (e.ctrlKey && key === 'tab') {
       this.tabs.activateRelative(e.shiftKey ? -1 : 1);
     } else if (mod && e.shiftKey && (e.key === ']' || e.key === '[' || e.key === '}' || e.key === '{')) {

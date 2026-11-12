@@ -1,8 +1,10 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { Commands } from '../core/commands';
 import { ConnectionStore } from '../core/connection.store';
 import { RunStore } from '../core/run.store';
 import { TxStore } from '../core/tx.store';
 import { SchemaStore } from '../core/schema.store';
+import { SyncStore } from '../core/sync.store';
 import { TabStore } from '../core/tab.store';
 import { Toasts } from '../core/toast';
 import { KIND_LABELS } from '../core/models';
@@ -31,6 +33,12 @@ import { ClickOutside } from '../shared/click-outside';
       }
     }
     <span class="item">{{ runText() }}</span>
+    @if (sync.configured()) {
+      <button class="sync" (click)="cmds.openSettings()" [class.err]="!!sync.status()?.lastError"
+              [title]="sync.status()?.lastError || ('Git sync · ' + (sync.status()?.remote || sync.status()?.dir || ''))">
+        @if (sync.status()?.lastError) { ⚠ Sync failed } @else if (sync.status()?.lastSyncAt) { ⟳ Synced {{ sync.lastSyncText() }} } @else { ⟳ Git sync }
+      </button>
+    }
     <span class="item faint">{{ mod }}P search · {{ mod }}↵ run</span>
     <button class="version" (mousedown)="$event.stopPropagation()" (click)="toggleUpdate()" [class.dev]="!info()?.repo" title="Version: click to check for updates">
       {{ versionLabel() }}
@@ -75,6 +83,10 @@ import { ClickOutside } from '../shared/click-outside';
                font: 600 var(--fs-xs) var(--font-ui); font-variant-numeric: tabular-nums; cursor: pointer; }
     .version:hover { background: var(--bg-hover); color: var(--text); }
     .version.dev { border-style: dashed; }
+    .sync { height: 18px; padding: 0 7px; border: 1px solid var(--border); border-radius: 9px; background: none; color: var(--text-muted);
+            font: 600 var(--fs-xs) var(--font-ui); cursor: pointer; white-space: nowrap; }
+    .sync:hover { background: var(--bg-hover); color: var(--text); }
+    .sync.err { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
     .update { position: fixed; right: 10px; bottom: 30px; width: 300px; padding: 12px 14px; background: var(--bg-raised); border: 1px solid var(--border);
               border-radius: 10px; box-shadow: var(--shadow); color: var(--text); font-size: var(--fs-sm); z-index: 960; user-select: text; }
     .update p { margin: 8px 0; }
@@ -95,6 +107,8 @@ import { ClickOutside } from '../shared/click-outside';
 })
 export class Statusbar {
   readonly toasts = inject(Toasts);
+  readonly cmds = inject(Commands);
+  readonly sync = inject(SyncStore);
   private tabs = inject(TabStore);
   private conns = inject(ConnectionStore);
   private schema = inject(SchemaStore);
@@ -146,6 +160,7 @@ export class Statusbar {
   private now = signal(Date.now());
   constructor() {
     this.api.version().then((v) => this.info.set(v)).catch(() => this.info.set({ version: 'dev', repo: '', commit: '' }));
+    void this.sync.refresh();
     setInterval(() => {
       if (this.runs.get(this.tabs.activeId()).running || this.tx().open) this.now.set(Date.now());
     }, 250);

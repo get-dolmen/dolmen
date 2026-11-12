@@ -3,6 +3,7 @@ import * as App from '../../../wailsjs/go/main/App';
 import type {
   ConnectionConfig, ConnectionFolder, ConnectionView, DbColumn, DbTable, ExecResponse, FetchResult,
   ApplyResult, DatabaseList, TxStatus, ScratchInfo, TabState, HistoryEntry, SchemaList, TableChange, TablePage, Workspace,
+  SyncConfig, SyncResult, SyncStatus,
 } from './models';
 
 /** Thin typed wrapper over the generated Wails bindings. */
@@ -62,6 +63,10 @@ export class Api {
   saveWorkspaceLayout = (ws: Workspace) => App.SaveWorkspaceLayout(ws as any);
   saveTabContent = (id: string, content: string) => App.SaveTabContent(id, content);
   closeTab = (id: string) => App.CloseTab(id);
+
+  syncStatus = () => App.SyncStatus() as unknown as Promise<SyncStatus>;
+  saveSyncConfig = (c: SyncConfig) => App.SaveSyncConfig(c as any) as unknown as Promise<SyncConfig>;
+  syncNow = (password: string) => App.SyncNow(password) as unknown as Promise<SyncResult>;
 
   listScratches = () => App.ListScratches() as unknown as Promise<ScratchInfo[]>;
   openScratch = (id: string) => App.OpenScratch(id) as unknown as Promise<TabState>;

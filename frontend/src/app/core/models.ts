@@ -91,6 +91,31 @@ export interface ApplyResult { inserted: number; updated: number; deleted: numbe
 export interface DatabaseList { supported: boolean; databases: string[]; current: string; }
 export interface Workspace { tabs: TabState[]; activeId: string; }
 
+/** Git sync settings; the master password is never part of them. */
+export interface SyncConfig {
+  enabled: boolean;
+  remote: string;
+  branch: string;
+  encrypted: boolean;
+}
+
+export interface SyncStatus extends SyncConfig {
+  dir: string;
+  gitAvailable: boolean;
+  repoExists: boolean;
+  lastCommit?: string;
+  lastSyncAt?: number;
+  lastError?: string;
+}
+
+export interface SyncResult {
+  commit?: string;
+  changed: boolean;
+  lastSyncAt: number;
+  connections: number;
+  scratches: number;
+}
+
 export interface ScratchInfo {
   id: string;
   name: string;

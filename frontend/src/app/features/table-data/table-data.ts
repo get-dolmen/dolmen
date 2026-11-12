@@ -1,7 +1,7 @@
 import { Component, ElementRef, OnDestroy, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AgGridAngular } from 'ag-grid-angular';
-import type { CellClassParams, ColDef, GridApi, GridReadyEvent, ValueSetterParams } from 'ag-grid-community';
+import type { CellClassParams, CellContextMenuEvent, ColDef, GridApi, GridReadyEvent, ValueSetterParams } from 'ag-grid-community';
 import { Api, errorText } from '../../core/api';
 import { Commands } from '../../core/commands';
 import { ConnectionStore } from '../../core/connection.store';
@@ -122,6 +122,8 @@ const REFRESH_SECONDS = [5, 10, 30, 60];
         [animateRows]="false"
         [tooltipShowDelay]="400"
         [headerHeight]="32"
+        [suppressContextMenu]="true"
+        (cellContextMenu)="onCellMenu($event)"
         (gridReady)="onReady($event)"
       />
       @if (loading()) { <div class="loading"><span class="spinner"></span></div> }
@@ -136,6 +138,23 @@ const REFRESH_SECONDS = [5, 10, 30, 60];
             <button class="btn sm primary" (click)="apply()" [disabled]="applying()">Submit</button>
           </div>
           <pre class="mono">{{ preview().join('\\n\\n') }}</pre>
+        </div>
+      }
+
+      @if (cellMenu(); as m) {
+        <div class="menu" role="menu" [style.left.px]="m.x" [style.top.px]="m.y" (dmClickOutside)="cellMenu.set(null)">
+          <button class="menu-item" role="menuitem" [disabled]="m.colIndex < 0 || m.value === undefined" (click)="copyCellValue()">
+            Copy value<span class="hint">{{ mod }}C</span>
+          </button>
+          <button class="menu-item" role="menuitem" [disabled]="m.colIndex < 0" (click)="copyCellColumn()">Copy column name</button>
+          <button class="menu-item" role="menuitem" (click)="copyCellRow()">Copy row as TSV</button>
+          <button class="menu-item" role="menuitem" [disabled]="!selectedCount()" (click)="copyCellSelection()">Copy selected rows ({{ selectedCount() }})</button>
+          <div class="menu-sep"></div>
+          <button class="menu-item" role="menuitem" [disabled]="m.colIndex < 0 || m.value === undefined" (click)="filterByCell()">Filter by this value</button>
+          <button class="menu-item" role="menuitem" [disabled]="!canNullCell()" (click)="setCellNull()">Set to NULL</button>
+          <button class="menu-item" role="menuitem" [disabled]="!cellChanged()" (click)="revertCell()">Revert this cell</button>
+          <div class="menu-sep"></div>
+          <button class="menu-item" role="menuitem" [disabled]="!page()?.editable" (click)="deleteCellRow()">{{ cellRowDeleted() ? 'Restore row' : 'Delete row' }}</button>
         </div>
       }
 
@@ -241,6 +260,7 @@ export class TableData implements TableHandle, OnDestroy {
   readonly searchOpen = signal(false);
   readonly quick = signal('');
   readonly copyMenu = signal<{ x: number; y: number } | null>(null);
+  readonly cellMenu = signal<{ x: number; y: number; row: GridRow; colIndex: number; value: Cell | undefined } | null>(null);
   readonly sizeMenu = signal<{ x: number; y: number } | null>(null);
   readonly formats = COPY_FORMATS;
   readonly totalCount = signal<number | null>(null);
@@ -591,6 +611,126 @@ export class TableData implements TableHandle, OnDestroy {
   openCopyMenu(e: MouseEvent) {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     this.copyMenu.set(clampMenu(rect.right - 210, rect.bottom + 4, 210, 360));
+  }
+
+  // ---------- cell context menu ----------
+
+  onCellMenu(e: CellContextMenuEvent<GridRow>) {
+    const ev = e.event as MouseEvent | undefined;
+    if (!ev || !e.data) return;
+    ev.preventDefault();
+    const colId = e.column.getColId();
+    const colIndex = /^c\d+$/.test(colId) ? Number(colId.slice(1)) : -1;
+    // Keyboard-opened menus (Shift+F10) carry no pointer coordinates.
+    const x = ev instanceof MouseEvent ? ev.clientX : 8;
+    const y = ev instanceof MouseEvent ? ev.clientY : 8;
+    this.cellMenu.set({
+      ...clampMenu(x, y, 230, 300),
+      row: e.data,
+      colIndex,
+      value: colIndex >= 0 ? e.data.cells[colIndex] : undefined,
+    });
+  }
+
+  selectedCount(): number { return this.grid?.getSelectedRows().length ?? 0; }
+
+  private menuColumn() {
+    const m = this.cellMenu();
+    return m && m.colIndex >= 0 ? this.page()?.columns[m.colIndex] : undefined;
+  }
+
+  /** Whether the cell under the menu can be edited right now. */
+  private cellEditable() {
+    const m = this.cellMenu();
+    const c = this.menuColumn();
+    return !!m && !!c && !!this.page()?.editable && c.editable && !this.deleted.has(m.row.id);
+  }
+
+  canNullCell() {
+    const m = this.cellMenu();
+    return !!m && this.cellEditable() && m.value !== null;
+  }
+
+  cellChanged() {
+    const m = this.cellMenu();
+    return !!m && m.colIndex >= 0 && !m.row.isNew && isChanged(m.row, m.colIndex);
+  }
+
+  cellRowDeleted() {
+    const m = this.cellMenu();
+    return !!m && this.deleted.has(m.row.id);
+  }
+
+  copyCellValue() {
+    const m = this.cellMenu();
+    if (!m || m.colIndex < 0) return;
+    this.cellMenu.set(null);
+    void this.cmds.copy(m.value === null || m.value === undefined ? '' : String(m.value));
+  }
+
+  copyCellColumn() {
+    const c = this.menuColumn();
+    this.cellMenu.set(null);
+    if (c) void this.cmds.copy(c.name);
+  }
+
+  copyCellRow() {
+    const m = this.cellMenu();
+    const p = this.page();
+    if (!m || !p) return;
+    this.cellMenu.set(null);
+    void this.cmds.copy(formatRows('tsv', p.columns, [m.row.cells.map((v) => v ?? null) as Cell[]], true));
+  }
+
+  copyCellSelection() {
+    const p = this.page();
+    if (!p) return;
+    const rows = (this.grid?.getSelectedRows() as GridRow[] | undefined) ?? [];
+    this.cellMenu.set(null);
+    if (rows.length) void this.cmds.copy(formatRows('tsv', p.columns, rows.map((r) => r.cells.map((v) => v ?? null) as Cell[]), true));
+  }
+
+  /** Starts a WHERE condition on the clicked column with the clicked value. */
+  filterByCell() {
+    const m = this.cellMenu();
+    const c = this.menuColumn();
+    if (!m || !c || m.value === undefined) return;
+    const id = ident(this.kind(), c.name);
+    let cond: string;
+    if (m.value === null) cond = `${id} IS NULL`;
+    else if (typeof m.value === 'number') cond = `${id} = ${m.value}`;
+    else if (typeof m.value === 'boolean') cond = `${id} = ${m.value ? 'TRUE' : 'FALSE'}`;
+    else cond = `${id} = '${String(m.value).replace(/'/g, "''")}'`;
+    this.where = cond;
+    this.cellMenu.set(null);
+    void this.reload(0);
+  }
+
+  setCellNull() {
+    const m = this.cellMenu();
+    if (!m || !this.cellEditable()) return;
+    this.cellMenu.set(null);
+    this.grid?.getRowNode(m.row.id)?.setDataValue(`c${m.colIndex}`, null);
+  }
+
+  revertCell() {
+    const m = this.cellMenu();
+    if (!m || !this.cellChanged()) return;
+    this.cellMenu.set(null);
+    this.setCell(m.row, m.colIndex, m.row.orig[m.colIndex]);
+    const node = this.grid?.getRowNode(m.row.id);
+    if (node) this.grid?.refreshCells({ rowNodes: [node] });
+  }
+
+  deleteCellRow() {
+    const m = this.cellMenu();
+    this.cellMenu.set(null);
+    if (!m) return;
+    const node = this.grid?.getRowNode(m.row.id);
+    if (!node) return;
+    this.grid?.deselectAll();
+    node.setSelected(true);
+    this.deleteRows();
   }
 
   ddl() {

@@ -1,7 +1,7 @@
 import { Component, ElementRef, OnDestroy, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AgGridAngular } from 'ag-grid-angular';
-import type { CellClassParams, CellContextMenuEvent, ColDef, GridApi, GridReadyEvent, ValueSetterParams } from 'ag-grid-community';
+import type { CellClassParams, CellContextMenuEvent, CellKeyDownEvent, ColDef, FullWidthCellKeyDownEvent, GridApi, GridReadyEvent, ValueSetterParams } from 'ag-grid-community';
 import { Api, errorText } from '../../core/api';
 import { Commands } from '../../core/commands';
 import { ConnectionStore } from '../../core/connection.store';
@@ -9,7 +9,7 @@ import { TabStore, type EditorTab } from '../../core/tab.store';
 import { TableBridge, type TableHandle } from '../../core/table-bridge';
 import { Toasts } from '../../core/toast';
 import { TxStore } from '../../core/tx.store';
-import { MOD } from '../../core/ui';
+import { MOD, isMac } from '../../core/ui';
 import { ident, qualified } from '../../core/sql';
 import type { Cell, DbKind, TablePage } from '../../core/models';
 import { Icon } from '../../shared/icon';
@@ -65,7 +65,7 @@ const REFRESH_SECONDS = [5, 10, 30, 60];
         <input #search class="search mono" placeholder="Find in page…" [ngModel]="quick()" (ngModelChange)="setQuick($event)"
                (keydown.escape)="toggleSearch()" spellcheck="false" />
       }
-      <button class="ib" (click)="openCopyMenu($event)" [disabled]="!p?.rows?.length" title="Copy rows…" aria-label="Copy rows"><dm-icon name="copy" /></button>
+      <button class="ib" (click)="openCopyMenu($event)" [disabled]="!p?.rows?.length" title="Copy…" aria-label="Copy"><dm-icon name="copy" /></button>
 
       <span class="spacer"></span>
       @if (p && !p.editable) { <span class="ro" [title]="p.readOnly ?? ''">🔒 {{ p.readOnly }}</span> }
@@ -115,6 +115,7 @@ const REFRESH_SECONDS = [5, 10, 30, 60];
         [theme]="theme"
         [defaultColDef]="defaultColDef"
         [rowSelection]="{ mode: 'multiRow', checkboxes: false, headerCheckbox: false, enableClickSelection: true }"
+        [cellSelection]="cellSelection"
         [getRowId]="rowId"
         [rowClassRules]="rowClassRules"
         [stopEditingWhenCellsLoseFocus]="true"
@@ -124,6 +125,7 @@ const REFRESH_SECONDS = [5, 10, 30, 60];
         [headerHeight]="32"
         [suppressContextMenu]="true"
         (cellContextMenu)="onCellMenu($event)"
+        (cellKeyDown)="onCellKey($event)"
         (gridReady)="onReady($event)"
       />
       @if (loading()) { <div class="loading"><span class="spinner"></span></div> }
@@ -148,7 +150,7 @@ const REFRESH_SECONDS = [5, 10, 30, 60];
           </button>
           <button class="menu-item" role="menuitem" [disabled]="m.colIndex < 0" (click)="copyCellColumn()">Copy column name</button>
           <button class="menu-item" role="menuitem" (click)="copyCellRow()">Copy row as TSV</button>
-          <button class="menu-item" role="menuitem" [disabled]="!selectedCount()" (click)="copyCellSelection()">Copy selected rows ({{ selectedCount() }})</button>
+          <button class="menu-item" role="menuitem" [disabled]="!selectedCount()" (click)="copyCellSelection()">Copy selection ({{ selectedCount() }})</button>
           <div class="menu-sep"></div>
           <button class="menu-item" role="menuitem" [disabled]="m.colIndex < 0 || m.value === undefined" (click)="filterByCell()">Filter by this value</button>
           <button class="menu-item" role="menuitem" [disabled]="!canNullCell()" (click)="setCellNull()">Set to NULL</button>
@@ -165,7 +167,7 @@ const REFRESH_SECONDS = [5, 10, 30, 60];
             <button class="menu-item" (click)="copyPage(f.id)">{{ f.label }}</button>
           }
           <div class="menu-sep"></div>
-          <div class="menu-label">Copy selected rows</div>
+          <div class="menu-label">Copy selection ({{ selectedCount() }})</div>
           @for (f of formats; track f.id) {
             <button class="menu-item" (click)="copySelected(f.id)">{{ f.label }}</button>
           }
@@ -247,6 +249,8 @@ export class TableData implements TableHandle, OnDestroy {
   readonly mod = MOD;
   readonly sizes = PAGE_SIZES;
   readonly refreshChoices = REFRESH_SECONDS;
+  /** Click-and-drag selects a block of cells, like a spreadsheet. */
+  readonly cellSelection = { suppressMultiRanges: true, enableHeaderHighlight: true };
 
   where = '';
   orderBy = '';
@@ -536,7 +540,10 @@ export class TableData implements TableHandle, OnDestroy {
   deleteRows() {
     const api = this.grid;
     if (!api) return;
-    let nodes = api.getSelectedNodes();
+    let nodes = this.selectionRows().flatMap((r) => {
+      const n = api.getRowNode(r.id);
+      return n ? [n] : [];
+    });
     if (!nodes.length) {
       const f = api.getFocusedCell();
       const n = f ? api.getDisplayedRowAtIndex(f.rowIndex) : undefined;
@@ -604,8 +611,10 @@ export class TableData implements TableHandle, OnDestroy {
     const p = this.page();
     if (!p) return;
     this.copyMenu.set(null);
-    const rows = (this.grid?.getSelectedRows() as GridRow[] | undefined) ?? [];
-    void this.cmds.copy(formatRows(format, p.columns, rows.map((r) => r.cells.map((v) => v ?? null) as Cell[]), true));
+    const sel = this.selectionData();
+    const rows = sel ? sel.rows : this.selectionRows().map((r) => r.cells.map((v) => v ?? null) as Cell[]);
+    if (!rows.length) return;
+    void this.cmds.copy(formatRows(format, sel ? sel.columns : p.columns, rows, true));
   }
 
   openCopyMenu(e: MouseEvent) {
@@ -632,7 +641,71 @@ export class TableData implements TableHandle, OnDestroy {
     });
   }
 
-  selectedCount(): number { return this.grid?.getSelectedRows().length ?? 0; }
+  selectedCount(): number { return this.selectionRows().length; }
+
+  /**
+   * Rows covered by the drag selection, or the selected rows when there is no
+   * range (keyboard selection, a click on the row number column).
+   */
+  private selectionRows(): GridRow[] {
+    const rows: GridRow[] = [];
+    const seen = new Set<string>();
+    for (const range of this.grid?.getCellRanges() ?? []) {
+      if (!range.startRow || !range.endRow) continue;
+      const from = Math.min(range.startRow.rowIndex, range.endRow.rowIndex);
+      const to = Math.max(range.startRow.rowIndex, range.endRow.rowIndex);
+      for (let i = from; i <= to; i++) {
+        const data = this.grid?.getDisplayedRowAtIndex(i)?.data;
+        if (data && !seen.has(data.id)) {
+          seen.add(data.id);
+          rows.push(data);
+        }
+      }
+    }
+    return rows.length ? rows : (this.grid?.getSelectedRows() as GridRow[] | undefined) ?? [];
+  }
+
+  /** Data-column indexes covered by the drag selection; empty means every column. */
+  private selectionColumns(): number[] {
+    const indexes = new Set<number>();
+    for (const range of this.grid?.getCellRanges() ?? []) {
+      for (const c of range.columns) {
+        const m = /^c(\d+)$/.exec(c.getColId());
+        if (m) indexes.add(Number(m[1]));
+      }
+    }
+    return [...indexes].sort((a, b) => a - b);
+  }
+
+  /** The dragged block of cells, already narrowed to its columns. */
+  private selectionData(): { columns: TablePage['columns']; rows: Cell[][] } | null {
+    const p = this.page();
+    if (!p || !this.grid?.getCellRanges()?.length) return null;
+    const rows = this.selectionRows();
+    if (!rows.length) return null;
+    const idx = this.selectionColumns();
+    const cols = idx.length ? idx : p.columns.map((_, i) => i);
+    return {
+      columns: cols.map((i) => p.columns[i]),
+      rows: rows.map((r) => cols.map((i) => (r.cells[i] ?? null) as Cell)),
+    };
+  }
+
+  onCellKey(e: CellKeyDownEvent<GridRow> | FullWidthCellKeyDownEvent<GridRow>) {
+    const ev = e.event as KeyboardEvent | undefined;
+    if (!('column' in e) || !ev || ev.key.toLowerCase() !== 'c' || !(isMac ? ev.metaKey : ev.ctrlKey)) return;
+    ev.preventDefault();
+    const sel = this.selectionData();
+    if (!sel) {
+      const v = e.value as Cell;
+      void this.cmds.copy(v === null || v === undefined ? '' : String(v));
+    } else if (sel.rows.length === 1 && sel.columns.length === 1) {
+      const v = sel.rows[0][0];
+      void this.cmds.copy(v === null ? '' : String(v));
+    } else {
+      void this.cmds.copy(formatRows('tsv', sel.columns, sel.rows, true));
+    }
+  }
 
   private menuColumn() {
     const m = this.cellMenu();
@@ -683,11 +756,8 @@ export class TableData implements TableHandle, OnDestroy {
   }
 
   copyCellSelection() {
-    const p = this.page();
-    if (!p) return;
-    const rows = (this.grid?.getSelectedRows() as GridRow[] | undefined) ?? [];
     this.cellMenu.set(null);
-    if (rows.length) void this.cmds.copy(formatRows('tsv', p.columns, rows.map((r) => r.cells.map((v) => v ?? null) as Cell[]), true));
+    this.copySelected('tsv');
   }
 
   /** Starts a WHERE condition on the clicked column with the clicked value. */

@@ -195,8 +195,8 @@ const CONN_DRAG_TYPE = 'application/x-dolmen-connection';
     .title { font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
     .filter { padding: 0 8px 6px; flex: none; }
     .filter .input { height: 26px; background: var(--bg-panel); }
-    .tree { flex: 1 1 auto; min-height: 90px; overflow: auto; padding-bottom: 12px; }
-    .scratches { flex: 0 1 auto; max-height: 45%; }
+    .tree { flex: 1 1 0; min-height: 40px; overflow: auto; padding-bottom: 12px; }
+    .scratches { flex: 0 0 auto; min-height: 32px; max-height: 45%; }
     .row { display: flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px 0 6px; cursor: pointer; white-space: nowrap; outline: none; }
     .row:hover { background: var(--bg-hover); }
     .row.sel:focus-visible, .row.sel:focus { background: var(--accent-soft); box-shadow: none; }

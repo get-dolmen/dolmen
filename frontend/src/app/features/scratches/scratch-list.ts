@@ -129,7 +129,7 @@ type Menu =
     .count { padding: 0 5px; height: 16px; line-height: 14px; border: 1px solid var(--border); border-radius: 4px; font-size: 10.5px; color: var(--text-faint); }
     .ib { display: inline-grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--text-muted); cursor: pointer; }
     .ib:hover { background: var(--bg-hover); color: var(--text); }
-    .list { overflow: auto; padding-bottom: 8px; }
+    .list { flex: 1 1 auto; min-height: 0; overflow: auto; padding-bottom: 8px; }
     .row { display: flex; align-items: center; gap: 6px; height: 24px; padding-right: 10px; cursor: pointer; outline: none; white-space: nowrap; }
     .row:hover, .row:focus-visible { background: var(--bg-hover); }
     .row.drop { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Dolmen installer for macOS and Linux.
 #
-#   curl -fsSL https://raw.githubusercontent.com/clementherve/dolmen/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/get-dolmen/dolmen/main/install.sh | sh
 #   ./install.sh --version v0.1.0
 #
 # Downloads a release from GitHub, verifies its SHA-256 checksum and installs
@@ -9,7 +9,7 @@
 
 set -eu
 
-REPO="${DOLMEN_REPO:-clementherve/dolmen}"
+REPO="${DOLMEN_REPO:-get-dolmen/dolmen}"
 VERSION="${DOLMEN_VERSION:-}"
 INSTALL_DIR="${DOLMEN_INSTALL_DIR:-}"
 VERIFY=1
@@ -32,10 +32,10 @@ Options:
 Environment:
   DOLMEN_VERSION      Same as --version
   DOLMEN_INSTALL_DIR  Same as --dir
-  DOLMEN_REPO         GitHub repository (default: clementherve/dolmen)
+  DOLMEN_REPO         GitHub repository (default: get-dolmen/dolmen)
 
 Windows: download the setup .exe from
-https://github.com/clementherve/dolmen/releases/latest
+https://github.com/get-dolmen/dolmen/releases/latest
 EOF
 }
 

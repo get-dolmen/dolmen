@@ -18,12 +18,12 @@ A desktop SQL client for **PostgreSQL, MySQL, Oracle and SQLite**, built with Go
 **macOS and Linux**, from the latest release:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/clementherve/dolmen/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/get-dolmen/dolmen/main/install.sh | sh
 ```
 
 The script downloads the release for the current platform, verifies its SHA-256 checksum, installs `dolmen.app` in `/Applications` (or `~/Applications` when `/Applications` is not writable) on macOS, and the `dolmen` binary in `~/.local/bin` on Linux. Use `--version v0.1.0` for a specific release, `--dir` to change the destination, or `--help` for all options.
 
-**Windows**: download `dolmen-<version>-windows-amd64-setup.exe` from the [latest release](https://github.com/clementherve/dolmen/releases/latest) and run it. The NSIS installer adds Start Menu and desktop shortcuts, offers to launch Dolmen, and registers an uninstaller in *Apps & features*. A portable `.zip` is also available.
+**Windows**: download `dolmen-<version>-windows-amd64-setup.exe` from the [latest release](https://github.com/get-dolmen/dolmen/releases/latest) and run it. The NSIS installer adds Start Menu and desktop shortcuts, offers to launch Dolmen, and registers an uninstaller in *Apps & features*. A portable `.zip` is also available.
 
 The macOS build is not signed or notarized. The install script clears the quarantine flag; when installing manually, right-click the app and choose *Open* (or run `xattr -dr com.apple.quarantine /Applications/dolmen.app`).
 

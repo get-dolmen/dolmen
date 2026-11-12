@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +19,7 @@ import (
 	"github.com/google/uuid"
 
 	"dolmen/internal/driver"
+	"dolmen/internal/sshtunnel"
 )
 
 // Store keeps saved connections in a JSON file (0600, passwords included
@@ -160,6 +163,30 @@ func validate(c driver.Config) error {
 	if c.Kind == driver.SQLite && c.FilePath == "" {
 		return errors.New("a database file is required")
 	}
+	if c.SSH != nil && c.SSH.Enabled {
+		if c.Kind == driver.SQLite {
+			return errors.New("SQLite files cannot be reached through SSH")
+		}
+		if strings.TrimSpace(c.SSH.Host) == "" {
+			return errors.New("an SSH host is required")
+		}
+		if strings.TrimSpace(c.SSH.User) == "" {
+			return errors.New("an SSH user is required")
+		}
+		switch c.SSH.Method {
+		case "", "password":
+			if c.SSH.Password == "" {
+				return errors.New("an SSH password is required")
+			}
+		case "key":
+			if strings.TrimSpace(c.SSH.KeyPath) == "" {
+				return errors.New("an SSH private key is required")
+			}
+		case "agent":
+		default:
+			return fmt.Errorf("unknown SSH authentication method %q", c.SSH.Method)
+		}
+	}
 	return nil
 }
 
@@ -171,6 +198,17 @@ type Open struct {
 	// CurrentDB is the database the pool is connected to, for engines with a
 	// database level (Postgres); "" otherwise.
 	CurrentDB string
+
+	tunnel *sshtunnel.Tunnel
+}
+
+// Close releases the pool and, when one was used, the SSH tunnel.
+func (o *Open) Close() error {
+	err := o.DB.Close()
+	if o.tunnel != nil {
+		o.tunnel.Close()
+	}
+	return err
 }
 
 // entry is a saved connection's main pool plus the pools opened for other
@@ -194,12 +232,23 @@ func Dial(ctx context.Context, cfg driver.Config) (*Open, error) {
 	if err != nil {
 		return nil, err
 	}
-	dsn, err := d.DSN(cfg)
+	target := cfg
+	var tunnel *sshtunnel.Tunnel
+	if cfg.SSH != nil && cfg.SSH.Enabled {
+		tunnel, err = sshTunnel(ctx, cfg)
+		if err != nil {
+			return nil, err
+		}
+		target.Host, target.Port = tunnel.Host(), tunnel.Port()
+	}
+	dsn, err := d.DSN(target)
 	if err != nil {
+		closeTunnel(tunnel)
 		return nil, err
 	}
 	db, err := sql.Open(d.SQLDriverName(), dsn)
 	if err != nil {
+		closeTunnel(tunnel)
 		return nil, err
 	}
 	db.SetMaxOpenConns(10)
@@ -209,13 +258,41 @@ func Dial(ctx context.Context, cfg driver.Config) (*Open, error) {
 	defer cancel()
 	if err := db.PingContext(ctx); err != nil {
 		db.Close()
+		closeTunnel(tunnel)
 		return nil, err
 	}
-	o := &Open{Config: cfg, Driver: d, DB: db}
+	o := &Open{Config: cfg, Driver: d, DB: db, tunnel: tunnel}
 	if l, ok := d.(driver.DatabaseLister); ok {
 		o.CurrentDB, _ = l.CurrentDatabase(ctx, db)
 	}
 	return o, nil
+}
+
+// sshTunnel forwards a local port to the connection's server. The DSN then
+// points at that port, so every driver keeps working unchanged.
+func sshTunnel(ctx context.Context, cfg driver.Config) (*sshtunnel.Tunnel, error) {
+	host := cfg.Host
+	if host == "" {
+		host = "localhost"
+	}
+	port := cfg.Port
+	if port == 0 {
+		port = driver.DefaultPort(cfg.Kind)
+	}
+	if port == 0 {
+		return nil, fmt.Errorf("an SSH tunnel needs the database port")
+	}
+	t, err := sshtunnel.Open(ctx, *cfg.SSH, net.JoinHostPort(host, strconv.Itoa(port)))
+	if err != nil {
+		return nil, fmt.Errorf("SSH tunnel: %w", err)
+	}
+	return t, nil
+}
+
+func closeTunnel(t *sshtunnel.Tunnel) {
+	if t != nil {
+		t.Close()
+	}
 }
 
 // Connect opens (or reopens) the pool for cfg.
@@ -275,11 +352,11 @@ func (m *Manager) GetDB(ctx context.Context, id, database string) (*Open, error)
 	defer m.mu.Unlock()
 	cur, ok := m.open[id]
 	if !ok || cur != e {
-		o.DB.Close() // disconnected or reconnected meanwhile
+		o.Close() // disconnected or reconnected meanwhile
 		return nil, errors.New("not connected")
 	}
 	if existing := e.extra[database]; existing != nil {
-		o.DB.Close() // lost a race with another caller
+		o.Close() // lost a race with another caller
 		return existing, nil
 	}
 	e.extra[database] = o
@@ -298,9 +375,9 @@ func (e *entry) close() {
 	if e == nil {
 		return
 	}
-	e.main.DB.Close()
+	e.main.Close()
 	for _, x := range e.extra {
-		x.DB.Close()
+		x.Close()
 	}
 }
 

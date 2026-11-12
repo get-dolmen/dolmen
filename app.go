@@ -100,8 +100,24 @@ func metaCtx() (context.Context, context.CancelFunc) {
 // ConnectionView is a saved connection as the UI sees it: no password.
 type ConnectionView struct {
 	driver.Config
-	HasPassword bool `json:"hasPassword"`
-	Connected   bool `json:"connected"`
+	HasPassword      bool `json:"hasPassword"`
+	HasSSHPassword   bool `json:"hasSSHPassword"`
+	HasSSHPassphrase bool `json:"hasSSHPassphrase"`
+	Connected        bool `json:"connected"`
+}
+
+// view hides the stored secrets but remembers that they exist.
+func view(c driver.Config, connected bool) ConnectionView {
+	v := ConnectionView{Config: c, HasPassword: c.Password != "", Connected: connected}
+	v.Password = ""
+	if c.SSH != nil {
+		ssh := *c.SSH
+		v.HasSSHPassword = ssh.Password != ""
+		v.HasSSHPassphrase = ssh.Passphrase != ""
+		ssh.Password, ssh.Passphrase = "", ""
+		v.SSH = &ssh
+	}
+	return v
 }
 
 func (a *App) ListConnections() ([]ConnectionView, error) {
@@ -118,19 +134,33 @@ func (a *App) ListConnections() ([]ConnectionView, error) {
 	}
 	out := make([]ConnectionView, 0, len(cfgs))
 	for _, c := range cfgs {
-		v := ConnectionView{Config: c, HasPassword: c.Password != "", Connected: open[c.ID]}
-		v.Password = ""
-		out = append(out, v)
+		out = append(out, view(c, open[c.ID]))
 	}
 	return out, nil
 }
 
-// withStoredPassword keeps the saved password when the form left it blank.
+// withStoredPassword keeps the saved password (and SSH secrets) when the form
+// left them blank.
 func (a *App) withStoredPassword(cfg driver.Config) driver.Config {
-	if cfg.Password == "" && cfg.ID != "" {
-		if old, err := a.store.Get(cfg.ID); err == nil {
-			cfg.Password = old.Password
+	if cfg.ID == "" {
+		return cfg
+	}
+	old, err := a.store.Get(cfg.ID)
+	if err != nil {
+		return cfg
+	}
+	if cfg.Password == "" {
+		cfg.Password = old.Password
+	}
+	if cfg.SSH != nil && old.SSH != nil {
+		ssh := *cfg.SSH
+		if ssh.Password == "" {
+			ssh.Password = old.SSH.Password
 		}
+		if ssh.Passphrase == "" {
+			ssh.Passphrase = old.SSH.Passphrase
+		}
+		cfg.SSH = &ssh
 	}
 	return cfg
 }
@@ -155,9 +185,7 @@ func (a *App) SaveConnection(cfg driver.Config) (ConnectionView, error) {
 		_, err := a.conns.Connect(ctx, saved)
 		connected = err == nil
 	}
-	v := ConnectionView{Config: saved, HasPassword: saved.Password != "", Connected: connected}
-	v.Password = ""
-	return v, nil
+	return view(saved, connected), nil
 }
 
 func (a *App) DeleteConnection(id string) error {
@@ -277,7 +305,7 @@ func (a *App) TestConnection(cfg driver.Config) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer o.DB.Close()
+	defer o.Close()
 	return serverVersion(ctx, o), nil
 }
 
@@ -329,6 +357,14 @@ func (a *App) PickSQLiteFile() (string, error) {
 			{DisplayName: "SQLite databases", Pattern: "*.db;*.sqlite;*.sqlite3;*.db3"},
 			{DisplayName: "All files", Pattern: "*"},
 		},
+	})
+}
+
+// PickSSHKey shows a native open dialog for an SSH private key; "" when cancelled.
+func (a *App) PickSSHKey() (string, error) {
+	return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title:   "Choose an SSH private key",
+		Filters: []runtime.FileFilter{{DisplayName: "All files", Pattern: "*"}},
 	})
 }
 

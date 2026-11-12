@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"dolmen/internal/sshtunnel"
 )
 
 // Kind identifies a supported database engine.
@@ -35,6 +37,9 @@ type Config struct {
 	Color    string            `json:"color,omitempty"`
 	FolderID string            `json:"folderId,omitempty"` // explorer folder
 	Options  map[string]string `json:"options,omitempty"`  // extra DSN parameters
+	// SSH tunnels the database connection through a jump host; nil or
+	// disabled connects directly.
+	SSH *sshtunnel.Config `json:"ssh,omitempty"`
 	// UpdatedAt is the unix-ms time of the last local change. Git sync uses it
 	// to pick the newest copy of a connection.
 	UpdatedAt int64 `json:"updatedAt,omitempty"`
@@ -96,6 +101,19 @@ func Get(k Kind) (Driver, error) {
 		return nil, fmt.Errorf("unsupported database kind %q", k)
 	}
 	return d, nil
+}
+
+// DefaultPort returns the port a config uses when it leaves Port empty.
+func DefaultPort(k Kind) int {
+	switch k {
+	case Postgres:
+		return 5432
+	case MySQL:
+		return 3306
+	case Oracle:
+		return 1521
+	}
+	return 0
 }
 
 // --- helpers shared by implementations ---

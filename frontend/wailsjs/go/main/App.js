@@ -38,6 +38,10 @@ export function DeleteConnection(arg1) {
   return window['go']['main']['App']['DeleteConnection'](arg1);
 }
 
+export function DeleteFolder(arg1) {
+  return window['go']['main']['App']['DeleteFolder'](arg1);
+}
+
 export function DeleteScratch(arg1) {
   return window['go']['main']['App']['DeleteScratch'](arg1);
 }
@@ -86,6 +90,10 @@ export function ListDatabases(arg1) {
   return window['go']['main']['App']['ListDatabases'](arg1);
 }
 
+export function ListFolders() {
+  return window['go']['main']['App']['ListFolders']();
+}
+
 export function ListHistory(arg1, arg2, arg3) {
   return window['go']['main']['App']['ListHistory'](arg1, arg2, arg3);
 }
@@ -104,6 +112,10 @@ export function ListTables(arg1, arg2, arg3) {
 
 export function LoadWorkspace() {
   return window['go']['main']['App']['LoadWorkspace']();
+}
+
+export function MoveConnectionToFolder(arg1, arg2) {
+  return window['go']['main']['App']['MoveConnectionToFolder'](arg1, arg2);
 }
 
 export function OpenReleasePage(arg1) {
@@ -140,6 +152,10 @@ export function Rollback(arg1) {
 
 export function SaveConnection(arg1) {
   return window['go']['main']['App']['SaveConnection'](arg1);
+}
+
+export function SaveFolder(arg1) {
+  return window['go']['main']['App']['SaveFolder'](arg1);
 }
 
 export function SaveTabContent(arg1, arg2) {

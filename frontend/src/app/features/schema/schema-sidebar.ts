@@ -7,13 +7,16 @@ import { TabStore } from '../../core/tab.store';
 import { Ui } from '../../core/ui';
 import { TxStore } from '../../core/tx.store';
 import { ClickOutside, clampMenu } from '../../shared/click-outside';
+import { Autofocus } from '../../shared/autofocus';
+import { Icon } from '../../shared/icon';
 import { ScratchList } from '../scratches/scratch-list';
-import { KIND_LABELS, type ConnectionView, type DbColumn, type DbTable } from '../../core/models';
+import { KIND_LABELS, type ConnectionFolder, type ConnectionView, type DbColumn, type DbTable } from '../../core/models';
 
 /** Where a node's metadata comes from: a connection and, for Postgres, one of its databases. */
 interface Place { connId: string; database: string; scope: string; }
 
 type Row =
+  | { kind: 'folder'; key: string; depth: number; folder: ConnectionFolder; open: boolean; count: number; match: boolean }
   | { kind: 'conn'; key: string; depth: number; conn: ConnectionView; open: boolean; loading: boolean; count?: number }
   | ({ kind: 'db'; key: string; depth: number; open: boolean; loading: boolean; isCurrent: boolean; count?: number } & Place)
   | ({ kind: 'schema'; key: string; depth: number; schema: string; open: boolean; loading: boolean; isDefault: boolean; count?: number } & Place)
@@ -22,6 +25,7 @@ type Row =
   | { kind: 'note'; key: string; depth: number; text: string };
 
 type MenuTarget =
+  | { kind: 'folder'; folder: ConnectionFolder }
   | { kind: 'conn'; conn: ConnectionView }
   | ({ kind: 'db' } & Place)
   | ({ kind: 'table'; table: DbTable } & Place);
@@ -29,14 +33,16 @@ type MenuTarget =
 type Menu = MenuTarget & { x: number; y: number };
 
 const MAX_TABLES_UNFILTERED = 2000;
+const CONN_DRAG_TYPE = 'application/x-dolmen-connection';
 
 @Component({
   selector: 'dm-schema-sidebar',
-  imports: [FormsModule, ClickOutside, ScratchList],
+  imports: [FormsModule, ClickOutside, Autofocus, Icon, ScratchList],
   template: `
     <div class="head">
       <span class="title">Explorer</span>
       <span class="spacer"></span>
+      <button class="btn ghost icon sm" title="New folder" aria-label="New folder" (click)="newFolder('')"><dm-icon name="folder" [size]="14" /></button>
       <button class="btn ghost icon sm" title="New connection" aria-label="New connection" (click)="cmds.newConnection()">＋</button>
     </div>
     <div class="filter">
@@ -46,10 +52,28 @@ const MAX_TABLES_UNFILTERED = 2000;
     <div class="tree" role="tree" (keydown)="onTreeKey($event)">
       @for (r of rows(); track r.key) {
         @switch (r.kind) {
+          @case ('folder') {
+            <div class="row folder" role="treeitem" tabindex="0" [style.padding-left.px]="pad(r.depth)" [attr.aria-expanded]="r.open" [attr.id]="'n-' + r.key"
+                 [class.sel]="selected() === r.key" [class.drop]="dropKey() === r.key" (click)="toggleFolder(r.folder)"
+                 (focus)="selected.set(r.key)" (contextmenu)="openMenu($event, { kind: 'folder', folder: r.folder })"
+                 (dragover)="onConnOver($event, r.folder)" (dragleave)="dropKey() === r.key && dropKey.set('')" (drop)="onConnDrop($event, r.folder)">
+              <span class="chev" [class.open]="r.open">›</span>
+              <dm-icon name="folder" [size]="13" class="ficon" />
+              @if (editingFolder() === r.folder.id) {
+                <input class="rename" dmAutofocus [value]="r.folder.name" (click)="$event.stopPropagation()"
+                       (keydown.enter)="renameFolder(r.folder, $any($event.target).value)" (keydown.escape)="editingFolder.set('')"
+                       (blur)="renameFolder(r.folder, $any($event.target).value)" />
+              } @else {
+                <span class="name ellipsis" [class.strong]="r.match">{{ r.folder.name }}</span>
+                <span class="count">{{ r.count }}</span>
+              }
+            </div>
+          }
           @case ('conn') {
-            <div class="row conn" role="treeitem" tabindex="0" [attr.aria-expanded]="r.open" [attr.id]="'n-' + r.key"
+            <div class="row conn" role="treeitem" tabindex="0" draggable="true" [style.padding-left.px]="pad(r.depth)" [attr.aria-expanded]="r.open" [attr.id]="'n-' + r.key"
                  [class.sel]="selected() === r.key" (click)="toggleConn(r.conn)" (focus)="selected.set(r.key)"
-                 (contextmenu)="openMenu($event, { kind: 'conn', conn: r.conn })">
+                 (contextmenu)="openMenu($event, { kind: 'conn', conn: r.conn })"
+                 (dragstart)="onConnDrag($event, r.conn)" (dragend)="dropKey.set('')">
               <span class="chev" [class.open]="r.open">›</span>
               <span class="dot" [style.background]="r.conn.color" [class.off]="!r.conn.connected"></span>
               <span class="name ellipsis">{{ r.conn.name }}</span>
@@ -120,6 +144,12 @@ const MAX_TABLES_UNFILTERED = 2000;
     @if (menu(); as m) {
       <div class="menu" [style.left.px]="m.x" [style.top.px]="m.y" (dmClickOutside)="menu.set(null)">
         @switch (m.kind) {
+          @case ('folder') {
+            <button class="menu-item" (click)="menuAction('newfolder')">New folder inside</button>
+            <button class="menu-item" (click)="menuAction('rename')">Rename…</button>
+            <div class="menu-sep"></div>
+            <button class="menu-item danger" (click)="menuAction('delete')">Delete folder…</button>
+          }
           @case ('table') {
             <button class="menu-item" (click)="menuAction('data')">Open data<span class="hint">double-click</span></button>
             <button class="menu-item" (click)="menuAction('select')">Select top 100</button>
@@ -144,6 +174,14 @@ const MAX_TABLES_UNFILTERED = 2000;
             }
             <div class="menu-sep"></div>
             <button class="menu-item" (click)="menuAction('edit')">Edit…</button>
+            <div class="menu-sep"></div>
+            <div class="menu-label">Move to folder</div>
+            <button class="menu-item" [class.active]="!m.conn.folderId" (click)="menuAction('move:')">Root</button>
+            @for (f of flatFolders(); track f.id) {
+              <button class="menu-item" [class.active]="m.conn.folderId === f.id" (click)="menuAction('move:' + f.id)">
+                <span class="menu-indent" [style.padding-left.px]="f.depth * 12">{{ f.name }}</span>
+              </button>
+            }
           }
         }
       </div>
@@ -162,6 +200,11 @@ const MAX_TABLES_UNFILTERED = 2000;
     .row.sel:focus-visible, .row.sel:focus { background: var(--accent-soft); box-shadow: none; }
     .row.hl { background: var(--accent-soft); }
     .row.conn { height: 28px; font-weight: 600; margin-top: 2px; }
+    .row.folder { font-weight: 500; }
+    .row.drop { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+    .ficon { color: var(--text-faint); flex: none; }
+    .rename { flex: 1; min-width: 0; height: 20px; padding: 0 4px; border: 1px solid var(--accent); border-radius: 3px; background: var(--bg-panel); outline: none; font-size: var(--fs); }
+    .menu-indent { display: block; }
     .row.col { cursor: default; font-size: var(--fs-sm); }
     .row.note { cursor: default; font-size: var(--fs-xs); font-style: italic; }
     .chev { width: 12px; flex: none; text-align: center; color: var(--text-faint); transition: transform 0.12s; font-size: 14px; line-height: 1; }
@@ -196,6 +239,8 @@ export class SchemaSidebar {
   readonly selected = signal('');
   readonly highlight = signal('');
   readonly menu = signal<Menu | null>(null);
+  readonly editingFolder = signal('');
+  readonly dropKey = signal('');
 
   constructor() {
     // Expand freshly connected connections down to their default schema.
@@ -240,6 +285,27 @@ export class SchemaSidebar {
     const loading = this.schema.loading();
     const f = this.filter().trim().toLowerCase();
     const out: Row[] = [];
+    const folders = this.conns.folders();
+    const rootFolders = new Set(folders.map((x) => x.id));
+    const parentOf = (folder: ConnectionFolder) => (folder.parentId && rootFolders.has(folder.parentId) ? folder.parentId : '');
+    const byFolder = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+
+    const foldersByParent = new Map<string, ConnectionFolder[]>();
+    for (const folder of folders) {
+      const parent = parentOf(folder);
+      const list = foldersByParent.get(parent) ?? [];
+      list.push(folder);
+      foldersByParent.set(parent, list);
+    }
+    for (const list of foldersByParent.values()) list.sort(byFolder);
+    const connsByFolder = new Map<string, ConnectionView[]>();
+    for (const conn of this.conns.connections()) {
+      const parent = conn.folderId && rootFolders.has(conn.folderId) ? conn.folderId : '';
+      const list = connsByFolder.get(parent) ?? [];
+      list.push(conn);
+      connsByFolder.set(parent, list);
+    }
+    for (const list of connsByFolder.values()) list.sort(byFolder);
 
     /** Appends the schemas → tables → columns of one scope. Returns false when the filter hides it all. */
     const addSchemas = (place: Place, cs: ConnSchema | undefined, depth: number): boolean => {
@@ -272,21 +338,20 @@ export class SchemaSidebar {
       return any || !f;
     };
 
-    for (const conn of this.conns.connections()) {
+    const addConn = (conn: ConnectionView, depth: number) => {
       const ck = `c:${conn.id}`;
       const d = dbs[conn.id];
-      const connOpen = conn.connected && exp.has(ck);
-      const connRow: Row = {
-        kind: 'conn', key: ck, depth: 0, conn, open: connOpen,
+      const connOpen = conn.connected && (exp.has(ck) || !!f);
+      out.push({
+        kind: 'conn', key: ck, depth, conn, open: connOpen,
         loading: this.conns.pending().has(conn.id) || loading.has(`${conn.id}|schemas`) || loading.has(`${conn.id}|databases`),
         count: d?.supported ? d.databases.length : undefined,
-      };
-      out.push(connRow);
-      if (!connOpen || !d) continue;
+      });
+      if (!connOpen || !d) return;
 
       if (!d.supported) {
-        addSchemas({ connId: conn.id, database: '', scope: conn.id }, data[conn.id], 1);
-        continue;
+        addSchemas({ connId: conn.id, database: '', scope: conn.id }, data[conn.id], depth + 1);
+        return;
       }
       for (const db of d.databases) {
         const isCurrent = db === d.current;
@@ -295,10 +360,51 @@ export class SchemaSidebar {
         const cs = data[place.scope];
         const open = exp.has(dk) || (!!f && !!cs);
         const at = out.length;
-        out.push({ kind: 'db', key: dk, depth: 1, ...place, database: db, open, loading: loading.has(`${place.scope}|schemas`), isCurrent, count: cs?.schemas.length });
-        if (open && !addSchemas(place, cs, 2)) out.length = at; // filtered out entirely
+        out.push({ kind: 'db', key: dk, depth: depth + 1, ...place, database: db, open, loading: loading.has(`${place.scope}|schemas`), isCurrent, count: cs?.schemas.length });
+        if (open && !addSchemas(place, cs, depth + 2)) out.length = at; // filtered out entirely
       }
+    };
+
+    const countConns = (folderId: string): number => {
+      let n = (connsByFolder.get(folderId) ?? []).length;
+      for (const child of foldersByParent.get(folderId) ?? []) n += countConns(child.id);
+      return n;
+    };
+
+    const addFolder = (folder: ConnectionFolder, depth: number) => {
+      const key = `f:${folder.id}`;
+      const open = exp.has(key) || !!f;
+      out.push({ kind: 'folder', key, depth, folder, open, count: countConns(folder.id), match: !!f && folder.name.toLowerCase().includes(f) });
+      if (!open) return;
+      for (const child of foldersByParent.get(folder.id) ?? []) addFolder(child, depth + 1);
+      for (const conn of connsByFolder.get(folder.id) ?? []) addConn(conn, depth + 1);
+    };
+
+    for (const folder of foldersByParent.get('') ?? []) addFolder(folder, 0);
+    for (const conn of connsByFolder.get('') ?? []) addConn(conn, 0);
+    return out;
+  });
+
+  /** Folders in display order, with their nesting depth (for the move-to-folder menu). */
+  readonly flatFolders = computed(() => {
+    const folders = this.conns.folders();
+    const ids = new Set(folders.map((f) => f.id));
+    const byParent = new Map<string, ConnectionFolder[]>();
+    for (const f of folders) {
+      const parent = f.parentId && ids.has(f.parentId) ? f.parentId : '';
+      const list = byParent.get(parent) ?? [];
+      list.push(f);
+      byParent.set(parent, list);
     }
+    for (const list of byParent.values()) list.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    const out: { id: string; name: string; depth: number }[] = [];
+    const walk = (parent: string, depth: number) => {
+      for (const f of byParent.get(parent) ?? []) {
+        out.push({ id: f.id, name: f.name, depth });
+        walk(f.id, depth + 1);
+      }
+    };
+    walk('', 0);
     return out;
   });
 
@@ -317,6 +423,54 @@ export class SchemaSidebar {
     this.expanded.set(s);
   }
 
+  toggleFolder(folder: ConnectionFolder) {
+    const key = `f:${folder.id}`;
+    if (this.expanded().has(key)) this.collapse(key);
+    else this.expand(key);
+  }
+
+  async newFolder(parentId: string) {
+    const f = await this.conns.createFolder('New folder', parentId);
+    if (!f) return;
+    if (parentId) this.expand(`f:${parentId}`);
+    this.editingFolder.set(f.id);
+    this.selected.set(`f:${f.id}`);
+    setTimeout(() => {
+      const input = this.el.nativeElement.querySelector<HTMLInputElement>(`[id="n-f:${CSS.escape(f.id)}"] input.rename`);
+      input?.select();
+    }, 20);
+  }
+
+  async renameFolder(folder: ConnectionFolder, name: string) {
+    if (this.editingFolder() !== folder.id) return;
+    this.editingFolder.set('');
+    if (name.trim() && name.trim() !== folder.name) await this.conns.renameFolder(folder.id, name);
+  }
+
+  // ---- drag & drop: dropping a connection on a folder files it there ----
+
+  onConnDrag(e: DragEvent, conn: ConnectionView) {
+    e.dataTransfer?.setData(CONN_DRAG_TYPE, conn.id);
+    e.dataTransfer?.setData('text/plain', conn.name);
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+  }
+
+  onConnOver(e: DragEvent, folder: ConnectionFolder) {
+    if (!e.dataTransfer?.types.includes(CONN_DRAG_TYPE)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    this.dropKey.set(`f:${folder.id}`);
+  }
+
+  onConnDrop(e: DragEvent, folder: ConnectionFolder) {
+    e.preventDefault();
+    this.dropKey.set('');
+    const id = e.dataTransfer?.getData(CONN_DRAG_TYPE);
+    if (!id) return;
+    this.expand(`f:${folder.id}`);
+    void this.conns.moveToFolder(id, folder.id);
+  }
+
   async toggleConn(c: ConnectionView) {
     const key = `c:${c.id}`;
     if (!c.connected) {
@@ -333,6 +487,10 @@ export class SchemaSidebar {
 
   toggle(r: Row) {
     if (!('open' in r) || r.kind === 'conn') return;
+    if (r.kind === 'folder') {
+      this.toggleFolder(r.folder);
+      return;
+    }
     if (r.open) {
       if (!this.filter()) this.collapse(r.key);
       return;
@@ -345,14 +503,29 @@ export class SchemaSidebar {
 
   openMenu(e: MouseEvent, m: MenuTarget) {
     e.preventDefault();
-    this.menu.set({ ...m, ...clampMenu(e.clientX, e.clientY) });
+    this.menu.set({ ...m, ...clampMenu(e.clientX, e.clientY, 240, 420) });
   }
 
   menuAction(action: string) {
     const m = this.menu();
     this.menu.set(null);
     if (!m) return;
+    if (action.startsWith('move:')) {
+      if (m.kind === 'conn') void this.conns.moveToFolder(m.conn.id, action.slice(5));
+      return;
+    }
     switch (m.kind) {
+      case 'folder': {
+        switch (action) {
+          case 'newfolder': return void this.newFolder(m.folder.id);
+          case 'rename': return this.editingFolder.set(m.folder.id);
+          case 'delete': {
+            if (!confirm(`Delete the folder “${m.folder.name}”? Its connections and sub-folders move up one level.`)) return;
+            return void this.conns.deleteFolder(m.folder.id);
+          }
+        }
+        return;
+      }
       case 'table': {
         const { connId, database, table: t } = m;
         switch (action) {

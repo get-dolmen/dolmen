@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import * as App from '../../../wailsjs/go/main/App';
 import type {
-  ConnectionConfig, ConnectionView, DbColumn, DbTable, ExecResponse, FetchResult,
+  ConnectionConfig, ConnectionFolder, ConnectionView, DbColumn, DbTable, ExecResponse, FetchResult,
   ApplyResult, DatabaseList, TxStatus, ScratchInfo, TabState, HistoryEntry, SchemaList, TableChange, TablePage, Workspace,
 } from './models';
 
@@ -15,6 +15,11 @@ export class Api {
   connect = (id: string) => App.Connect(id);
   disconnect = (id: string) => App.Disconnect(id);
   pickSQLiteFile = () => App.PickSQLiteFile();
+
+  listFolders = () => App.ListFolders() as unknown as Promise<ConnectionFolder[]>;
+  saveFolder = (f: ConnectionFolder) => App.SaveFolder(f as any) as unknown as Promise<ConnectionFolder>;
+  deleteFolder = (id: string) => App.DeleteFolder(id);
+  moveConnectionToFolder = (connId: string, folderId: string) => App.MoveConnectionToFolder(connId, folderId);
 
   listDatabases = (connId: string) => App.ListDatabases(connId) as Promise<DatabaseList>;
   listSchemas = (connId: string, db: string) => App.ListSchemas(connId, db) as Promise<SchemaList>;

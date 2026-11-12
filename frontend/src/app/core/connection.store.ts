@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Api, errorText } from './api';
 import { Toasts } from './toast';
-import type { ConnectionConfig, ConnectionView } from './models';
+import type { ConnectionConfig, ConnectionFolder, ConnectionView } from './models';
 
 @Injectable({ providedIn: 'root' })
 export class ConnectionStore {
@@ -9,6 +9,7 @@ export class ConnectionStore {
   private toasts = inject(Toasts);
 
   readonly connections = signal<ConnectionView[]>([]);
+  readonly folders = signal<ConnectionFolder[]>([]);
   /** IDs currently connecting. */
   readonly pending = signal<ReadonlySet<string>>(new Set());
   readonly byId = computed(() => new Map(this.connections().map((c) => [c.id, c])));
@@ -20,13 +21,58 @@ export class ConnectionStore {
 
   async refresh() {
     try {
-      this.connections.set(await this.api.listConnections());
+      const [connections, folders] = await Promise.all([this.api.listConnections(), this.api.listFolders()]);
+      this.connections.set(connections);
+      this.folders.set(folders);
     } catch (e) {
       this.toasts.error(errorText(e));
     }
   }
 
   get(id: string | undefined) { return id ? this.byId().get(id) : undefined; }
+
+  /** Creates a folder (optionally nested) and returns it. */
+  async createFolder(name: string, parentId = ''): Promise<ConnectionFolder | undefined> {
+    try {
+      const f = await this.api.saveFolder({ id: '', name, parentId });
+      this.folders.update((fs) => [...fs, f]);
+      return f;
+    } catch (e) {
+      this.toasts.error(errorText(e));
+      return undefined;
+    }
+  }
+
+  async renameFolder(id: string, name: string): Promise<boolean> {
+    const cur = this.folders().find((f) => f.id === id);
+    if (!cur || !name.trim()) return false;
+    try {
+      const saved = await this.api.saveFolder({ ...cur, name: name.trim() });
+      this.folders.update((fs) => fs.map((f) => (f.id === id ? saved : f)));
+      return true;
+    } catch (e) {
+      this.toasts.error(errorText(e));
+      return false;
+    }
+  }
+
+  async deleteFolder(id: string) {
+    try {
+      await this.api.deleteFolder(id);
+      await this.refresh();
+    } catch (e) {
+      this.toasts.error(errorText(e));
+    }
+  }
+
+  async moveToFolder(connId: string, folderId: string) {
+    try {
+      await this.api.moveConnectionToFolder(connId, folderId);
+      this.connections.update((cs) => cs.map((c) => (c.id === connId ? { ...c, folderId: folderId || undefined } : c)));
+    } catch (e) {
+      this.toasts.error(errorText(e));
+    }
+  }
 
   async save(cfg: ConnectionConfig): Promise<ConnectionView> {
     const saved = await this.api.saveConnection(cfg);

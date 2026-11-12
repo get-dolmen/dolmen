@@ -33,7 +33,8 @@ type Config struct {
 	FilePath string            `json:"filePath,omitempty"` // SQLite
 	ReadOnly bool              `json:"readOnly"`
 	Color    string            `json:"color,omitempty"`
-	Options  map[string]string `json:"options,omitempty"` // extra DSN parameters
+	FolderID string            `json:"folderId,omitempty"` // explorer folder
+	Options  map[string]string `json:"options,omitempty"`  // extra DSN parameters
 }
 
 // Table is a table or view inside a schema.

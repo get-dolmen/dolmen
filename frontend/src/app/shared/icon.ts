@@ -23,6 +23,7 @@ const PATHS: Record<string, string> = {
   arrowDown: 'M8 3v10M4.5 9.5 8 13l3.5-3.5',
   file: 'M4 1.5h5L12.5 5v9.5h-8.5zM9 1.5V5h3.5M6 8.5h4.5M6 11h4.5',
   folderOpen: 'M1.5 13V3.5h4l1.5 1.5h6v2M1.5 13l2-5.5h11L12.5 13z',
+  folder: 'M1.5 13V3.5h4L7 5h7.5v8z',
   pencil: 'M10.5 2.5l3 3L5 14H2v-3zM9 4l3 3',
   trash: 'M2.5 4.5h11M6 4.5V2.5h4v2M4 4.5l.7 9h6.6l.7-9',
   download: 'M8 2v8.5M4.5 7 8 10.5 11.5 7M2.5 13.5h11',

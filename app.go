@@ -14,6 +14,7 @@ import (
 	"dolmen/internal/conn"
 	"dolmen/internal/driver"
 	"dolmen/internal/export"
+	"dolmen/internal/folder"
 	"dolmen/internal/history"
 	"dolmen/internal/query"
 	"dolmen/internal/scratch"
@@ -31,6 +32,7 @@ type App struct {
 	hist    *history.Store
 	exec    *query.Executor
 	scratch *scratch.Store
+	folders *folder.Store
 	initErr error
 }
 
@@ -59,6 +61,7 @@ func (a *App) init() error {
 	if a.scratch, err = scratch.NewStore(filepath.Join(dir, "scratch")); err != nil {
 		return err
 	}
+	a.folders = folder.NewStore(dir)
 	return nil
 }
 
@@ -153,6 +156,73 @@ func (a *App) DeleteConnection(id string) error {
 	}
 	a.Disconnect(id)
 	return a.store.Delete(id)
+}
+
+// ---------- connection folders ----------
+
+// ListFolders returns the explorer folders that group saved connections.
+func (a *App) ListFolders() ([]folder.Folder, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	return a.folders.List()
+}
+
+// SaveFolder creates or renames a folder. ParentID nests it inside another
+// folder; folders can be nested to any depth.
+func (a *App) SaveFolder(f folder.Folder) (folder.Folder, error) {
+	if err := a.ready(); err != nil {
+		return folder.Folder{}, err
+	}
+	return a.folders.Save(f)
+}
+
+// DeleteFolder removes a folder and moves its connections and sub-folders to
+// the deleted folder's parent.
+func (a *App) DeleteFolder(id string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	parent, err := a.folders.Delete(id)
+	if err != nil {
+		return err
+	}
+	cfgs, err := a.store.List()
+	if err != nil {
+		return err
+	}
+	for _, c := range cfgs {
+		if c.FolderID == id {
+			if err := a.store.SetFolder(c.ID, parent); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// MoveConnectionToFolder files a connection under a folder ("" = root).
+func (a *App) MoveConnectionToFolder(connID, folderID string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	if folderID != "" {
+		folders, err := a.folders.List()
+		if err != nil {
+			return err
+		}
+		found := false
+		for _, f := range folders {
+			if f.ID == folderID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("folder %s not found", folderID)
+		}
+	}
+	return a.store.SetFolder(connID, folderID)
 }
 
 // TestConnection opens and pings a connection without keeping it, and

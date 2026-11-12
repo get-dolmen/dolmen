@@ -91,6 +91,23 @@ func (s *Store) Delete(id string) error {
 	return s.write(out)
 }
 
+// SetFolder files a connection under an explorer folder ("" = root).
+func (s *Store) SetFolder(id, folderID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cfgs, err := s.load()
+	if err != nil {
+		return err
+	}
+	for i := range cfgs {
+		if cfgs[i].ID == id {
+			cfgs[i].FolderID = folderID
+			return s.write(cfgs)
+		}
+	}
+	return fmt.Errorf("connection %s not found", id)
+}
+
 func (s *Store) load() ([]driver.Config, error) {
 	b, err := os.ReadFile(s.path)
 	if errors.Is(err, os.ErrNotExist) {

@@ -6,6 +6,7 @@ import {query} from '../models';
 import {scratch} from '../models';
 import {driver} from '../models';
 import {history} from '../models';
+import {folder} from '../models';
 
 export function ApplyTableChanges(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:tabledata.ApplyRequest):Promise<main.TableApplyResult>;
 
@@ -24,6 +25,8 @@ export function Connect(arg1:string):Promise<void>;
 export function CreateScratch(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string):Promise<scratch.Tab>;
 
 export function DeleteConnection(arg1:string):Promise<void>;
+
+export function DeleteFolder(arg1:string):Promise<void>;
 
 export function DeleteScratch(arg1:string):Promise<void>;
 
@@ -49,6 +52,8 @@ export function ListConnections():Promise<Array<main.ConnectionView>>;
 
 export function ListDatabases(arg1:string):Promise<main.DatabaseList>;
 
+export function ListFolders():Promise<Array<folder.Folder>>;
+
 export function ListHistory(arg1:string,arg2:string,arg3:number):Promise<Array<history.Entry>>;
 
 export function ListSchemas(arg1:string,arg2:string):Promise<main.SchemaList>;
@@ -58,6 +63,8 @@ export function ListScratches():Promise<Array<scratch.Info>>;
 export function ListTables(arg1:string,arg2:string,arg3:string):Promise<Array<driver.Table>>;
 
 export function LoadWorkspace():Promise<scratch.Workspace>;
+
+export function MoveConnectionToFolder(arg1:string,arg2:string):Promise<void>;
 
 export function OpenReleasePage(arg1:string):Promise<void>;
 
@@ -76,6 +83,8 @@ export function RenameScratch(arg1:string,arg2:string):Promise<string>;
 export function Rollback(arg1:string):Promise<query.TxStatus>;
 
 export function SaveConnection(arg1:driver.Config):Promise<main.ConnectionView>;
+
+export function SaveFolder(arg1:folder.Folder):Promise<folder.Folder>;
 
 export function SaveTabContent(arg1:string,arg2:string):Promise<void>;
 

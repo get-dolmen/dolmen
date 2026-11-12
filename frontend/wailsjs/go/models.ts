@@ -32,6 +32,7 @@ export namespace driver {
 	    filePath?: string;
 	    readOnly: boolean;
 	    color?: string;
+	    folderId?: string;
 	    options?: Record<string, string>;
 	
 	    static createFrom(source: any = {}) {
@@ -68,6 +69,27 @@ export namespace driver {
 	        this.schema = source["schema"];
 	        this.name = source["name"];
 	        this.type = source["type"];
+	    }
+	}
+
+}
+
+export namespace folder {
+	
+	export class Folder {
+	    id: string;
+	    name: string;
+	    parentId?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Folder(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.parentId = source["parentId"];
 	    }
 	}
 
@@ -118,6 +140,7 @@ export namespace main {
 	    filePath?: string;
 	    readOnly: boolean;
 	    color?: string;
+	    folderId?: string;
 	    options?: Record<string, string>;
 	    hasPassword: boolean;
 	    connected: boolean;

@@ -16,7 +16,15 @@ export interface ConnectionConfig {
   filePath?: string;
   readOnly: boolean;
   color?: string;
+  folderId?: string;
   options?: Record<string, string>;
+}
+
+/** A folder grouping connections in the explorer (folders can be nested). */
+export interface ConnectionFolder {
+  id: string;
+  name: string;
+  parentId?: string;
 }
 
 export interface ConnectionView extends ConnectionConfig {

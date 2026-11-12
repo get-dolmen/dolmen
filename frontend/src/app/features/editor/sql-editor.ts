@@ -134,7 +134,15 @@ export class SqlEditor implements EditorHandle, OnDestroy {
         this.viewStates.delete(id);
       }
     }
-    if (!activeId || activeId === this.currentId && this.editor.getModel()) return;
+    if (!activeId) {
+      if (this.currentId) {
+        if (this.models.has(this.currentId)) this.viewStates.set(this.currentId, this.editor.saveViewState());
+        this.currentId = '';
+      }
+      if (this.editor.getModel()) this.editor.setModel(null);
+      return;
+    }
+    if (activeId === this.currentId && this.editor.getModel()) return;
     if (this.currentId && this.models.has(this.currentId)) {
       this.viewStates.set(this.currentId, this.editor.saveViewState());
     }

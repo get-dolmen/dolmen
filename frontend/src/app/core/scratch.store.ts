@@ -21,6 +21,8 @@ export class ScratchStore {
 
   private saved = signal<ScratchInfo[]>([]);
   private timer?: ReturnType<typeof setTimeout>;
+  /** Guards against a stale list response overwriting a newer one. */
+  private refreshId = 0;
 
   /** Every scratch, most recently edited first, with open tabs' live names and links. */
   readonly list = computed<ScratchInfo[]>(() => {
@@ -56,8 +58,10 @@ export class ScratchStore {
   }
 
   async refresh() {
+    const gen = ++this.refreshId;
     try {
-      this.saved.set(await this.api.listScratches());
+      const list = await this.api.listScratches();
+      if (gen === this.refreshId) this.saved.set(list);
     } catch (e) {
       this.toasts.error(errorText(e));
     }
@@ -124,9 +128,12 @@ export class ScratchStore {
     const s = this.list().find((x) => x.id === id);
     if (!confirm(`Delete the scratch file “${s?.name ?? id}”? This cannot be undone.`)) return false;
     try {
+      // Closing waits for the tab's last write; deleting only afterwards keeps
+      // an in-flight save from recreating the file.
       if (this.tabs.get(id)) await this.tabs.close(id);
       await this.api.deleteScratch(id);
-      this.saved.set(this.saved().filter((x) => x.id !== id));
+      this.saved.update((xs) => xs.filter((x) => x.id !== id));
+      await this.refresh();
       return true;
     } catch (e) {
       this.toasts.error(errorText(e));

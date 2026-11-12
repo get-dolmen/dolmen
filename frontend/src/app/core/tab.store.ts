@@ -34,9 +34,11 @@ export class TabStore {
   readonly loaded = signal(false);
 
   private contentTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  /** Content writes in flight, so a close or delete can wait for them. */
+  private contentSaves = new Map<string, Set<Promise<void>>>();
   private layoutTimer?: ReturnType<typeof setTimeout>;
 
-  async load(defaultConnId: string) {
+  async load() {
     try {
       const ws = await this.api.loadWorkspace();
       this.tabs.set(ws.tabs.map((t) => ({
@@ -48,7 +50,6 @@ export class TabStore {
     } catch (e) {
       this.toasts.error(errorText(e));
     }
-    if (!this.tabs().length) this.create(defaultConnId);
     this.loaded.set(true);
   }
 
@@ -110,11 +111,13 @@ export class TabStore {
     const list = this.tabs();
     const i = list.findIndex((t) => t.id === id);
     if (i < 0) return;
-    this.flush(id);
-    const rest = list.filter((t) => t.id !== id);
+    // Wait for a pending write: deleting the scratch right after must not race
+    // with it, or the write would recreate the file.
+    await this.flush(id);
+    if (!this.get(id)) return;
+    const rest = this.tabs().filter((t) => t.id !== id);
     if (this.activeId() === id) this.activeId.set(rest[Math.min(i, rest.length - 1)]?.id ?? '');
     this.tabs.set(rest);
-    if (!rest.length) this.create(list[i].connId, '', undefined, list[i].database);
     this.saveLayoutSoon();
     try {
       await this.api.closeTab(id);
@@ -171,17 +174,19 @@ export class TabStore {
     this.patch(id, { content, dirty: false });
   }
 
-  /** Writes pending content immediately. */
+  /** Writes pending content immediately and waits for writes already in flight. */
   flush(id?: string): Promise<unknown> {
-    const ids = id ? [id] : [...this.contentTimers.keys()];
-    const writes: Promise<void>[] = [];
+    const ids = id ? [id] : [...new Set([...this.contentTimers.keys(), ...this.contentSaves.keys()])];
+    const writes: Promise<unknown>[] = [];
     for (const tid of ids) {
+      const inFlight = [...(this.contentSaves.get(tid) ?? [])];
       const timer = this.contentTimers.get(tid);
       if (timer) {
         clearTimeout(timer);
         this.contentTimers.delete(tid);
-        writes.push(this.saveContent(tid));
+        writes.push(this.startContentSave(tid));
       }
+      writes.push(...inFlight);
     }
     return Promise.all(writes);
   }
@@ -190,8 +195,21 @@ export class TabStore {
     clearTimeout(this.contentTimers.get(id));
     this.contentTimers.set(id, setTimeout(() => {
       this.contentTimers.delete(id);
-      void this.saveContent(id);
+      void this.startContentSave(id);
     }, CONTENT_SAVE_MS));
+  }
+
+  private startContentSave(id: string): Promise<void> {
+    const save = this.saveContent(id).finally(() => {
+      const set = this.contentSaves.get(id);
+      if (!set) return;
+      set.delete(save);
+      if (!set.size) this.contentSaves.delete(id);
+    });
+    const set = this.contentSaves.get(id) ?? new Set<Promise<void>>();
+    set.add(save);
+    this.contentSaves.set(id, set);
+    return save;
   }
 
   private async saveContent(id: string) {

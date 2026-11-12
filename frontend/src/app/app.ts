@@ -1,4 +1,5 @@
 import { Component, ElementRef, computed, inject, viewChild } from '@angular/core';
+import { Commands } from './core/commands';
 import { ConnectionStore } from './core/connection.store';
 import { Hotkeys } from './core/hotkeys';
 import { TabStore } from './core/tab.store';
@@ -27,7 +28,7 @@ import { Topbar } from './features/topbar/topbar';
       <section class="work" [class.ro]="readOnly()">
         <dm-tab-bar />
         <!-- SQL tabs share one editor; it stays mounted (hidden) while a data tab is active. -->
-        <div class="sql" #work [hidden]="tabs.active()?.kind === 'table'">
+        <div class="sql" #work [hidden]="!tabs.active() || tabs.active()?.kind === 'table'">
           <dm-sql-editor class="editor" [style.flex-basis.%]="ui.editorRatio() * 100" />
           <div class="split h" role="separator" aria-orientation="horizontal" aria-label="Resize editor and results"
                (pointerdown)="dragRows($event)" (dblclick)="ui.editorRatio.set(0.55)"></div>
@@ -37,6 +38,12 @@ import { Topbar } from './features/topbar/topbar';
             }
           }
         </div>
+        @if (!tabs.active()) {
+          <div class="welcome">
+            <p>No tab open.</p>
+            <button class="btn primary" (click)="cmds.newTab()">New tab</button>
+          </div>
+        }
         <!-- One data editor per table tab, kept alive so pending edits survive tab switches. -->
         @for (t of tableTabs(); track t.id) {
           <dm-table-data class="data" [tab]="t" [hidden]="t.id !== tabs.activeId()" />
@@ -59,6 +66,8 @@ import { Topbar } from './features/topbar/topbar';
     .work { flex: 1; display: flex; flex-direction: column; min-width: 0; border-top: 2px solid transparent; }
     .work.ro { border-top-color: var(--warn); }
     .sql, .data { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .welcome { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--text-muted); }
+    .welcome p { margin: 0; }
     .editor { flex: 0 0 55%; min-height: 80px; }
     .results { flex: 1 1 0; min-height: 90px; }
     .sidebar { flex: none; min-width: 180px; max-width: 60vw; border-left: 1px solid var(--border); }
@@ -75,6 +84,7 @@ import { Topbar } from './features/topbar/topbar';
 export class App {
   readonly ui = inject(Ui);
   readonly tabs = inject(TabStore);
+  readonly cmds = inject(Commands);
   private conns = inject(ConnectionStore);
   private work = viewChild.required<ElementRef<HTMLElement>>('work');
 
@@ -89,7 +99,8 @@ export class App {
   private async init() {
     await this.conns.refresh();
     // Nothing connects at startup: connections open on first use (explorer, switcher or run).
-    await this.tabs.load(this.conns.connections()[0]?.id ?? '');
+    // No tab is created either: the app opens empty until the user asks for one.
+    await this.tabs.load();
   }
 
   dragRows(e: PointerEvent) {

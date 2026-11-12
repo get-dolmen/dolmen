@@ -179,8 +179,14 @@ func TestEncryptedSync(t *testing.T) {
 		t.Fatal("the encrypted bundle leaks connection details")
 	}
 
-	// Another machine needs the password and the right one.
+	// Another machine must opt into encryption and then needs the right password.
 	b, bStores := newTestService(t, url)
+	if _, err := b.Sync("master"); err == nil {
+		t.Fatal("an unencrypted machine should refuse to downgrade an encrypted remote")
+	}
+	if _, err := b.SaveConfig(Config{Enabled: true, Remote: url, Branch: "main", Encrypted: true}); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := b.Sync("wrong"); err == nil {
 		t.Fatal("a wrong master password should fail")
 	}

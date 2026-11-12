@@ -233,9 +233,12 @@ func (s *Service) Sync(password string) (res Result, err error) {
 
 	merged := local
 	if cfg.Remote != "" {
-		remote, ferr := s.fetchRemote(cfg, password)
+		remote, remoteEncrypted, ferr := s.fetchRemote(cfg, password)
 		if ferr != nil {
 			return res, ferr
+		}
+		if remoteEncrypted && !cfg.Encrypted {
+			return res, errors.New("the remote bundle is encrypted: turn on the master password and enter it")
 		}
 		if remote != nil {
 			merged = mergeBundles(merged, *remote)
@@ -368,19 +371,19 @@ func (s *Service) ensureRepo(cfg Config) error {
 
 // fetchRemote leaves the repository at the remote branch and returns the
 // bundle it carries (nil when the branch or the bundle does not exist yet).
-func (s *Service) fetchRemote(cfg Config, password string) (*Bundle, error) {
+func (s *Service) fetchRemote(cfg Config, password string) (*Bundle, bool, error) {
 	out, err := s.git("ls-remote", "--heads", "origin", cfg.Branch)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if strings.TrimSpace(out) == "" {
-		return nil, nil // first push to this branch
+		return nil, false, nil // first push to this branch
 	}
 	if _, err := s.git("fetch", "--prune", "origin", cfg.Branch); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if _, err := s.git("reset", "--hard", "FETCH_HEAD"); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	return s.readBundle(password)
 }
@@ -416,7 +419,7 @@ func (s *Service) commitAndPush(cfg Config, merged Bundle, password string) (str
 			if attempt == maxPushTries-1 || !rejected(err) {
 				return "", changedAny, err
 			}
-			remote, ferr := s.fetchRemote(cfg, password)
+			remote, _, ferr := s.fetchRemote(cfg, password)
 			if ferr != nil {
 				return "", changedAny, ferr
 			}
@@ -445,38 +448,39 @@ func (s *Service) head() string {
 
 // ---------- bundle files ----------
 
-func (s *Service) readBundle(password string) (*Bundle, error) {
+// readBundle returns the bundle and whether it was encrypted on disk.
+func (s *Service) readBundle(password string) (*Bundle, bool, error) {
 	plainPath := filepath.Join(s.dir, plainFile)
 	encPath := filepath.Join(s.dir, encryptedFile)
 	plain, plainErr := os.ReadFile(plainPath)
 	enc, encErr := os.ReadFile(encPath)
 	hasPlain, hasEnc := plainErr == nil, encErr == nil
 	if plainErr != nil && !errors.Is(plainErr, os.ErrNotExist) {
-		return nil, plainErr
+		return nil, false, plainErr
 	}
 	if encErr != nil && !errors.Is(encErr, os.ErrNotExist) {
-		return nil, encErr
+		return nil, false, encErr
 	}
 	switch {
 	case hasPlain && hasEnc:
-		return nil, fmt.Errorf("the sync repository has both %s and %s; delete one", plainFile, encryptedFile)
+		return nil, false, fmt.Errorf("the sync repository has both %s and %s; delete one", plainFile, encryptedFile)
 	case hasEnc:
 		if password == "" {
-			return nil, errors.New("the sync repository is encrypted: a master password is required")
+			return nil, true, errors.New("the sync repository is encrypted: a master password is required")
 		}
 		var err error
 		plain, err = open(enc, password)
 		if err != nil {
-			return nil, err
+			return nil, true, err
 		}
 	case hasPlain:
 		// Already decrypted.
 	default:
-		return nil, nil
+		return nil, false, nil
 	}
 	var b Bundle
 	if err := json.Unmarshal(plain, &b); err != nil {
-		return nil, fmt.Errorf("reading the sync bundle: %w", err)
+		return nil, hasEnc, fmt.Errorf("reading the sync bundle: %w", err)
 	}
 	if b.Connections == nil {
 		b.Connections = []driver.Config{}
@@ -485,7 +489,7 @@ func (s *Service) readBundle(password string) (*Bundle, error) {
 		b.Folders = []folder.Folder{}
 	}
 	b.ScratchList()
-	return &b, nil
+	return &b, hasEnc, nil
 }
 
 func (s *Service) writeBundle(cfg Config, b Bundle, password string) error {

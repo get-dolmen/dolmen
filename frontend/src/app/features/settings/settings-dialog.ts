@@ -5,6 +5,7 @@ import { Api, errorText } from '../../core/api';
 import { ConnectionStore } from '../../core/connection.store';
 import { ScratchStore } from '../../core/scratch.store';
 import { SyncStore } from '../../core/sync.store';
+import { TabStore } from '../../core/tab.store';
 import { Toasts } from '../../core/toast';
 import { Ui, type Theme } from '../../core/ui';
 import type { SyncConfig } from '../../core/models';
@@ -93,7 +94,7 @@ import type { SyncConfig } from '../../core/models';
                 <input class="input" name="password" type="password" [ngModel]="password()" (ngModelChange)="password.set($event)"
                        placeholder="Kept in memory for this session" autocomplete="off" />
               </label>
-              <p class="note">The password is never written to disk. Use the same one on every machine.</p>
+              <p class="note">The password is never written to disk; use the same one on every machine. Encryption applies to new commits, so earlier commits of the repository may still contain plain text.</p>
             } @else {
               <p class="note warn">Without a master password, the Git repository contains connection passwords in plain text.</p>
             }
@@ -177,6 +178,7 @@ export class SettingsDialog {
   private api = inject(Api);
   private conns = inject(ConnectionStore);
   private scratches = inject(ScratchStore);
+  private tabs = inject(TabStore);
   private syncStore = inject(SyncStore);
   private toasts = inject(Toasts);
 
@@ -226,8 +228,11 @@ export class SettingsDialog {
     if (!(await this.save())) return;
     this.busy.set('sync');
     try {
+      // Write pending edits first: the backend merges what is on disk.
+      await this.tabs.flush();
       const r = await this.api.syncNow(this.password());
-      await Promise.all([this.conns.refresh(), this.scratches.refresh()]);
+      await this.conns.refresh();
+      await this.scratches.reloadOpen();
       await this.syncStore.refresh();
       this.toasts.success(`Synced ${r.connections} connection${r.connections === 1 ? '' : 's'} and ${r.scratches} scratch file${r.scratches === 1 ? '' : 's'}`);
     } catch (e) {

@@ -175,6 +175,11 @@ export class SqlEditor implements EditorHandle, OnDestroy {
     ed.executeEdits('dolmen', [{ range: sel, text, forceMoveMarkers: true }]);
   }
 
+  replaceContent(id: string, content: string) {
+    const model = this.models.get(id);
+    if (model && model.getValue() !== content) model.setValue(content);
+  }
+
   focus() { this.editor?.focus(); }
 
   flashError() {

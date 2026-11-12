@@ -1,5 +1,6 @@
 import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { Api, errorText } from './api';
+import { EditorBridge } from './editor-bridge';
 import { TabStore } from './tab.store';
 import { TxStore } from './tx.store';
 import { Toasts } from './toast';
@@ -14,6 +15,7 @@ import type { ScratchInfo } from './models';
 export class ScratchStore {
   private api = inject(Api);
   private tabs = inject(TabStore);
+  private editor = inject(EditorBridge);
   private toasts = inject(Toasts);
   private tx = inject(TxStore);
 
@@ -59,6 +61,40 @@ export class ScratchStore {
     } catch (e) {
       this.toasts.error(errorText(e));
     }
+  }
+
+  /**
+   * Brings open tabs in line with the files a sync just wrote: adopts remote
+   * edits, and closes tabs whose scratch was deleted elsewhere (unless the
+   * tab has unsaved changes, which would otherwise be lost).
+   */
+  async reloadOpen() {
+    for (const t of this.tabs.tabs().filter((x) => x.kind === 'sql')) {
+      try {
+        const saved = await this.api.openScratch(t.id);
+        const cur = this.tabs.get(t.id);
+        if (!cur || cur.dirty) continue;
+        const content = saved.content ?? '';
+        if (content === cur.content) continue;
+        this.tabs.adoptContent(t.id, content);
+        this.editor.replaceContent(t.id, content);
+      } catch (e) {
+        const msg = errorText(e);
+        const cur = this.tabs.get(t.id);
+        if (!cur) continue;
+        if (!/not found/i.test(msg)) {
+          this.toasts.error(`${cur.name}: ${msg}`);
+          continue;
+        }
+        if (cur.dirty) {
+          this.toasts.error(`${cur.name} was deleted by the sync but has unsaved changes.`);
+          continue;
+        }
+        await this.tabs.close(t.id);
+        this.toasts.error(`${cur.name} was deleted by the sync.`);
+      }
+    }
+    await this.refresh();
   }
 
   /** Opens a scratch, or focuses its tab when already open. */

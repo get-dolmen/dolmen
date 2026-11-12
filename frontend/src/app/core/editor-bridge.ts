@@ -10,6 +10,8 @@ export interface RunTarget {
 export interface EditorHandle {
   runTarget(mode: 'cursor' | 'all'): RunTarget | null;
   insert(text: string): void;
+  /** Replaces a tab's model after its file changed on disk (git sync). */
+  replaceContent(id: string, content: string): void;
   focus(): void;
   flashError(): void;
 }
@@ -24,6 +26,7 @@ export class EditorBridge {
 
   runTarget(mode: 'cursor' | 'all') { return this.handle?.runTarget(mode) ?? null; }
   insert(text: string) { this.handle?.insert(text); }
+  replaceContent(id: string, content: string) { this.handle?.replaceContent(id, content); }
   focus() { this.handle?.focus(); }
   flashError() { this.handle?.flashError(); }
 }

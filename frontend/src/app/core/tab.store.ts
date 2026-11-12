@@ -164,6 +164,13 @@ export class TabStore {
     this.scheduleContentSave(id);
   }
 
+  /** Takes a version that is already on disk (pulled by git sync) without marking it dirty. */
+  adoptContent(id: string, content: string) {
+    const t = this.get(id);
+    if (!t || t.content === content) return;
+    this.patch(id, { content, dirty: false });
+  }
+
   /** Writes pending content immediately. */
   flush(id?: string): Promise<unknown> {
     const ids = id ? [id] : [...this.contentTimers.keys()];

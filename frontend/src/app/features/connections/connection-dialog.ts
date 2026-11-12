@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
 import { Api, errorText } from '../../core/api';
 import { ConnectionStore } from '../../core/connection.store';
+import { Select } from '../../shared/select';
 import {
   CONNECTION_COLORS, DEFAULT_PORTS, KIND_LABELS,
   type ConnectionConfig, type ConnectionView, type DbKind, type SSHConfig,
@@ -10,7 +11,7 @@ import {
 
 @Component({
   selector: 'dm-connection-dialog',
-  imports: [FormsModule],
+  imports: [FormsModule, Select],
   template: `
     <form class="dialog" (ngSubmit)="save()" autocomplete="off">
       <header>
@@ -44,19 +45,14 @@ import {
               <input class="input" name="port" type="number" [(ngModel)]="form.port" [placeholder]="defaultPort()" />
             </label>
             @if (form.kind === 'oracle') {
-              <label>Connect with
-                <select class="input" name="oracleMode" [(ngModel)]="oracleMode">
-                  <option value="service">Service name</option>
-                  <option value="sid">SID</option>
-                </select>
-              </label>
-              <label>Role
-                <select class="input" name="oracleRole" [(ngModel)]="oracleRole">
-                  <option value="">Normal</option>
-                  <option value="SYSDBA">SYSDBA</option>
-                  <option value="SYSOPER">SYSOPER</option>
-                </select>
-              </label>
+              <div class="lbl">Connect with
+                <dm-select label="Connect with" [options]="oracleModes" [value]="oracleMode"
+                           (valueChange)="setOracleMode($event)" />
+              </div>
+              <div class="lbl">Role
+                <dm-select label="Role" [options]="oracleRoles" [value]="oracleRole"
+                           (valueChange)="oracleRole = $event" />
+              </div>
             }
             <label class="full">{{ databaseLabel() }}
               <input class="input" name="database" [(ngModel)]="form.database" [placeholder]="databasePlaceholder()" />
@@ -99,13 +95,10 @@ import {
                 <label>SSH user
                   <input class="input" name="sshUser" [(ngModel)]="ssh.user" placeholder="deploy" />
                 </label>
-                <label>Authentication
-                  <select class="input" name="sshMethod" [(ngModel)]="ssh.method">
-                    <option value="password">Password</option>
-                    <option value="key">Private key</option>
-                    <option value="agent">SSH agent</option>
-                  </select>
-                </label>
+                <div class="lbl">Authentication
+                  <dm-select label="Authentication" [options]="sshMethods" [value]="ssh.method || 'password'"
+                             (valueChange)="setSSHMethod($event)" />
+                </div>
                 @if (ssh.method === 'password') {
                   <label class="full">SSH password
                     <input class="input" name="sshPassword" type="password" [(ngModel)]="ssh.password"
@@ -170,7 +163,7 @@ import {
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
     .grid .host { grid-column: 1; } .grid .port { grid-column: 2; }
     .full { grid-column: 1 / -1; }
-    label { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-sm); color: var(--text-muted); }
+    label, .lbl { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-sm); color: var(--text-muted); }
     .row { display: flex; gap: 6px; }
     .opts { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
     .ssh { padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-panel); }
@@ -196,6 +189,20 @@ export class ConnectionDialog {
   readonly labels = KIND_LABELS;
   readonly colors = CONNECTION_COLORS;
   readonly editing = !!this.view;
+  readonly oracleModes = [
+    { value: 'service', label: 'Service name' },
+    { value: 'sid', label: 'SID' },
+  ];
+  readonly oracleRoles = [
+    { value: '', label: 'Normal' },
+    { value: 'SYSDBA', label: 'SYSDBA' },
+    { value: 'SYSOPER', label: 'SYSOPER' },
+  ];
+  readonly sshMethods = [
+    { value: 'password', label: 'Password' },
+    { value: 'key', label: 'Private key' },
+    { value: 'agent', label: 'SSH agent' },
+  ];
 
   form: ConnectionConfig = this.view
     ? { ...this.view, password: '' }
@@ -236,6 +243,14 @@ export class ConnectionDialog {
     this.form.port = undefined;
     if (k === 'sqlite') this.ssh.enabled = false;
     this.status.set(null);
+  }
+
+  setOracleMode(mode: string) {
+    this.oracleMode = mode === 'sid' ? 'sid' : 'service';
+  }
+
+  setSSHMethod(method: string) {
+    if (method === 'password' || method === 'key' || method === 'agent') this.ssh.method = method;
   }
 
   async pickFile() {

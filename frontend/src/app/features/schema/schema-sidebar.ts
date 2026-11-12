@@ -34,6 +34,9 @@ type Menu = MenuTarget & { x: number; y: number };
 
 const MAX_TABLES_UNFILTERED = 2000;
 const CONN_DRAG_TYPE = 'application/x-dolmen-connection';
+const FOLDER_DRAG_TYPE = 'application/x-dolmen-folder';
+
+type DragItem = { kind: 'conn'; id: string; name: string } | { kind: 'folder'; id: string; name: string };
 
 @Component({
   selector: 'dm-schema-sidebar',
@@ -42,21 +45,24 @@ const CONN_DRAG_TYPE = 'application/x-dolmen-connection';
     <div class="head">
       <span class="title">Explorer</span>
       <span class="spacer"></span>
-      <button class="btn ghost icon sm" title="New folder" aria-label="New folder" (click)="newFolder('')"><dm-icon name="folder" [size]="14" /></button>
+      <button class="btn ghost icon sm" title="New folder" aria-label="New folder" (click)="newFolder()"><dm-icon name="folder" [size]="14" /></button>
       <button class="btn ghost icon sm" title="New connection" aria-label="New connection" (click)="cmds.newConnection()">＋</button>
     </div>
     <div class="filter">
       <input class="input" type="search" placeholder="Filter tables and scratches…" [ngModel]="filter()" (ngModelChange)="filter.set($event)"
              (keydown.escape)="filter.set('')" />
     </div>
-    <div class="tree" role="tree" (keydown)="onTreeKey($event)">
+    <div class="tree" role="tree" [class.rootdrop]="dropKey() === 'root'" (keydown)="onTreeKey($event)"
+         (dragover)="onRootOver($event)" (dragleave)="onRootLeave($event)" (drop)="onRootDrop($event)">
       @for (r of rows(); track r.key) {
         @switch (r.kind) {
           @case ('folder') {
-            <div class="row folder" role="treeitem" tabindex="0" [style.padding-left.px]="pad(r.depth)" [attr.aria-expanded]="r.open" [attr.id]="'n-' + r.key"
+            <div class="row folder" role="treeitem" tabindex="0" [attr.draggable]="editingFolder() === r.folder.id ? null : 'true'"
+                 [style.padding-left.px]="pad(r.depth)" [attr.aria-expanded]="r.open" [attr.id]="'n-' + r.key"
                  [class.sel]="selected() === r.key" [class.drop]="dropKey() === r.key" (click)="toggleFolder(r.folder)"
                  (focus)="selected.set(r.key)" (contextmenu)="openMenu($event, { kind: 'folder', folder: r.folder })"
-                 (dragover)="onConnOver($event, r.folder)" (dragleave)="dropKey() === r.key && dropKey.set('')" (drop)="onConnDrop($event, r.folder)">
+                 (dragstart)="onFolderDrag($event, r.folder)" (dragend)="endDrag()"
+                 (dragover)="onFolderOver($event, r.folder)" (dragleave)="onFolderLeave($event, r.folder)" (drop)="onFolderDrop($event, r.folder)">
               <span class="chev" [class.open]="r.open">›</span>
               <dm-icon name="folder" [size]="13" class="ficon" />
               @if (editingFolder() === r.folder.id) {
@@ -73,7 +79,7 @@ const CONN_DRAG_TYPE = 'application/x-dolmen-connection';
             <div class="row conn" role="treeitem" tabindex="0" draggable="true" [style.padding-left.px]="pad(r.depth)" [attr.aria-expanded]="r.open" [attr.id]="'n-' + r.key"
                  [class.sel]="selected() === r.key" (click)="toggleConn(r.conn)" (focus)="selected.set(r.key)"
                  (contextmenu)="openMenu($event, { kind: 'conn', conn: r.conn })"
-                 (dragstart)="onConnDrag($event, r.conn)" (dragend)="dropKey.set('')">
+                 (dragstart)="onConnDrag($event, r.conn)" (dragend)="endDrag()">
               <span class="chev" [class.open]="r.open">›</span>
               <span class="dot" [style.background]="r.conn.color" [class.off]="!r.conn.connected"></span>
               <span class="name ellipsis">{{ r.conn.name }}</span>
@@ -147,7 +153,6 @@ const CONN_DRAG_TYPE = 'application/x-dolmen-connection';
       <div class="menu" [style.left.px]="m.x" [style.top.px]="m.y" (dmClickOutside)="menu.set(null)">
         @switch (m.kind) {
           @case ('folder') {
-            <button class="menu-item" (click)="menuAction('newfolder')">New folder inside</button>
             <button class="menu-item" (click)="menuAction('rename')">Rename…</button>
             <div class="menu-sep"></div>
             <button class="menu-item danger" (click)="menuAction('delete')">Delete folder…</button>
@@ -178,14 +183,6 @@ const CONN_DRAG_TYPE = 'application/x-dolmen-connection';
             }
             <div class="menu-sep"></div>
             <button class="menu-item" (click)="menuAction('edit')">Edit…</button>
-            <div class="menu-sep"></div>
-            <div class="menu-label">Move to folder</div>
-            <button class="menu-item" [class.active]="!m.conn.folderId" (click)="menuAction('move:')">Root</button>
-            @for (f of flatFolders(); track f.id) {
-              <button class="menu-item" [class.active]="m.conn.folderId === f.id" (click)="menuAction('move:' + f.id)">
-                <span class="menu-indent" [style.padding-left.px]="f.depth * 12">{{ f.name }}</span>
-              </button>
-            }
           }
         }
       </div>
@@ -198,6 +195,7 @@ const CONN_DRAG_TYPE = 'application/x-dolmen-connection';
     .filter { padding: 0 8px 6px; flex: none; }
     .filter .input { height: 26px; background: var(--bg-panel); }
     .tree { flex: 1 1 0; min-height: 40px; overflow: auto; padding-bottom: 12px; }
+    .tree.rootdrop { box-shadow: inset 0 0 0 1px var(--accent); }
     .scratches { flex: 0 0 auto; min-height: 32px; max-height: 45%; }
     .row { display: flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px 0 6px; cursor: pointer; white-space: nowrap; outline: none; }
     .row:hover { background: var(--bg-hover); }
@@ -206,9 +204,10 @@ const CONN_DRAG_TYPE = 'application/x-dolmen-connection';
     .row.conn { height: 28px; font-weight: 600; margin-top: 2px; }
     .row.folder { font-weight: 500; }
     .row.drop { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+    .row[draggable='true'] { cursor: grab; }
+    .row[draggable='true']:active { cursor: grabbing; }
     .ficon { color: var(--text-faint); flex: none; }
     .rename { flex: 1; min-width: 0; height: 20px; padding: 0 4px; border: 1px solid var(--accent); border-radius: 3px; background: var(--bg-panel); outline: none; font-size: var(--fs); }
-    .menu-indent { display: block; }
     .row.col { cursor: default; font-size: var(--fs-sm); }
     .row.note { cursor: default; font-size: var(--fs-xs); font-style: italic; }
     .chev { width: 12px; flex: none; text-align: center; color: var(--text-faint); transition: transform 0.12s; font-size: 14px; line-height: 1; }
@@ -245,6 +244,8 @@ export class SchemaSidebar {
   readonly menu = signal<Menu | null>(null);
   readonly editingFolder = signal('');
   readonly dropKey = signal('');
+  /** The connection or folder being dragged, for drop validation and hints. */
+  readonly drag = signal<DragItem | null>(null);
 
   constructor() {
     // Expand freshly connected connections down to their default schema.
@@ -389,29 +390,6 @@ export class SchemaSidebar {
     return out;
   });
 
-  /** Folders in display order, with their nesting depth (for the move-to-folder menu). */
-  readonly flatFolders = computed(() => {
-    const folders = this.conns.folders();
-    const ids = new Set(folders.map((f) => f.id));
-    const byParent = new Map<string, ConnectionFolder[]>();
-    for (const f of folders) {
-      const parent = f.parentId && ids.has(f.parentId) ? f.parentId : '';
-      const list = byParent.get(parent) ?? [];
-      list.push(f);
-      byParent.set(parent, list);
-    }
-    for (const list of byParent.values()) list.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
-    const out: { id: string; name: string; depth: number }[] = [];
-    const walk = (parent: string, depth: number) => {
-      for (const f of byParent.get(parent) ?? []) {
-        out.push({ id: f.id, name: f.name, depth });
-        walk(f.id, depth + 1);
-      }
-    };
-    walk('', 0);
-    return out;
-  });
-
   pad(depth: number) { return 6 + depth * 16; }
 
   kindLabel(c: ConnectionView) { return KIND_LABELS[c.kind]; }
@@ -433,10 +411,9 @@ export class SchemaSidebar {
     else this.expand(key);
   }
 
-  async newFolder(parentId: string) {
-    const f = await this.conns.createFolder('New folder', parentId);
+  async newFolder() {
+    const f = await this.conns.createFolder('New folder');
     if (!f) return;
-    if (parentId) this.expand(`f:${parentId}`);
     this.editingFolder.set(f.id);
     this.selected.set(`f:${f.id}`);
     setTimeout(() => {
@@ -451,28 +428,92 @@ export class SchemaSidebar {
     if (name.trim() && name.trim() !== folder.name) await this.conns.renameFolder(folder.id, name);
   }
 
-  // ---- drag & drop: dropping a connection on a folder files it there ----
+  // ---- drag & drop: connections and folders move between folders ----
 
   onConnDrag(e: DragEvent, conn: ConnectionView) {
-    e.dataTransfer?.setData(CONN_DRAG_TYPE, conn.id);
-    e.dataTransfer?.setData('text/plain', conn.name);
+    this.startDrag(e, { kind: 'conn', id: conn.id, name: conn.name });
+  }
+
+  onFolderDrag(e: DragEvent, f: ConnectionFolder) {
+    this.startDrag(e, { kind: 'folder', id: f.id, name: f.name });
+  }
+
+  private startDrag(e: DragEvent, item: DragItem) {
+    this.drag.set(item);
+    this.dropKey.set('');
+    e.dataTransfer?.setData(item.kind === 'conn' ? CONN_DRAG_TYPE : FOLDER_DRAG_TYPE, item.id);
+    e.dataTransfer?.setData('text/plain', item.name);
     if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
   }
 
-  onConnOver(e: DragEvent, folder: ConnectionFolder) {
-    if (!e.dataTransfer?.types.includes(CONN_DRAG_TYPE)) return;
+  endDrag() {
+    this.drag.set(null);
+    this.dropKey.set('');
+  }
+
+  onFolderOver(e: DragEvent, folder: ConnectionFolder) {
+    const item = this.drag();
+    if (!item || !this.canDropIn(item, folder)) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+    e.stopPropagation();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
     this.dropKey.set(`f:${folder.id}`);
   }
 
-  onConnDrop(e: DragEvent, folder: ConnectionFolder) {
+  onFolderLeave(e: DragEvent, folder: ConnectionFolder) {
+    const next = e.relatedTarget as Node | null;
+    if (next && (e.currentTarget as Node).contains(next)) return;
+    if (this.dropKey() === `f:${folder.id}`) this.dropKey.set('');
+  }
+
+  onFolderDrop(e: DragEvent, folder: ConnectionFolder) {
+    const item = this.drag();
+    if (!item || !this.canDropIn(item, folder)) return;
     e.preventDefault();
+    e.stopPropagation();
+    this.drop(item, folder.id);
+  }
+
+  /** The area outside folder rows is the root: drop there to move something out. */
+  onRootOver(e: DragEvent) {
+    if (!this.drag()) return;
+    if ((e.target as HTMLElement).closest?.('.row.folder')) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    this.dropKey.set('root');
+  }
+
+  onRootLeave(e: DragEvent) {
+    const next = e.relatedTarget as Node | null;
+    if (next && (e.currentTarget as HTMLElement).contains(next)) return;
+    if (this.dropKey() === 'root') this.dropKey.set('');
+  }
+
+  onRootDrop(e: DragEvent) {
+    const item = this.drag();
+    if (!item) return;
+    if ((e.target as HTMLElement).closest?.('.row.folder')) return;
+    e.preventDefault();
+    this.drop(item, '');
+  }
+
+  /** A folder can never be dropped into itself or one of its descendants. */
+  private canDropIn(item: DragItem, folder: ConnectionFolder): boolean {
+    if (item.kind === 'conn') return true;
+    if (item.id === folder.id) return false;
+    const byId = new Map(this.conns.folders().map((f) => [f.id, f]));
+    for (let parent = folder.parentId; parent; parent = byId.get(parent)?.parentId) {
+      if (parent === item.id) return false;
+    }
+    return true;
+  }
+
+  private drop(item: DragItem, folderId: string) {
     this.dropKey.set('');
-    const id = e.dataTransfer?.getData(CONN_DRAG_TYPE);
-    if (!id) return;
-    this.expand(`f:${folder.id}`);
-    void this.conns.moveToFolder(id, folder.id);
+    this.drag.set(null);
+    if (folderId) this.expand(`f:${folderId}`);
+    if (item.kind === 'conn') void this.conns.moveToFolder(item.id, folderId);
+    else void this.conns.moveFolder(item.id, folderId);
   }
 
   async toggleConn(c: ConnectionView) {
@@ -514,14 +555,9 @@ export class SchemaSidebar {
     const m = this.menu();
     this.menu.set(null);
     if (!m) return;
-    if (action.startsWith('move:')) {
-      if (m.kind === 'conn') void this.conns.moveToFolder(m.conn.id, action.slice(5));
-      return;
-    }
     switch (m.kind) {
       case 'folder': {
         switch (action) {
-          case 'newfolder': return void this.newFolder(m.folder.id);
           case 'rename': return this.editingFolder.set(m.folder.id);
           case 'delete': {
             if (!confirm(`Delete the folder “${m.folder.name}”? Its connections and sub-folders move up one level.`)) return;

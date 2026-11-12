@@ -66,9 +66,23 @@ export class ConnectionStore {
   }
 
   async moveToFolder(connId: string, folderId: string) {
+    const cur = this.connections().find((c) => c.id === connId);
+    if (!cur || (cur.folderId ?? '') === folderId) return;
     try {
       await this.api.moveConnectionToFolder(connId, folderId);
       this.connections.update((cs) => cs.map((c) => (c.id === connId ? { ...c, folderId: folderId || undefined } : c)));
+    } catch (e) {
+      this.toasts.error(errorText(e));
+    }
+  }
+
+  /** Nests a folder inside another one ("" moves it back to the root). */
+  async moveFolder(id: string, parentId: string) {
+    const cur = this.folders().find((f) => f.id === id);
+    if (!cur || (cur.parentId ?? '') === parentId) return;
+    try {
+      const saved = await this.api.saveFolder({ ...cur, parentId: parentId || undefined });
+      this.folders.update((fs) => fs.map((f) => (f.id === id ? saved : f)));
     } catch (e) {
       this.toasts.error(errorText(e));
     }

@@ -361,11 +361,20 @@ func (a *App) PickSQLiteFile() (string, error) {
 }
 
 // PickSSHKey shows a native open dialog for an SSH private key; "" when cancelled.
+// No extension filter: keys come as id_rsa, id_ed25519, *.pem, *.ppk and
+// anything else. Hidden files are shown because keys usually live in ~/.ssh.
 func (a *App) PickSSHKey() (string, error) {
-	return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
-		Title:   "Choose an SSH private key",
-		Filters: []runtime.FileFilter{{DisplayName: "All files", Pattern: "*"}},
-	})
+	opts := runtime.OpenDialogOptions{
+		Title:           "Choose an SSH private key",
+		ShowHiddenFiles: true,
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		dir := filepath.Join(home, ".ssh")
+		if st, err := os.Stat(dir); err == nil && st.IsDir() {
+			opts.DefaultDirectory = dir
+		}
+	}
+	return runtime.OpenFileDialog(a.ctx, opts)
 }
 
 // ---------- schema ----------

@@ -6,6 +6,7 @@ A desktop SQL client for **PostgreSQL, MySQL, Oracle and SQLite**, built with Go
 - **Explorer on the right:** connections (grouped in nested folders) → schemas → tables/views → columns, lazy-loaded, with a filter. The context menu has *Select top 100*, *Show DDL*, *Drop table/view*, *Insert name* and *Copy name*.
 - **Search palette (⌘P / Ctrl+P):** fuzzy search across tables of every open connection, tabs, connections and commands (`>` prefix = commands only).
 - **Read-only connections:** enforced twice, by the database session (Postgres `default_transaction_read_only`, MySQL `transaction_read_only`, SQLite `mode=ro` + `query_only`, Oracle `SET TRANSACTION READ ONLY`) and by a statement guard that only lets queries through.
+- **SSH tunnels:** reach a server through a jump host, authenticating with a password, a private key (with optional passphrase) or ssh-agent. Host keys are checked against `~/.ssh/known_hosts` when that file exists; a per-connection switch skips the check. Oracle connections also choose a service name or SID, and log in as SYSDBA or SYSOPER.
 - **Execution:** run the statement at the cursor (⌘↵), the selection, or the whole script (⌘⇧↵). Cancel with Esc. Each tab has its own DB session, so `SET`, temp tables and transactions persist between runs.
 - **Transactions:** per tab, *Tx: Auto* (each statement commits) or *Tx: Manual*: a transaction stays open across runs until **Commit** / **Rollback** (typed `COMMIT` / `ROLLBACK` work too). Data tabs submit into that transaction (with a savepoint per batch) and show its uncommitted rows. Closing or switching a tab with an open transaction asks first.
 - **Table data editor:** double-click a table to browse and edit it: server-side WHERE / ORDER BY and paging, add / delete rows, SET NULL, drag to select a block of cells (⌘C copies it), a SQL preview of pending changes, and Submit (⌘S). Click the row range to count the whole table, turn on auto refresh (5 s to a minute), and right-click a cell to copy it, filter on its value, set it to NULL, revert it or delete its row.
@@ -85,6 +86,7 @@ internal/driver          per-engine DSN, read-only session, metadata queries
 internal/sqlsplit        dialect-aware statement splitter + read-only guard
 internal/query           per-tab sessions, execution, cancel, paging, value normalisation
 internal/conn            saved connections (JSON) and open pools
+internal/sshtunnel       jump-host tunnels (password, key or ssh-agent) for connections
 internal/history         query history (SQLite)
 internal/scratch         tab files + manifest
 internal/gitsync         git bundle, merge, tombstone and master-password encryption

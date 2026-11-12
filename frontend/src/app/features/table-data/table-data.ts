@@ -13,9 +13,9 @@ import { MOD } from '../../core/ui';
 import { ident, qualified } from '../../core/sql';
 import type { Cell, DbKind, TablePage } from '../../core/models';
 import { Icon } from '../../shared/icon';
-import { ClickOutside } from '../../shared/click-outside';
+import { ClickOutside, clampMenu } from '../../shared/click-outside';
 import { display, gridTheme } from '../results/result-grid';
-import { rowsToTSV } from '../results/tsv';
+import { COPY_FORMATS, formatRows, type CopyFormat } from '../results/copy';
 import { buildChanges, isChanged, normalizeEdit, previewSQL, rowChanged, type GridRow } from './changes';
 import { ColumnHeader, type ColumnHeaderParams } from './column-header';
 
@@ -50,7 +50,7 @@ const PAGE_SIZES = [100, 500, 1000];
         <input #search class="search mono" placeholder="Find in page…" [ngModel]="quick()" (ngModelChange)="setQuick($event)"
                (keydown.escape)="toggleSearch()" spellcheck="false" />
       }
-      <button class="ib" (click)="copyPage()" [disabled]="!p?.rows?.length" title="Copy this page as TSV" aria-label="Copy page"><dm-icon name="copy" /></button>
+      <button class="ib" (click)="openCopyMenu($event)" [disabled]="!p?.rows?.length" title="Copy rows…" aria-label="Copy rows"><dm-icon name="copy" /></button>
 
       <span class="spacer"></span>
       @if (p && !p.editable) { <span class="ro" [title]="p.readOnly ?? ''">🔒 {{ p.readOnly }}</span> }
@@ -106,6 +106,20 @@ const PAGE_SIZES = [100, 500, 1000];
             <button class="btn sm primary" (click)="apply()" [disabled]="applying()">Submit</button>
           </div>
           <pre class="mono">{{ preview().join('\\n\\n') }}</pre>
+        </div>
+      }
+
+      @if (copyMenu(); as m) {
+        <div class="menu" [style.left.px]="m.x" [style.top.px]="m.y" (dmClickOutside)="copyMenu.set(null)">
+          <div class="menu-label">Copy this page</div>
+          @for (f of formats; track f.id) {
+            <button class="menu-item" (click)="copyPage(f.id)">{{ f.label }}</button>
+          }
+          <div class="menu-sep"></div>
+          <div class="menu-label">Copy selected rows</div>
+          @for (f of formats; track f.id) {
+            <button class="menu-item" (click)="copySelected(f.id)">{{ f.label }}</button>
+          }
         </div>
       }
     </div>
@@ -187,6 +201,8 @@ export class TableData implements TableHandle, OnDestroy {
   readonly previewOpen = signal(false);
   readonly searchOpen = signal(false);
   readonly quick = signal('');
+  readonly copyMenu = signal<{ x: number; y: number } | null>(null);
+  readonly formats = COPY_FORMATS;
   /** Sort chosen from a column header; typing an ORDER BY replaces it. */
   private sortState = signal<{ col: string; dir: 'asc' | 'desc' } | null>(null);
 
@@ -432,10 +448,24 @@ export class TableData implements TableHandle, OnDestroy {
     this.grid?.setGridOption('quickFilterText', q);
   }
 
-  copyPage() {
+  copyPage(format: CopyFormat = 'tsv') {
     const p = this.page();
     if (!p) return;
-    void this.cmds.copy(rowsToTSV(p.columns, this.rows.filter((r) => !r.isNew).map((r) => r.cells as Cell[]), true));
+    this.copyMenu.set(null);
+    void this.cmds.copy(formatRows(format, p.columns, this.rows.filter((r) => !r.isNew).map((r) => r.cells as Cell[]), true));
+  }
+
+  copySelected(format: CopyFormat) {
+    const p = this.page();
+    if (!p) return;
+    this.copyMenu.set(null);
+    const rows = (this.grid?.getSelectedRows() as GridRow[] | undefined) ?? [];
+    void this.cmds.copy(formatRows(format, p.columns, rows.map((r) => r.cells.map((v) => v ?? null) as Cell[]), true));
+  }
+
+  openCopyMenu(e: MouseEvent) {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    this.copyMenu.set(clampMenu(rect.right - 210, rect.bottom + 4, 210, 360));
   }
 
   ddl() {

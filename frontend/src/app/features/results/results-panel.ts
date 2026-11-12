@@ -5,7 +5,7 @@ import { RunStore, type ResultsPanel as PanelKind } from '../../core/run.store';
 import { ClickOutside, clampMenu } from '../../shared/click-outside';
 import { HistoryPanel } from '../history/history-panel';
 import { ResultGrid } from './result-grid';
-import { rowsToTSV } from './tsv';
+import { COPY_FORMATS, formatRows, type CopyFormat } from './copy';
 import { MOD } from '../../core/ui';
 import type { QueryResult } from '../../core/models';
 
@@ -87,9 +87,17 @@ import type { QueryResult } from '../../core/models';
     @if (menu(); as m) {
       <div class="menu" [style.left.px]="m.x" [style.top.px]="m.y" (dmClickOutside)="menu.set(null)">
         @if (m.kind === 'copy') {
-          <button class="menu-item" (click)="copy('all')">Copy all rows (TSV)</button>
-          <button class="menu-item" (click)="copy('selected')">Copy selected rows<span class="hint">{{ mod }}C</span></button>
-          <button class="menu-item" (click)="copy('columns')">Copy column names</button>
+          <div class="menu-label">Copy all rows</div>
+          @for (f of formats; track f.id) {
+            <button class="menu-item" (click)="copy('all', f.id)">{{ f.label }}<span class="hint">{{ hint(f.id) }}</span></button>
+          }
+          <div class="menu-sep"></div>
+          <div class="menu-label">Copy selected rows</div>
+          @for (f of formats; track f.id) {
+            <button class="menu-item" (click)="copy('selected', f.id)">{{ f.label }}</button>
+          }
+          <div class="menu-sep"></div>
+          <button class="menu-item" (click)="copyColumns()">Copy column names<span class="hint">{{ mod }}C</span></button>
         } @else {
           <button class="menu-item" (click)="export('csv')">Export as CSV…</button>
           <button class="menu-item" (click)="export('json')">Export as JSON…</button>
@@ -141,6 +149,7 @@ export class ResultsPanelComponent {
   readonly errorCount = computed(() => this.run().messages.filter((m) => m.kind === 'error').length);
   readonly fetching = signal(false);
   readonly menu = signal<{ x: number; y: number; kind: 'copy' | 'export' } | null>(null);
+  readonly formats = COPY_FORMATS;
 
   setPanel(p: PanelKind) { this.runs.setPanel(this.tabId(), p); }
 
@@ -158,16 +167,25 @@ export class ResultsPanelComponent {
 
   openMenu(e: MouseEvent, kind: 'copy' | 'export') {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    this.menu.set({ ...clampMenu(rect.right - 210, rect.bottom + 4, 210, 120), kind });
+    this.menu.set({ ...clampMenu(rect.right - 220, rect.bottom + 4, 220, kind === 'copy' ? 380 : 120), kind });
   }
 
-  copy(what: 'all' | 'selected' | 'columns') {
+  hint(format: CopyFormat): string {
+    return { tsv: 'spreadsheet', csv: 'Excel', json: 'API', markdown: 'docs' }[format];
+  }
+
+  copy(what: 'all' | 'selected', format: CopyFormat) {
     this.menu.set(null);
     const r = this.current();
     if (!r) return;
-    if (what === 'columns') void this.cmds.copy(r.columns.map((c) => c.name).join(', '));
-    else if (what === 'all') void this.cmds.copy(rowsToTSV(r.columns, r.rows, true));
-    else void this.cmds.copy(rowsToTSV(r.columns, this.grid()?.selectedRows() ?? [], true));
+    const rows = what === 'all' ? r.rows : this.grid()?.selectedRows() ?? [];
+    void this.cmds.copy(formatRows(format, r.columns, rows, true));
+  }
+
+  copyColumns() {
+    this.menu.set(null);
+    const r = this.current();
+    if (r) void this.cmds.copy(r.columns.map((c) => c.name).join(', '));
   }
 
   export(format: 'csv' | 'json') {

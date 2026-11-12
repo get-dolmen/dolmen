@@ -4,6 +4,7 @@ import { EditorBridge } from './editor-bridge';
 import { TabStore } from './tab.store';
 import { TxStore } from './tx.store';
 import { Toasts } from './toast';
+import { Confirm } from '../shared/confirm';
 import type { ScratchInfo } from './models';
 
 /**
@@ -18,6 +19,7 @@ export class ScratchStore {
   private editor = inject(EditorBridge);
   private toasts = inject(Toasts);
   private tx = inject(TxStore);
+  private confirm = inject(Confirm);
 
   private saved = signal<ScratchInfo[]>([]);
   private timer?: ReturnType<typeof setTimeout>;
@@ -126,7 +128,8 @@ export class ScratchStore {
 
   async remove(id: string): Promise<boolean> {
     const s = this.list().find((x) => x.id === id);
-    if (!confirm(`Delete the scratch file “${s?.name ?? id}”? This cannot be undone.`)) return false;
+    if (!(await this.confirm.ask(`Delete the scratch file “${s?.name ?? id}”? This cannot be undone.`,
+      { title: 'Delete scratch file', confirmLabel: 'Delete', danger: true }))) return false;
     try {
       // Closing waits for the tab's last write; deleting only afterwards keeps
       // an in-flight save from recreating the file.
@@ -183,7 +186,7 @@ export class ScratchStore {
   async moveTo(id: string, where: { connId: string; database: string; schema: string; table: string }) {
     const tab = this.tabs.get(id);
     if (tab && (tab.connId !== where.connId || tab.database !== where.database)) {
-      if (!this.tx.confirmLeave(id)) return;
+      if (!(await this.tx.confirmLeave(id))) return;
       this.tabs.setConnection(id, where.connId, where.database);
     }
     try {

@@ -118,7 +118,7 @@ export class TabBar {
     this.menu.set({ ...clampMenu(e.clientX, e.clientY, 210, 240), t });
   }
 
-  act(action: string) {
+  async act(action: string) {
     const m = this.menu();
     this.menu.set(null);
     if (!m) return;
@@ -128,9 +128,9 @@ export class TabBar {
       case 'save': return void this.scratches.save(id);
       case 'export': return void this.scratches.exportFile(id);
       case 'duplicate': return void this.scratches.duplicate(id);
-      case 'close': return this.cmds.closeTab(id);
+      case 'close': return void this.cmds.closeTab(id);
       case 'others':
-        for (const t of this.tabs.tabs()) if (t.id !== id) this.cmds.closeTab(t.id);
+        for (const t of this.tabs.tabs()) if (t.id !== id) await this.cmds.closeTab(t.id);
         return;
       case 'delete': return void this.scratches.remove(id);
     }

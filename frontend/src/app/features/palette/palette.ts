@@ -157,8 +157,8 @@ export class Palette {
         id: `conn:${c.id}`, group: 'Connections', label: c.name, color: c.color,
         detail: isActive ? 'used by this tab' : c.connected ? 'connected · use in this tab' : 'connect and use in this tab',
         hint: c.readOnly ? 'read-only' : undefined,
-        run: () => {
-          if (active && active.connId !== c.id && !this.tx.confirmLeave(active.id)) return;
+        run: async () => {
+          if (active && active.connId !== c.id && !(await this.tx.confirmLeave(active.id))) return;
           if (active) this.tabs.setConnection(active.id, c.id);
           void this.conns.ensureConnected(c.id);
         },

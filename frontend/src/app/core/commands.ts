@@ -11,6 +11,7 @@ import { TxStore } from './tx.store';
 import { ScratchStore } from './scratch.store';
 import { Toasts } from './toast';
 import { Ui, MOD } from './ui';
+import { Confirm } from '../shared/confirm';
 import { qualified, selectTop } from './sql';
 import type { ConnectionView, DbTable } from './models';
 import { ClipboardSetText } from '../../../wailsjs/runtime/runtime';
@@ -39,6 +40,7 @@ export class Commands {
   private tables = inject(TableBridge);
   private tx = inject(TxStore);
   private scratches = inject(ScratchStore);
+  private confirm = inject(Confirm);
 
   list(): Command[] {
     const active = this.tabs.active();
@@ -131,11 +133,15 @@ export class Commands {
     queueMicrotask(() => this.editor.focus());
   }
 
-  closeTab(id = this.tabs.activeId()) {
+  async closeTab(id = this.tabs.activeId()) {
     const t = this.tabs.get(id);
-    if (t?.kind === 'table' && t.dirty && !confirm(`Discard unsaved changes to ${t.name}?`)) return;
+    if (t?.kind === 'table' && t.dirty
+      && !(await this.confirm.ask(`Discard unsaved changes to ${t.name}?`, { title: 'Discard changes', confirmLabel: 'Discard', danger: true }))) return;
     const tx = this.tx.get(id);
-    if (tx.open && !confirm(`${t?.name ?? 'This tab'} has an open transaction (${tx.statements} statements). Closing rolls it back. Close anyway?`)) return;
+    if (tx.open && !(await this.confirm.ask(
+      `${t?.name ?? 'This tab'} has an open transaction (${tx.statements} statements). Closing rolls it back.`,
+      { title: 'Close tab', confirmLabel: 'Close anyway', danger: true },
+    ))) return;
     this.tx.forget(id);
     this.runs.forget(id);
     void this.tabs.close(id);
@@ -183,7 +189,8 @@ export class Commands {
   async dropTable(connId: string, t: DbTable, database = '') {
     const what = t.type === 'view' ? 'view' : 'table';
     const label = t.schema ? `${t.schema}.${t.name}` : t.name;
-    if (!confirm(`Drop the ${what} ${label}?\n\nThis cannot be undone.`)) return;
+    if (!(await this.confirm.ask(`Drop the ${what} ${label}?\n\nThis cannot be undone.`,
+      { title: `Drop ${what}`, confirmLabel: `Drop ${what}`, danger: true }))) return;
     try {
       await this.api.dropTable(connId, database, t.schema, t.name, t.type);
       this.toasts.success(`Dropped ${what} ${label}`);

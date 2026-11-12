@@ -3,6 +3,7 @@ import { Api, errorText } from './api';
 import { TabStore } from './tab.store';
 import { TableBridge } from './table-bridge';
 import { Toasts } from './toast';
+import { Confirm } from '../shared/confirm';
 import type { TxMode, TxStatus } from './models';
 
 const CLOSED: TxStatus = { open: false, statements: 0, startedAt: 0 };
@@ -14,6 +15,7 @@ export class TxStore {
   private tabs = inject(TabStore);
   private tables = inject(TableBridge);
   private toasts = inject(Toasts);
+  private confirm = inject(Confirm);
 
   readonly status = signal<Record<string, TxStatus>>({});
 
@@ -43,10 +45,13 @@ export class TxStore {
    * Before a tab leaves its session (connection or database switch): asks to
    * confirm when a transaction is open, since the backend rolls it back.
    */
-  confirmLeave(tabId: string): boolean {
+  async confirmLeave(tabId: string): Promise<boolean> {
     const tx = this.get(tabId);
     if (!tx.open) return true;
-    if (!confirm(`This tab has an open transaction (${tx.statements} statements). Switching rolls it back. Continue?`)) return false;
+    if (!(await this.confirm.ask(
+      `This tab has an open transaction (${tx.statements} statements). Switching rolls it back.`,
+      { title: 'Leave transaction', confirmLabel: 'Roll back and switch', danger: true },
+    ))) return false;
     this.forget(tabId);
     return true;
   }

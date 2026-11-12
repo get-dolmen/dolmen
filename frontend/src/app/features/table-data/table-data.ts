@@ -12,6 +12,7 @@ import { TxStore } from '../../core/tx.store';
 import { MOD, isMac } from '../../core/ui';
 import { ident, qualified } from '../../core/sql';
 import type { Cell, DbKind, TablePage } from '../../core/models';
+import { Confirm } from '../../shared/confirm';
 import { Icon } from '../../shared/icon';
 import { ClickOutside, clampMenu } from '../../shared/click-outside';
 import { display, gridTheme } from '../results/result-grid';
@@ -241,6 +242,7 @@ export class TableData implements TableHandle, OnDestroy {
   private bridge = inject(TableBridge);
   private toasts = inject(Toasts);
   private tx = inject(TxStore);
+  private confirm = inject(Confirm);
   private whereInput = viewChild<ElementRef<HTMLInputElement>>('whereInput');
   private searchInput = viewChild<ElementRef<HTMLInputElement>>('search');
 
@@ -408,7 +410,8 @@ export class TableData implements TableHandle, OnDestroy {
   }
 
   async reload(offset: number, silent = false) {
-    if (!silent && this.pending() && !confirm(`Discard ${this.pending()} pending change(s)?`)) return;
+    if (!silent && this.pending() && !(await this.confirm.ask(`Discard ${this.pending()} pending change(s)?`,
+      { title: 'Discard changes', confirmLabel: 'Discard', danger: true }))) return;
     const t = this.tab();
     if (!t.table) return;
     if (!(await this.conns.ensureConnected(t.connId))) return;

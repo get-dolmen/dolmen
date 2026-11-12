@@ -6,6 +6,7 @@ import { Commands } from '../../core/commands';
 import { ConnectionStore } from '../../core/connection.store';
 import { EditorBridge } from '../../core/editor-bridge';
 import { Toasts } from '../../core/toast';
+import { Confirm } from '../../shared/confirm';
 import type { HistoryEntry } from '../../core/models';
 
 @Component({
@@ -63,6 +64,7 @@ export class HistoryPanel {
   private conns = inject(ConnectionStore);
   private editor = inject(EditorBridge);
   private toasts = inject(Toasts);
+  private confirm = inject(Confirm);
   readonly cmds = inject(Commands);
 
   readonly connId = input<string>('');
@@ -109,7 +111,8 @@ export class HistoryPanel {
   async clear() {
     const scope = this.scope();
     const what = scope ? `for “${this.connName(scope)}”` : 'for all connections';
-    if (!confirm(`Clear query history ${what}?`)) return;
+    if (!(await this.confirm.ask(`Clear query history ${what}?`,
+      { title: 'Clear history', confirmLabel: 'Clear', danger: true }))) return;
     await this.api.clearHistory(scope);
     await this.reload();
   }

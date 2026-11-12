@@ -7,6 +7,7 @@ import { TabStore } from '../../core/tab.store';
 import { Ui } from '../../core/ui';
 import { TxStore } from '../../core/tx.store';
 import { ClickOutside, clampMenu } from '../../shared/click-outside';
+import { Confirm } from '../../shared/confirm';
 import { Autofocus } from '../../shared/autofocus';
 import { Icon } from '../../shared/icon';
 import { ScratchList } from '../scratches/scratch-list';
@@ -235,6 +236,7 @@ export class SchemaSidebar {
   private tabs = inject(TabStore);
   readonly ui = inject(Ui);
   private tx = inject(TxStore);
+  private confirm = inject(Confirm);
   private el = inject<ElementRef<HTMLElement>>(ElementRef);
 
   readonly filter = signal('');
@@ -428,6 +430,14 @@ export class SchemaSidebar {
     if (name.trim() && name.trim() !== folder.name) await this.conns.renameFolder(folder.id, name);
   }
 
+  async deleteFolder(folder: ConnectionFolder) {
+    if (!(await this.confirm.ask(
+      `Delete the folder “${folder.name}”? Its connections and sub-folders move up one level.`,
+      { title: 'Delete folder', confirmLabel: 'Delete', danger: true },
+    ))) return;
+    await this.conns.deleteFolder(folder.id);
+  }
+
   // ---- drag & drop: connections and folders move between folders ----
 
   onConnDrag(e: DragEvent, conn: ConnectionView) {
@@ -559,10 +569,7 @@ export class SchemaSidebar {
       case 'folder': {
         switch (action) {
           case 'rename': return this.editingFolder.set(m.folder.id);
-          case 'delete': {
-            if (!confirm(`Delete the folder “${m.folder.name}”? Its connections and sub-folders move up one level.`)) return;
-            return void this.conns.deleteFolder(m.folder.id);
-          }
+          case 'delete': return void this.deleteFolder(m.folder);
         }
         return;
       }
@@ -602,9 +609,9 @@ export class SchemaSidebar {
     }
   }
 
-  useInTab(connId: string, database: string) {
+  async useInTab(connId: string, database: string) {
     const t = this.tabs.active();
-    if (!t || !this.tx.confirmLeave(t.id)) return;
+    if (!t || !(await this.tx.confirmLeave(t.id))) return;
     this.tabs.setConnection(t.id, connId, database);
   }
 

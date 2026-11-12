@@ -188,10 +188,10 @@ export class Topbar {
     this.menu.set(clampMenu(r.left, r.bottom + 4, 260, 320));
   }
 
-  choose(c: ConnectionView) {
+  async choose(c: ConnectionView) {
     this.menu.set(null);
     const t = this.tabs.active();
-    if (t && t.connId !== c.id && !this.tx.confirmLeave(t.id)) return;
+    if (t && t.connId !== c.id && !(await this.tx.confirmLeave(t.id))) return;
     if (t) this.tabs.setConnection(t.id, c.id);
     void this.conns.ensureConnected(c.id);
   }

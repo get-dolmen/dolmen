@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
 import { Api, errorText } from '../../core/api';
 import { ConnectionStore } from '../../core/connection.store';
+import { Confirm } from '../../shared/confirm';
 import { Select } from '../../shared/select';
 import {
   CONNECTION_COLORS, DEFAULT_PORTS, KIND_LABELS,
@@ -184,6 +185,7 @@ export class ConnectionDialog {
   readonly view = inject<ConnectionView | undefined>(DIALOG_DATA);
   private api = inject(Api);
   private store = inject(ConnectionStore);
+  private confirm = inject(Confirm);
 
   readonly kinds: DbKind[] = ['postgres', 'mysql', 'oracle', 'sqlite'];
   readonly labels = KIND_LABELS;
@@ -312,7 +314,9 @@ export class ConnectionDialog {
   }
 
   async remove() {
-    if (!this.view || !confirm(`Delete the connection “${this.view.name}”?`)) return;
+    if (!this.view) return;
+    if (!(await this.confirm.ask(`Delete the connection “${this.view.name}”?`,
+      { title: 'Delete connection', confirmLabel: 'Delete', danger: true }))) return;
     await this.store.remove(this.view.id);
     this.ref.close(undefined);
   }

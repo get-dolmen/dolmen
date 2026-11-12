@@ -35,6 +35,9 @@ type Config struct {
 	Color    string            `json:"color,omitempty"`
 	FolderID string            `json:"folderId,omitempty"` // explorer folder
 	Options  map[string]string `json:"options,omitempty"`  // extra DSN parameters
+	// UpdatedAt is the unix-ms time of the last local change. Git sync uses it
+	// to pick the newest copy of a connection.
+	UpdatedAt int64 `json:"updatedAt,omitempty"`
 }
 
 // Table is a table or view inside a schema.

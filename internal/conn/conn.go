@@ -52,6 +52,7 @@ func (s *Store) Save(cfg driver.Config) (driver.Config, error) {
 	if err := validate(cfg); err != nil {
 		return cfg, err
 	}
+	cfg.UpdatedAt = time.Now().UnixMilli()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	cfgs, err := s.load()
@@ -102,10 +103,23 @@ func (s *Store) SetFolder(id, folderID string) error {
 	for i := range cfgs {
 		if cfgs[i].ID == id {
 			cfgs[i].FolderID = folderID
+			cfgs[i].UpdatedAt = time.Now().UnixMilli()
 			return s.write(cfgs)
 		}
 	}
 	return fmt.Errorf("connection %s not found", id)
+}
+
+// Replace rewrites the whole connection list (used by git sync, which
+// already merged the copies of every machine).
+func (s *Store) Replace(cfgs []driver.Config) error {
+	if cfgs == nil {
+		cfgs = []driver.Config{}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sort.SliceStable(cfgs, func(i, j int) bool { return strings.ToLower(cfgs[i].Name) < strings.ToLower(cfgs[j].Name) })
+	return s.write(cfgs)
 }
 
 func (s *Store) load() ([]driver.Config, error) {

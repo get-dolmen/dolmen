@@ -166,12 +166,24 @@ export function SaveFolder(arg1) {
   return window['go']['main']['App']['SaveFolder'](arg1);
 }
 
+export function SaveSyncConfig(arg1) {
+  return window['go']['main']['App']['SaveSyncConfig'](arg1);
+}
+
 export function SaveTabContent(arg1, arg2) {
   return window['go']['main']['App']['SaveTabContent'](arg1, arg2);
 }
 
 export function SaveWorkspaceLayout(arg1) {
   return window['go']['main']['App']['SaveWorkspaceLayout'](arg1);
+}
+
+export function SyncNow(arg1) {
+  return window['go']['main']['App']['SyncNow'](arg1);
+}
+
+export function SyncStatus() {
+  return window['go']['main']['App']['SyncStatus']();
 }
 
 export function TableDDL(arg1, arg2, arg3, arg4, arg5) {

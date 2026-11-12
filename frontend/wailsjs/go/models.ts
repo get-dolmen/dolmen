@@ -34,6 +34,7 @@ export namespace driver {
 	    color?: string;
 	    folderId?: string;
 	    options?: Record<string, string>;
+	    updatedAt?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Config(source);
@@ -52,7 +53,9 @@ export namespace driver {
 	        this.filePath = source["filePath"];
 	        this.readOnly = source["readOnly"];
 	        this.color = source["color"];
+	        this.folderId = source["folderId"];
 	        this.options = source["options"];
+	        this.updatedAt = source["updatedAt"];
 	    }
 	}
 	export class Table {
@@ -80,6 +83,7 @@ export namespace folder {
 	    id: string;
 	    name: string;
 	    parentId?: string;
+	    updatedAt?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Folder(source);
@@ -90,6 +94,80 @@ export namespace folder {
 	        this.id = source["id"];
 	        this.name = source["name"];
 	        this.parentId = source["parentId"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
+
+}
+
+export namespace gitsync {
+	
+	export class Config {
+	    enabled: boolean;
+	    remote: string;
+	    branch: string;
+	    encrypted: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Config(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.remote = source["remote"];
+	        this.branch = source["branch"];
+	        this.encrypted = source["encrypted"];
+	    }
+	}
+	export class Result {
+	    commit?: string;
+	    changed: boolean;
+	    lastSyncAt: number;
+	    connections: number;
+	    scratches: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Result(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.commit = source["commit"];
+	        this.changed = source["changed"];
+	        this.lastSyncAt = source["lastSyncAt"];
+	        this.connections = source["connections"];
+	        this.scratches = source["scratches"];
+	    }
+	}
+	export class Status {
+	    enabled: boolean;
+	    remote: string;
+	    branch: string;
+	    encrypted: boolean;
+	    dir: string;
+	    gitAvailable: boolean;
+	    repoExists: boolean;
+	    lastCommit?: string;
+	    lastSyncAt?: number;
+	    lastError?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Status(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.remote = source["remote"];
+	        this.branch = source["branch"];
+	        this.encrypted = source["encrypted"];
+	        this.dir = source["dir"];
+	        this.gitAvailable = source["gitAvailable"];
+	        this.repoExists = source["repoExists"];
+	        this.lastCommit = source["lastCommit"];
+	        this.lastSyncAt = source["lastSyncAt"];
+	        this.lastError = source["lastError"];
 	    }
 	}
 
@@ -142,6 +220,7 @@ export namespace main {
 	    color?: string;
 	    folderId?: string;
 	    options?: Record<string, string>;
+	    updatedAt?: number;
 	    hasPassword: boolean;
 	    connected: boolean;
 	
@@ -162,7 +241,9 @@ export namespace main {
 	        this.filePath = source["filePath"];
 	        this.readOnly = source["readOnly"];
 	        this.color = source["color"];
+	        this.folderId = source["folderId"];
 	        this.options = source["options"];
+	        this.updatedAt = source["updatedAt"];
 	        this.hasPassword = source["hasPassword"];
 	        this.connected = source["connected"];
 	    }

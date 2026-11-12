@@ -69,6 +69,19 @@ type meta struct {
 	UpdatedAt int64  `json:"updatedAt"`
 }
 
+// Entry is one scratch file with its content, as exchanged by git sync.
+type Entry struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	ConnID    string `json:"connId"`
+	Database  string `json:"database,omitempty"`
+	Schema    string `json:"schema,omitempty"`
+	Table     string `json:"table,omitempty"`
+	CreatedAt int64  `json:"createdAt"`
+	UpdatedAt int64  `json:"updatedAt"`
+	Content   string `json:"content"`
+}
+
 type Store struct {
 	dir   string
 	mu    sync.Mutex
@@ -347,6 +360,7 @@ func (s *Store) Link(id, connID, database, schema, table string) error {
 		schema = ""
 	}
 	m.ConnID, m.Database, m.Schema, m.Table = connID, database, schema, table
+	m.UpdatedAt = now()
 	return s.writeIndex()
 }
 
@@ -363,7 +377,77 @@ func (s *Store) Rename(id, name string) (string, error) {
 		return "", fmt.Errorf("scratch %s not found", id)
 	}
 	m.Name = name
+	m.UpdatedAt = now()
 	return name, s.writeIndex()
+}
+
+// Snapshot returns every scratch with its content, for git sync.
+func (s *Store) Snapshot() ([]Entry, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]Entry, 0, len(s.index))
+	for id, m := range s.index {
+		p, err := s.filePath(id)
+		if err != nil {
+			continue
+		}
+		b, err := os.ReadFile(p)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+		out = append(out, Entry{
+			ID: id, Name: m.Name, ConnID: m.ConnID, Database: m.Database, Schema: m.Schema, Table: m.Table,
+			CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt, Content: string(b),
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
+}
+
+// Replace makes the entries the whole set of scratches, deleting files that
+// are no longer part of the merged set. Git sync owns the merge itself.
+func (s *Store) Replace(entries []Entry) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	keep := make(map[string]bool, len(entries))
+	for _, e := range entries {
+		if !validID.MatchString(e.ID) {
+			return fmt.Errorf("invalid scratch id %q", e.ID)
+		}
+		keep[e.ID] = true
+	}
+	for id := range s.index {
+		if keep[id] {
+			continue
+		}
+		p, err := s.filePath(id)
+		if err != nil {
+			return err
+		}
+		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	index := make(map[string]*meta, len(entries))
+	for _, e := range entries {
+		name, err := CleanName(e.Name)
+		if err != nil {
+			return err
+		}
+		p, err := s.filePath(e.ID)
+		if err != nil {
+			return err
+		}
+		if err := atomicWrite(p, []byte(e.Content)); err != nil {
+			return err
+		}
+		index[e.ID] = &meta{
+			Name: name, ConnID: e.ConnID, Database: e.Database, Schema: e.Schema, Table: e.Table,
+			CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt,
+		}
+	}
+	s.index = index
+	return s.writeIndex()
 }
 
 // CleanName validates a scratch name and gives it a .sql extension when it has none.

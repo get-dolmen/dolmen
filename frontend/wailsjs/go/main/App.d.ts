@@ -5,8 +5,9 @@ import {main} from '../models';
 import {query} from '../models';
 import {scratch} from '../models';
 import {driver} from '../models';
-import {history} from '../models';
 import {folder} from '../models';
+import {history} from '../models';
+import {gitsync} from '../models';
 
 export function ApplyTableChanges(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:tabledata.ApplyRequest):Promise<main.TableApplyResult>;
 
@@ -90,9 +91,15 @@ export function SaveConnection(arg1:driver.Config):Promise<main.ConnectionView>;
 
 export function SaveFolder(arg1:folder.Folder):Promise<folder.Folder>;
 
+export function SaveSyncConfig(arg1:gitsync.Config):Promise<gitsync.Config>;
+
 export function SaveTabContent(arg1:string,arg2:string):Promise<void>;
 
 export function SaveWorkspaceLayout(arg1:scratch.Workspace):Promise<void>;
+
+export function SyncNow(arg1:string):Promise<gitsync.Result>;
+
+export function SyncStatus():Promise<gitsync.Status>;
 
 export function TableDDL(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<string>;
 

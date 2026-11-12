@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -19,6 +20,8 @@ type Folder struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
 	ParentID string `json:"parentId,omitempty"`
+	// UpdatedAt is the unix-ms time of the last local change, for git sync.
+	UpdatedAt int64 `json:"updatedAt,omitempty"`
 }
 
 // Store keeps folders in a JSON file next to connections.json.
@@ -41,6 +44,7 @@ func (s *Store) Save(f Folder) (Folder, error) {
 	if f.Name == "" {
 		return f, errors.New("folder name is required")
 	}
+	f.UpdatedAt = time.Now().UnixMilli()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	folders, err := s.load()
@@ -98,10 +102,21 @@ func (s *Store) Delete(id string) (string, error) {
 		}
 		if f.ParentID == id {
 			f.ParentID = parent
+			f.UpdatedAt = time.Now().UnixMilli()
 		}
 		out = append(out, f)
 	}
 	return parent, s.write(out)
+}
+
+// Replace rewrites the whole folder list (used by git sync after merging).
+func (s *Store) Replace(folders []Folder) error {
+	if folders == nil {
+		folders = []Folder{}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.write(folders)
 }
 
 // checkParent refuses a missing parent and folder cycles.

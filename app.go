@@ -15,6 +15,7 @@ import (
 	"dolmen/internal/driver"
 	"dolmen/internal/export"
 	"dolmen/internal/folder"
+	"dolmen/internal/gitsync"
 	"dolmen/internal/history"
 	"dolmen/internal/query"
 	"dolmen/internal/scratch"
@@ -33,6 +34,7 @@ type App struct {
 	exec    *query.Executor
 	scratch *scratch.Store
 	folders *folder.Store
+	sync    *gitsync.Service
 	initErr error
 }
 
@@ -62,6 +64,7 @@ func (a *App) init() error {
 		return err
 	}
 	a.folders = folder.NewStore(dir)
+	a.sync = gitsync.NewService(dir, a.store, a.folders, a.scratch)
 	return nil
 }
 
@@ -223,6 +226,35 @@ func (a *App) MoveConnectionToFolder(connID, folderID string) error {
 		}
 	}
 	return a.store.SetFolder(connID, folderID)
+}
+
+// ---------- git sync ----------
+
+// SyncStatus returns the git sync settings and the last sync result.
+func (a *App) SyncStatus() (gitsync.Status, error) {
+	if err := a.ready(); err != nil {
+		return gitsync.Status{}, err
+	}
+	return a.sync.Status(), nil
+}
+
+// SaveSyncConfig stores the remote, branch and encryption choice. The master
+// password itself is never saved.
+func (a *App) SaveSyncConfig(cfg gitsync.Config) (gitsync.Config, error) {
+	if err := a.ready(); err != nil {
+		return gitsync.Config{}, err
+	}
+	return a.sync.SaveConfig(cfg)
+}
+
+// SyncNow merges the local connections, folders and scratch files with the
+// git remote and writes the result back. password unlocks an encrypted
+// bundle and must stay in the caller's memory.
+func (a *App) SyncNow(password string) (gitsync.Result, error) {
+	if err := a.ready(); err != nil {
+		return gitsync.Result{}, err
+	}
+	return a.sync.Sync(password)
 }
 
 // TestConnection opens and pings a connection without keeping it, and

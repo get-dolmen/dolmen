@@ -17,6 +17,7 @@ import { Icon } from '../../shared/icon';
 import { ClickOutside, clampMenu } from '../../shared/click-outside';
 import { display, gridTheme } from '../results/result-grid';
 import { COPY_FORMATS, formatRows, type CopyFormat } from '../results/copy';
+import { CellRangeSelection, rangeClassRules } from '../../shared/cell-range';
 import { buildChanges, isChanged, normalizeEdit, previewSQL, rowChanged, type GridRow } from './changes';
 import { ColumnHeader, type ColumnHeaderParams } from './column-header';
 
@@ -110,13 +111,12 @@ const REFRESH_SECONDS = [5, 10, 30, 60];
       <div class="error" role="alert"><span>{{ e }}</span><button class="ib" (click)="error.set('')" aria-label="Dismiss"><dm-icon name="x" [size]="14" /></button></div>
     }
 
-    <div class="grid-wrap">
+    <div class="grid-wrap" (contextmenu)="$any($event.target).closest('.ag-cell') && $event.preventDefault()">
       <ag-grid-angular
         class="grid"
         [theme]="theme"
         [defaultColDef]="defaultColDef"
-        [rowSelection]="{ mode: 'multiRow', checkboxes: false, headerCheckbox: false, enableClickSelection: true }"
-        [cellSelection]="cellSelection"
+        [rowSelection]="{ mode: 'multiRow', checkboxes: false, headerCheckbox: false, enableClickSelection: false }"
         [getRowId]="rowId"
         [rowClassRules]="rowClassRules"
         [stopEditingWhenCellsLoseFocus]="true"
@@ -252,7 +252,6 @@ export class TableData implements TableHandle, OnDestroy {
   readonly sizes = PAGE_SIZES;
   readonly refreshChoices = REFRESH_SECONDS;
   /** Click-and-drag selects a block of cells, like a spreadsheet. */
-  readonly cellSelection = { suppressMultiRanges: true, enableHeaderHighlight: true };
 
   where = '';
   orderBy = '';
@@ -316,7 +315,11 @@ export class TableData implements TableHandle, OnDestroy {
     resizable: true,
     minWidth: 80,
     suppressHeaderMenuButton: true,
+    cellClassRules: rangeClassRules(() => this.range),
   };
+  /** Drag selection of a block of cells (AG Grid's own is Enterprise only). */
+  private range?: CellRangeSelection<GridRow>;
+  private host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   readonly rowId = (p: { data: GridRow }) => p.data.id;
   readonly rowClassRules = {
@@ -336,11 +339,13 @@ export class TableData implements TableHandle, OnDestroy {
 
   onReady(e: GridReadyEvent<GridRow>) {
     this.grid = e.api;
+    this.range = new CellRangeSelection(e.api, this.host.nativeElement, '__row');
     this.bridge.attach(this.tab().id, this);
     void this.reload(0);
   }
 
   ngOnDestroy() {
+    this.range?.destroy();
     this.stopAutoRefresh();
     this.bridge.detach(this.tab().id);
   }
@@ -533,6 +538,7 @@ export class TableData implements TableHandle, OnDestroy {
     if (api && first >= 0) {
       api.stopEditing();
       api.deselectAll();
+      this.range?.clear();
       api.ensureIndexVisible(0, 'top');
       api.setFocusedCell(0, `c${first}`);
       api.startEditingCell({ rowIndex: 0, colKey: `c${first}` });
@@ -647,43 +653,35 @@ export class TableData implements TableHandle, OnDestroy {
   selectedCount(): number { return this.selectionRows().length; }
 
   /**
-   * Rows covered by the drag selection, or the selected rows when there is no
-   * range (keyboard selection, a click on the row number column).
+   * Rows covered by the drag selection, or else the grid's selected rows
+   * (set by actions on one row, such as the cell menu's delete).
    */
   private selectionRows(): GridRow[] {
-    const rows: GridRow[] = [];
-    const seen = new Set<string>();
-    for (const range of this.grid?.getCellRanges() ?? []) {
-      if (!range.startRow || !range.endRow) continue;
-      const from = Math.min(range.startRow.rowIndex, range.endRow.rowIndex);
-      const to = Math.max(range.startRow.rowIndex, range.endRow.rowIndex);
+    const r = this.range;
+    if (r?.active) {
+      const [from, to] = r.rows();
+      const rows: GridRow[] = [];
       for (let i = from; i <= to; i++) {
         const data = this.grid?.getDisplayedRowAtIndex(i)?.data;
-        if (data && !seen.has(data.id)) {
-          seen.add(data.id);
-          rows.push(data);
-        }
+        if (data) rows.push(data);
       }
+      return rows;
     }
-    return rows.length ? rows : (this.grid?.getSelectedRows() as GridRow[] | undefined) ?? [];
+    return (this.grid?.getSelectedRows() as GridRow[] | undefined) ?? [];
   }
 
-  /** Data-column indexes covered by the drag selection; empty means every column. */
+  /** Data-column indexes covered by the drag selection, in display order. */
   private selectionColumns(): number[] {
-    const indexes = new Set<number>();
-    for (const range of this.grid?.getCellRanges() ?? []) {
-      for (const c of range.columns) {
-        const m = /^c(\d+)$/.exec(c.getColId());
-        if (m) indexes.add(Number(m[1]));
-      }
-    }
-    return [...indexes].sort((a, b) => a - b);
+    return (this.range?.columns() ?? []).flatMap((c) => {
+      const m = /^c(\d+)$/.exec(c.getColId());
+      return m ? [Number(m[1])] : [];
+    });
   }
 
   /** The dragged block of cells, already narrowed to its columns. */
   private selectionData(): { columns: TablePage['columns']; rows: Cell[][] } | null {
     const p = this.page();
-    if (!p || !this.grid?.getCellRanges()?.length) return null;
+    if (!p || !this.range?.active) return null;
     const rows = this.selectionRows();
     if (!rows.length) return null;
     const idx = this.selectionColumns();
@@ -802,6 +800,7 @@ export class TableData implements TableHandle, OnDestroy {
     const node = this.grid?.getRowNode(m.row.id);
     if (!node) return;
     this.grid?.deselectAll();
+    this.range?.clear(); // the menu acts on its own row, not on the dragged block
     node.setSelected(true);
     this.deleteRows();
   }

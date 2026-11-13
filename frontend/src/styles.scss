@@ -171,3 +171,14 @@ input, textarea, [contenteditable] { user-select: text; -webkit-user-select: tex
 
 /* Monaco: keep its own font stack consistent with ours */
 .monaco-editor { --monaco-monospace-font: var(--font-mono); }
+
+/* Drag selection of grid cells (shared/cell-range.ts): one rectangle over the block */
+.rg-box {
+  position: absolute; z-index: 2; pointer-events: none; box-sizing: border-box;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid var(--accent); border-radius: 1px;
+}
+.rg-box[hidden] { display: none; }
+/* The block already shows where the focus is: no second frame around the focused cell. */
+.rg-active .ag-cell-focus:not(.ag-cell-inline-editing) { border-color: transparent !important; outline: none !important; box-shadow: none !important; }
+.ag-cell.rg-row { color: var(--accent) !important; font-weight: 600; }

@@ -16,6 +16,7 @@ import { Icon } from '../../shared/icon';
   selector: 'dm-tab-bar',
   imports: [CdkDropList, CdkDrag, Autofocus, ClickOutside, Icon],
   template: `
+    <div class="tabrow">
     <div class="tabs" role="tablist" cdkDropList cdkDropListOrientation="horizontal" (cdkDropListDropped)="drop($event)">
       @for (t of tabs.tabs(); track t.id) {
         <div class="tab" role="tab" cdkDrag cdkDragLockAxis="x" [class.on]="t.id === tabs.activeId()"
@@ -36,6 +37,8 @@ import { Icon } from '../../shared/icon';
           </button>
         </div>
       }
+    </div>
+    <button class="btn ghost icon sm add" (click)="cmds.newTab()" [title]="'New tab (' + mod + 'T)'" aria-label="New tab">＋</button>
     </div>
     @if (menu(); as m) {
       <div class="menu" [style.left.px]="m.x" [style.top.px]="m.y" (dmClickOutside)="menu.set(null)">
@@ -78,10 +81,30 @@ import { Icon } from '../../shared/icon';
         @if (txState().open) { <div class="menu-label">Commit or roll back to switch</div> }
       </div>
     }
-    <button class="btn ghost icon sm add" (click)="cmds.newTab()" [title]="'New tab (' + mod + 'T)'" aria-label="New tab">＋</button>
-    <div class="actions">
-      @if (tabs.active(); as t) {
+    @if (tabs.active(); as t) {
+      <div class="actions" role="toolbar" aria-label="Tab actions">
+        @if (running(t)) {
+          <button class="btn danger sm" (click)="cmds.cancel()" title="Cancel (Esc)">■ Stop</button>
+        } @else {
+          <button class="btn primary sm run" (click)="cmds.run()" [title]="'Run statement at cursor (' + mod + '↵)'">▶ Run</button>
+          <button class="btn sm" (click)="cmds.runAll()" [title]="'Run whole script (' + mod + '⇧↵)'">Run all</button>
+        }
+        <span class="vsep"></span>
+        @if (!readOnly()) {
+          <button class="txmode" (click)="openTxMenu($event)" [class.manual]="t.txMode === 'manual'"
+                  title="Transaction mode for this tab">Tx: {{ t.txMode === 'manual' ? 'Manual' : 'Auto' }} <span class="caret">▾</span></button>
+          @if (txState().open) {
+            <span class="txopen" [title]="'Transaction open since ' + since()">
+              <span class="pulse"></span>{{ txState().statements }}
+            </span>
+            <button class="btn sm" (click)="tx.commit()" title="Commit the transaction">✓ Commit</button>
+            <button class="btn sm" (click)="tx.rollback()" title="Roll back the transaction">↶ Rollback</button>
+          }
+        }
+        <button class="txmode" (click)="ui.inlineResults.set(!ui.inlineResults())" [attr.aria-pressed]="ui.inlineResults()"
+                [title]="ui.inlineResults() ? 'Results show under each statement. Click to use the bottom panel.' : 'Results show in the bottom panel. Click to show them under each statement.'">Results: {{ ui.inlineResults() ? 'Inline' : 'Panel' }}</button>
         @if (t.kind === 'sql') {
+          <span class="spacer"></span>
           @if (showDb()) {
             <button class="dbtarget" [disabled]="t.locked" (click)="openDbMenu($event)"
                     [title]="t.locked ? 'Locked to ' + dbLabel() : 'Database used by this scratch'">
@@ -94,31 +117,12 @@ import { Icon } from '../../shared/icon';
             <dm-icon [name]="t.locked ? 'lock' : 'unlock'" [size]="14" />
           </button>
         }
-        <button class="txmode" (click)="ui.inlineResults.set(!ui.inlineResults())" [attr.aria-pressed]="ui.inlineResults()"
-                [title]="ui.inlineResults() ? 'Results show under each statement. Click to use the bottom panel.' : 'Results show in the bottom panel. Click to show them under each statement.'">Results: {{ ui.inlineResults() ? 'Inline' : 'Panel' }}</button>
-        @if (!readOnly()) {
-          <button class="txmode" (click)="openTxMenu($event)" [class.manual]="t.txMode === 'manual'"
-                  title="Transaction mode for this tab">Tx: {{ t.txMode === 'manual' ? 'Manual' : 'Auto' }} <span class="caret">▾</span></button>
-          @if (txState().open) {
-            <span class="txopen" [title]="'Transaction open since ' + since()">
-              <span class="pulse"></span>{{ txState().statements }}
-            </span>
-            <button class="btn sm" (click)="tx.commit()" title="Commit the transaction">✓ Commit</button>
-            <button class="btn sm" (click)="tx.rollback()" title="Roll back the transaction">↶ Rollback</button>
-          }
-          <span class="vsep"></span>
-        }
-        @if (running(t)) {
-          <button class="btn danger sm" (click)="cmds.cancel()" title="Cancel (Esc)">■ Stop</button>
-        } @else {
-          <button class="btn primary sm run" (click)="cmds.run()" [title]="'Run statement at cursor (' + mod + '↵)'">▶ Run</button>
-          <button class="btn sm" (click)="cmds.runAll()" [title]="'Run whole script (' + mod + '⇧↵)'">Run all</button>
-        }
-      }
-    </div>
+      </div>
+    }
   `,
   styles: `
-    :host { display: flex; align-items: flex-end; height: 34px; background: var(--bg); border-bottom: 1px solid var(--border); padding-left: 6px; flex: none; min-width: 0; }
+    :host { display: flex; flex-direction: column; flex: none; min-width: 0; background: var(--bg); }
+    .tabrow { display: flex; align-items: flex-end; height: 34px; padding-left: 6px; border-bottom: 1px solid var(--border); min-width: 0; }
     .tabs { display: flex; align-items: flex-end; height: 100%; min-width: 0; flex: 0 1 auto; overflow-x: auto; scrollbar-width: none; }
     .tab { position: relative; display: flex; align-items: center; gap: 6px; height: 30px; max-width: 300px; padding: 0 6px 0 12px; margin-right: 1px;
            border-radius: 6px 6px 0 0; color: var(--text-muted); cursor: pointer; white-space: nowrap; font-size: var(--fs-sm); flex: none; }
@@ -135,7 +139,9 @@ import { Icon } from '../../shared/icon';
     .close.dirty:not(:hover) .d { display: block; }
     .tab:not(:hover):not(.on) .close:not(.dirty) { visibility: hidden; }
     .add { margin: 0 6px 4px; flex: none; }
-    .actions { display: flex; align-items: center; gap: 6px; margin-left: auto; padding: 0 8px 4px 6px; flex: none; }
+    .actions { display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 8px; background: var(--bg-panel); border-bottom: 1px solid var(--border); min-width: 0; overflow-x: auto; scrollbar-width: none; }
+    .actions > * { flex: none; }
+    .actions > .spacer { flex: 1 1 auto; }
     .run { min-width: 62px; justify-content: center; }
     .btn.icon.on { color: var(--accent); }
     .dbtarget { display: inline-flex; align-items: center; gap: 3px; height: 24px; max-width: 170px; padding: 0 7px; border: 1px solid var(--border);

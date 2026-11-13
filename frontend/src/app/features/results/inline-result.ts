@@ -7,7 +7,7 @@ import { COPY_FORMATS, formatRows, type CopyFormat } from './copy';
 import type { QueryResult } from '../../core/models';
 
 /** Header height, and the grid's header and row heights (see gridTheme). */
-export const INLINE_HEAD = 28;
+export const INLINE_HEAD = 36;
 const GRID_HEAD = 30;
 const GRID_ROW = 26;
 const GRID_SCROLLBAR = 14;
@@ -84,11 +84,11 @@ export function inlineHeight(r: QueryResult): number {
       contain: strict;
     }
     :host(.has-error) { border-left-color: var(--danger); }
-    .head { display: flex; align-items: center; gap: 6px; height: ${INLINE_HEAD - 2}px; padding: 0 4px 0 10px; flex: none; background: var(--bg); }
+    .head { display: flex; align-items: center; gap: 8px; height: ${INLINE_HEAD - 2}px; padding: 0 6px 0 12px; flex: none; background: var(--bg); }
     .info { color: var(--text-muted); font-size: var(--fs-xs); white-space: nowrap; font-variant-numeric: tabular-nums; }
     .badge { color: var(--danger); font-size: var(--fs-xs); font-weight: 600; }
     .spacer { flex: 1; }
-    .close { width: 22px; height: 22px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--text-muted); cursor: pointer; font-size: 16px; line-height: 1; }
+    .close { width: 24px; height: 24px; margin-left: 2px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--text-muted); cursor: pointer; font-size: 16px; line-height: 1; }
     .close:hover { background: var(--bg-hover); color: var(--text); }
     .grid { flex: 1; min-height: 0; border-top: 1px solid var(--border); }
     .error { flex: 1; margin: 0; padding: 4px 10px; overflow: auto; color: var(--danger); background: var(--danger-soft); font: 12px/${ERROR_LINE}px var(--font-mono); white-space: pre-wrap; word-break: break-word; user-select: text; }

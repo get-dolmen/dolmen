@@ -84,6 +84,7 @@ export class Commands {
     if (conn) {
       cmds.push(
         { id: 'edit-connection', label: `Edit connection “${conn.name}”…`, run: () => this.editConnection(conn) },
+        { id: 'toggle-read-only', label: `${conn.readOnly ? 'Allow writes on' : 'Make read-only'} “${conn.name}”`, run: () => void this.toggleReadOnly(conn) },
         conn.connected
           ? { id: 'disconnect', label: `Disconnect “${conn.name}”`, run: () => void this.conns.disconnect(conn.id) }
           : { id: 'connect', label: `Connect “${conn.name}”`, run: () => void this.conns.connect(conn.id) },
@@ -149,6 +150,26 @@ export class Commands {
 
   newConnection() { this.openConnectionDialog(); }
   editConnection(c: ConnectionView) { this.openConnectionDialog(c); }
+
+  /**
+   * Turns read-only on or off. Saving reopens a live connection, which rolls
+   * back its open transactions, so that is confirmed first.
+   */
+  async toggleReadOnly(c: ConnectionView) {
+    const readOnly = !c.readOnly;
+    const open = this.tabs.tabs().filter((t) => t.connId === c.id && this.tx.get(t.id).open);
+    if (open.length && !(await this.confirm.ask(
+      `${open.length === 1 ? `${open[0].name} has an open transaction` : `${open.length} tabs have open transactions`} on “${c.name}”. Reconnecting rolls ${open.length === 1 ? 'it' : 'them'} back.`,
+      { title: readOnly ? 'Make read-only' : 'Allow writes', confirmLabel: 'Roll back and switch', danger: true },
+    ))) return;
+    try {
+      await this.conns.save({ ...c, readOnly });
+      for (const t of open) this.tx.forget(t.id);
+      this.toasts.success(`${c.name} is now ${readOnly ? 'read-only' : 'writable'}.`);
+    } catch (e) {
+      this.toasts.error(errorText(e));
+    }
+  }
 
   openSettings() {
     this.dialog.open(SettingsDialog, { width: 'auto', maxWidth: '94vw' });

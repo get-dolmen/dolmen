@@ -184,6 +184,7 @@ type DragItem = { kind: 'conn'; id: string; name: string } | { kind: 'folder'; i
               <button class="menu-item" (click)="menuAction('connect')">Connect</button>
             }
             <div class="menu-sep"></div>
+            <button class="menu-item" (click)="menuAction('readonly')">{{ m.conn.readOnly ? 'Allow writes' : 'Make read-only' }}</button>
             <button class="menu-item" (click)="menuAction('edit')">Edit…</button>
           }
         }
@@ -605,6 +606,7 @@ export class SchemaSidebar {
           case 'refresh': return void this.schema.refresh(c.id);
           case 'disconnect': return void this.conns.disconnect(c.id);
           case 'connect': return void this.conns.connect(c.id);
+          case 'readonly': return void this.cmds.toggleReadOnly(c);
           case 'edit': return this.cmds.editConnection(c);
         }
       }

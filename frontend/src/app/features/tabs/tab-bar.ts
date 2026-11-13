@@ -1,17 +1,20 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { CdkDrag, CdkDragDrop, CdkDropList } from '@angular/cdk/drag-drop';
 import { Commands } from '../../core/commands';
 import { ConnectionStore } from '../../core/connection.store';
 import { RunStore } from '../../core/run.store';
+import { TxStore } from '../../core/tx.store';
 import { TabStore, type EditorTab } from '../../core/tab.store';
 import { MOD } from '../../core/ui';
 import { Autofocus } from '../../shared/autofocus';
 import { ClickOutside, clampMenu } from '../../shared/click-outside';
 import { ScratchStore } from '../../core/scratch.store';
+import { SchemaStore } from '../../core/schema.store';
+import { Icon } from '../../shared/icon';
 
 @Component({
   selector: 'dm-tab-bar',
-  imports: [CdkDropList, CdkDrag, Autofocus, ClickOutside],
+  imports: [CdkDropList, CdkDrag, Autofocus, ClickOutside, Icon],
   template: `
     <div class="tabs" role="tablist" cdkDropList cdkDropListOrientation="horizontal" (cdkDropListDropped)="drop($event)">
       @for (t of tabs.tabs(); track t.id) {
@@ -51,11 +54,70 @@ import { ScratchStore } from '../../core/scratch.store';
         }
       </div>
     }
+    @if (dbMenu(); as m) {
+      <div class="menu dbmenu" [style.left.px]="m.x" [style.top.px]="m.y" (dmClickOutside)="dbMenu.set(null)">
+        <div class="menu-label">Database for this scratch</div>
+        @for (db of dbInfo()?.databases ?? []; track db) {
+          <button class="menu-item" [class.active]="isCurrentDb(db)" (click)="chooseDb(db)">
+            <span class="ellipsis">{{ db }}</span>
+            @if (db === dbInfo()?.current) { <span class="hint">default</span> }
+          </button>
+        } @empty {
+          <div class="menu-label">No databases reported</div>
+        }
+      </div>
+    }
+    @if (txMenu(); as m) {
+      <div class="menu txmenu" [style.left.px]="m.x" [style.top.px]="m.y" (dmClickOutside)="txMenu.set(null)">
+        <button class="menu-item" [class.active]="tabs.active()?.txMode !== 'manual'" (click)="setMode('auto')" [disabled]="txState().open">
+          <span><b>Auto-commit</b><small>Each statement is committed immediately.</small></span>
+        </button>
+        <button class="menu-item" [class.active]="tabs.active()?.txMode === 'manual'" (click)="setMode('manual')" [disabled]="txState().open">
+          <span><b>Manual</b><small>Changes stay in a transaction until you commit or roll back.</small></span>
+        </button>
+        @if (txState().open) { <div class="menu-label">Commit or roll back to switch</div> }
+      </div>
+    }
     <button class="btn ghost icon sm add" (click)="cmds.newTab()" [title]="'New tab (' + mod + 'T)'" aria-label="New tab">＋</button>
+    <div class="actions">
+      @if (tabs.active(); as t) {
+        @if (t.kind === 'sql') {
+          @if (showDb()) {
+            <button class="dbtarget" [disabled]="t.locked" (click)="openDbMenu($event)"
+                    [title]="t.locked ? 'Locked to ' + dbLabel() : 'Database used by this scratch'">
+              <span class="dbname">{{ dbLabel() }}</span><span class="caret">▾</span>
+            </button>
+          }
+          <button class="btn ghost icon sm" [class.on]="t.locked" (click)="scratches.setLocked(t.id, !t.locked)"
+                  [title]="t.locked ? 'Unlock this scratch' : 'Lock this scratch to its database'"
+                  [attr.aria-label]="t.locked ? 'Unlock scratch' : 'Lock scratch'">
+            <dm-icon [name]="t.locked ? 'lock' : 'unlock'" [size]="14" />
+          </button>
+        }
+        @if (!readOnly()) {
+          <button class="txmode" (click)="openTxMenu($event)" [class.manual]="t.txMode === 'manual'"
+                  title="Transaction mode for this tab">Tx: {{ t.txMode === 'manual' ? 'Manual' : 'Auto' }} <span class="caret">▾</span></button>
+          @if (txState().open) {
+            <span class="txopen" [title]="'Transaction open since ' + since()">
+              <span class="pulse"></span>{{ txState().statements }}
+            </span>
+            <button class="btn sm" (click)="tx.commit()" title="Commit the transaction">✓ Commit</button>
+            <button class="btn sm" (click)="tx.rollback()" title="Roll back the transaction">↶ Rollback</button>
+          }
+          <span class="vsep"></span>
+        }
+        @if (running(t)) {
+          <button class="btn danger sm" (click)="cmds.cancel()" title="Cancel (Esc)">■ Stop</button>
+        } @else {
+          <button class="btn primary sm run" (click)="cmds.run()" [title]="'Run statement at cursor (' + mod + '↵)'">▶ Run</button>
+          <button class="btn sm" (click)="cmds.runAll()" [title]="'Run whole script (' + mod + '⇧↵)'">Run all</button>
+        }
+      }
+    </div>
   `,
   styles: `
     :host { display: flex; align-items: flex-end; height: 34px; background: var(--bg); border-bottom: 1px solid var(--border); padding-left: 6px; flex: none; min-width: 0; }
-    .tabs { display: flex; align-items: flex-end; height: 100%; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+    .tabs { display: flex; align-items: flex-end; height: 100%; min-width: 0; flex: 0 1 auto; overflow-x: auto; scrollbar-width: none; }
     .tab { position: relative; display: flex; align-items: center; gap: 6px; height: 30px; max-width: 300px; padding: 0 6px 0 12px; margin-right: 1px;
            border-radius: 6px 6px 0 0; color: var(--text-muted); cursor: pointer; white-space: nowrap; font-size: var(--fs-sm); flex: none; }
     .tab:hover { background: var(--bg-hover); color: var(--text); }
@@ -71,6 +133,30 @@ import { ScratchStore } from '../../core/scratch.store';
     .close.dirty:not(:hover) .d { display: block; }
     .tab:not(:hover):not(.on) .close:not(.dirty) { visibility: hidden; }
     .add { margin: 0 6px 4px; flex: none; }
+    .actions { display: flex; align-items: center; gap: 6px; margin-left: auto; padding: 0 8px 4px 6px; flex: none; }
+    .run { min-width: 62px; justify-content: center; }
+    .btn.icon.on { color: var(--accent); }
+    .dbtarget { display: inline-flex; align-items: center; gap: 3px; height: 24px; max-width: 170px; padding: 0 7px; border: 1px solid var(--border);
+                border-radius: var(--radius); background: none; color: var(--text-muted); font-size: var(--fs-sm); cursor: pointer; }
+    .dbtarget:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
+    .dbtarget:disabled { opacity: 0.6; cursor: default; }
+    .dbname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dbmenu { width: 240px; }
+    .txmode { height: 24px; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--radius); background: none; color: var(--text-muted);
+              font-size: var(--fs-sm); font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .txmode:hover { background: var(--bg-hover); color: var(--text); }
+    .txmode.manual { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+    .caret { color: var(--text-faint); font-size: 10px; margin-left: 2px; }
+    .txopen { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 10px; background: var(--warn-soft);
+              color: var(--warn); font-size: var(--fs-xs); font-weight: 700; font-variant-numeric: tabular-nums; }
+    .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); animation: txpulse 1.6s ease-in-out infinite; }
+    @keyframes txpulse { 50% { opacity: 0.35; } }
+    .vsep { width: 1px; height: 20px; background: var(--border); margin: 0 2px; }
+    .txmenu { width: 300px; }
+    .txmenu .menu-item { height: auto; padding: 6px 8px; align-items: flex-start; }
+    .txmenu .menu-item span { display: flex; flex-direction: column; gap: 1px; }
+    .txmenu .menu-item small { color: var(--text-muted); font-size: var(--fs-xs); white-space: normal; }
+    .txmenu .menu-item:disabled { opacity: 0.5; cursor: default; }
     .tbl { color: var(--accent); font-size: 11px; }
     .where { color: var(--text-faint); }
     .spin { width: 9px; height: 9px; border: 1.5px solid var(--accent-soft); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
@@ -85,8 +171,60 @@ export class TabBar {
   private conns = inject(ConnectionStore);
   private runs = inject(RunStore);
   private scratches = inject(ScratchStore);
+  private schema = inject(SchemaStore);
+  readonly tx = inject(TxStore);
   readonly editing = signal('');
   readonly mod = MOD;
+  readonly txMenu = signal<{ x: number; y: number } | null>(null);
+  readonly dbMenu = signal<{ x: number; y: number } | null>(null);
+  readonly tab = computed(() => this.tabs.active());
+  readonly txState = computed(() => this.tx.get(this.tabs.activeId()));
+  readonly since = computed(() => new Date(this.txState().startedAt).toLocaleTimeString());
+  readonly readOnly = computed(() => !!this.conns.get(this.tabs.active()?.connId)?.readOnly);
+  readonly dbInfo = computed(() => {
+    const t = this.tab();
+    return t?.kind === 'sql' ? this.schema.databases()[t.connId] : undefined;
+  });
+  readonly showDb = computed(() => !!this.dbInfo()?.supported && (this.dbInfo()?.databases.length ?? 0) > 1);
+  readonly dbLabel = computed(() => {
+    const t = this.tab();
+    if (!t) return '';
+    return t.database || this.dbInfo()?.current || 'default';
+  });
+
+  openTxMenu(e: MouseEvent) {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    this.txMenu.set(clampMenu(r.right - 300, r.bottom + 4, 300, 160));
+  }
+
+  setMode(mode: 'auto' | 'manual') {
+    const t = this.tabs.active();
+    if (t && this.tx.setMode(t.id, mode)) this.txMenu.set(null);
+  }
+
+  openDbMenu(e: MouseEvent) {
+    const t = this.tab();
+    if (!t || t.locked) return;
+    if (!this.dbInfo()) void this.schema.loadDatabases(t.connId);
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    this.dbMenu.set(clampMenu(r.right - 240, r.bottom + 4, 240, 260));
+  }
+
+  isCurrentDb(db: string) {
+    const t = this.tab();
+    return !!t && (t.database || this.dbInfo()?.current || '') === db;
+  }
+
+  async chooseDb(db: string) {
+    this.dbMenu.set(null);
+    const t = this.tab();
+    const info = this.dbInfo();
+    if (!t || !info || t.locked) return;
+    const next = db === info.current ? '' : db;
+    if ((t.database || '') === next) return;
+    if (!(await this.tx.confirmLeave(t.id))) return;
+    this.tabs.setConnection(t.id, t.connId, next);
+  }
 
   color(t: EditorTab) { return this.conns.get(t.connId)?.color ?? null; }
   /** "connection" or "connection/database" for data tabs. */

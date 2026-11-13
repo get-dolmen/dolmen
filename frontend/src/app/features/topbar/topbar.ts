@@ -16,16 +16,6 @@ import { WindowToggleMaximise } from '../../../../wailsjs/runtime';
   host: { '[class.mac]': 'mac', '(dblclick)': 'onDblClick($event)' },
   template: `
     <div class="left">
-    <div class="brand" aria-hidden="true">
-      <svg class="mark" width="22" height="16" viewBox="0 0 22 16" aria-hidden="true">
-        <path d="M1.6 4.6 C1.4 3.6 2.2 3 3.4 2.9 L18.6 1.9 C19.8 1.8 20.6 2.4 20.5 3.4 L20.3 4.9 C20.2 5.7 19.6 6.1 18.7 6.2 L3.2 6.9 C2.3 6.9 1.8 6.5 1.7 5.7 Z" fill="currentColor"/>
-        <path d="M4.2 8.1 L7.6 7.9 L8 15 L3.8 15 Z" fill="currentColor" opacity=".78"/>
-        <path d="M14.2 7.5 L17.7 7.3 L18.3 15 L14 15 Z" fill="currentColor" opacity=".78"/>
-        <path d="M1 15.4 H21" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" opacity=".45"/>
-      </svg>
-      Dolmen
-    </div>
-
     <button class="conn nodrag" (click)="openMenu($event)" title="Connection used by this tab">
       @if (conn(); as c) {
         <span class="dot" [style.background]="c.color" [class.off]="!c.connected"></span>
@@ -93,8 +83,6 @@ import { WindowToggleMaximise } from '../../../../wailsjs/runtime';
     :host(.mac) .left { padding-left: 80px; }
     .nodrag { --wails-draggable: no-drag; }
     .left { display: flex; align-items: center; gap: 10px; min-width: 0; }
-    .brand { display: flex; align-items: center; gap: 7px; font-weight: 700; letter-spacing: 0.01em; color: var(--text-muted); margin-right: 4px; flex: none; }
-    .mark { color: var(--accent); flex: none; }
     .conn { display: flex; align-items: center; gap: 7px; height: 30px; max-width: 260px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: var(--radius);
             background: var(--bg-panel); cursor: pointer; font-weight: 500; border-color: var(--accent); }
     .conn:hover { background: var(--accent-soft); }

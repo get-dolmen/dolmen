@@ -142,3 +142,19 @@ func UTF16ToByteOffset(s string, u16 int) int {
 	}
 	return len(s)
 }
+
+// ByteToUTF16Offset converts a byte offset into a JavaScript string offset.
+func ByteToUTF16Offset(s string, b int) int {
+	units := 0
+	for i, r := range s {
+		if i >= b {
+			break
+		}
+		if r >= 0x10000 {
+			units += 2
+		} else {
+			units++
+		}
+	}
+	return units
+}

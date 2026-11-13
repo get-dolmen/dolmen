@@ -70,6 +70,8 @@ export interface QueryResult {
   message?: string;
   durationMs: number;
   error?: string;
+  /** UTF-16 offset just past the statement in the SQL that was sent. */
+  end: number;
 }
 
 export interface ExecResponse { results: QueryResult[]; cancelled: boolean; notice?: string; tx: TxStatus; }

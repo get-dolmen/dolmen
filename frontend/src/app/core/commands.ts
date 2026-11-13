@@ -57,6 +57,11 @@ export class Commands {
         label: this.ui.scratchPosition() === 'left' ? 'Move scratch files under the explorer' : 'Move scratch files to a left panel',
         run: () => this.ui.toggleScratchPosition(),
       },
+      {
+        id: 'toggle-inline-results',
+        label: this.ui.inlineResults() ? 'Show query results in the bottom panel' : 'Show query results inline, under each statement',
+        run: () => this.ui.inlineResults.update((v) => !v),
+      },
       { id: 'new-connection', label: 'New connection…', run: () => this.newConnection() },
       { id: 'import-scratch', label: 'Open a .sql file as scratch…', run: () => void this.scratches.importFile() },
       { id: 'settings', label: 'Settings…', hint: `${MOD},`, run: () => this.openSettings() },
@@ -68,6 +73,9 @@ export class Commands {
         { id: 'duplicate-scratch', label: `Duplicate ${active.name}`, run: () => void this.scratches.duplicate(active.id) },
         { id: 'delete-scratch', label: `Delete ${active.name}…`, run: () => void this.scratches.remove(active.id) },
       );
+      if (this.ui.inlineResults() && this.runs.get(active.id).inline.length) {
+        cmds.push({ id: 'clear-inline', label: `Clear inline results of ${active.name}`, run: () => this.runs.dismissInline(active.id) });
+      }
     }
     if (active && !conn?.readOnly) {
       const tx = this.tx.get(active.id);

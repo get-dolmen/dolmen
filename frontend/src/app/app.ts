@@ -29,12 +29,15 @@ import { Topbar } from './features/topbar/topbar';
         <dm-tab-bar />
         <!-- SQL tabs share one editor; it stays mounted (hidden) while a data tab is active. -->
         <div class="sql" #work [hidden]="!tabs.active() || tabs.active()?.kind === 'table'">
-          <dm-sql-editor class="editor" [style.flex-basis.%]="ui.editorRatio() * 100" />
-          <div class="split h" role="separator" aria-orientation="horizontal" aria-label="Resize editor and results"
-               (pointerdown)="dragRows($event)" (dblclick)="ui.editorRatio.set(0.55)"></div>
-          @if (tabs.active(); as t) {
-            @if (t.kind === 'sql') {
-              <dm-results-panel class="results" [tabId]="t.id" [connId]="t.connId" />
+          <!-- Inline mode shows results inside the editor, so it takes the whole height. -->
+          <dm-sql-editor class="editor" [class.full]="ui.inlineResults()" [style.flex-basis.%]="ui.inlineResults() ? 100 : ui.editorRatio() * 100" />
+          @if (!ui.inlineResults()) {
+            <div class="split h" role="separator" aria-orientation="horizontal" aria-label="Resize editor and results"
+                 (pointerdown)="dragRows($event)" (dblclick)="ui.editorRatio.set(0.55)"></div>
+            @if (tabs.active(); as t) {
+              @if (t.kind === 'sql') {
+                <dm-results-panel class="results" [tabId]="t.id" [connId]="t.connId" />
+              }
             }
           }
         </div>
@@ -69,6 +72,7 @@ import { Topbar } from './features/topbar/topbar';
     .welcome { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--text-muted); }
     .welcome p { margin: 0; }
     .editor { flex: 0 0 55%; min-height: 80px; }
+    .editor.full { flex: 1 1 100%; }
     .results { flex: 1 1 0; min-height: 90px; }
     .sidebar { flex: none; min-width: 180px; max-width: 60vw; border-left: 1px solid var(--border); }
     .scratch-left { flex: none; min-width: 180px; max-width: 50vw; height: 100%; border-top: 0; border-right: 1px solid var(--border); background: var(--bg); }

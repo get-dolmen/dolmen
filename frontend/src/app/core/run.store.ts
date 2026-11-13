@@ -5,10 +5,24 @@ import { EditorBridge } from './editor-bridge';
 import { TabStore } from './tab.store';
 import { Toasts } from './toast';
 import { TxStore } from './tx.store';
+import { Ui } from './ui';
 import type { QueryResult } from './models';
 
 export interface RunMessage { time: number; kind: 'ok' | 'error' | 'info'; text: string; statement?: string; }
 export type ResultsPanel = 'results' | 'messages' | 'history';
+
+/** A result shown in the editor under the statement that produced it. */
+export interface InlineBlock {
+  id: string;
+  /** The run it came from; only the latest run's results can still be exported. */
+  seq: number;
+  /** Model offset just past the statement when it ran. */
+  offset: number;
+  result: QueryResult;
+}
+
+/** Older inline results are dropped beyond this many per tab. */
+const MAX_INLINE = 30;
 
 export interface TabRun {
   running: boolean;
@@ -18,11 +32,13 @@ export interface TabRun {
   activeResult: number;
   messages: RunMessage[];
   panel: ResultsPanel;
+  inline: InlineBlock[];
+  seq: number;
 }
 
 export const PAGE_SIZE = 1000;
 
-const emptyRun = (): TabRun => ({ running: false, startedAt: 0, results: [], activeResult: 0, messages: [], panel: 'results' });
+const emptyRun = (): TabRun => ({ running: false, startedAt: 0, results: [], activeResult: 0, messages: [], panel: 'results', inline: [], seq: 0 });
 
 @Injectable({ providedIn: 'root' })
 export class RunStore {
@@ -32,6 +48,7 @@ export class RunStore {
   private editor = inject(EditorBridge);
   private toasts = inject(Toasts);
   private tx = inject(TxStore);
+  private ui = inject(Ui);
 
   readonly runs = signal<Record<string, TabRun>>({});
 
@@ -39,6 +56,14 @@ export class RunStore {
 
   setPanel(tabId: string, panel: ResultsPanel) { this.patch(tabId, { panel }); }
   setActiveResult(tabId: string, i: number) { this.patch(tabId, { activeResult: i, panel: 'results' }); }
+
+  /** Removes inline results from a tab (all of them when `ids` is omitted). */
+  dismissInline(tabId: string, ids?: readonly string[]) {
+    const run = this.get(tabId);
+    const drop = ids && new Set(ids);
+    const inline = drop ? run.inline.filter((b) => !drop.has(b.id)) : [];
+    if (inline.length !== run.inline.length) this.patch(tabId, { inline });
+  }
 
   /** Runs the selection, else the statement under the cursor (`all` = whole script). */
   async run(mode: 'cursor' | 'all') {
@@ -65,6 +90,7 @@ export class RunStore {
       const results = resp.results.filter((r) => r.isQuery && !r.error);
       const failed = resp.results.some((r) => r.error);
       const prev = this.get(tab.id);
+      const inline = this.ui.inlineResults();
       this.patch(tab.id, {
         running: false,
         finishedMs: now - startedAt,
@@ -72,7 +98,13 @@ export class RunStore {
         activeResult: Math.max(0, results.length - 1),
         messages: [...messages, ...prev.messages].slice(0, 500),
         panel: failed || !results.length ? 'messages' : 'results',
+        ...(inline ? this.inlineFor(prev, resp.results, target.base) : {}),
       });
+      if (inline) {
+        if (resp.notice) this.toasts.show(resp.notice, resp.cancelled ? 'error' : 'info');
+        const done = resp.results.filter((r) => !r.error && !r.isQuery).length;
+        if (resp.results.length > 1 && done) this.toasts.success(`${done} statement${done === 1 ? '' : 's'} executed.`);
+      }
       if (failed) this.editor.flashError();
     } catch (e) {
       const prev = this.get(tab.id);
@@ -82,6 +114,7 @@ export class RunStore {
         messages: [{ time: Date.now(), kind: 'error' as const, text: errorText(e) }, ...prev.messages],
         panel: 'messages',
       });
+      if (this.ui.inlineResults()) this.toasts.error(errorText(e));
     }
   }
 
@@ -123,9 +156,26 @@ export class RunStore {
     this.runs.set(r);
   }
 
+  /**
+   * Inline blocks after a run: result sets and errors always, other
+   * statements only when a single one ran (a script would flood the editor).
+   * Earlier results lose their server cursor, so they cannot fetch more.
+   */
+  private inlineFor(prev: TabRun, results: QueryResult[], base: number): Pick<TabRun, 'inline' | 'seq'> {
+    const seq = prev.seq + 1;
+    const older = prev.inline.map((b) => (b.result.canFetchMore ? { ...b, result: { ...b.result, canFetchMore: false } } : b));
+    const added = results
+      .filter((r) => r.error || r.isQuery || results.length === 1)
+      .map((r) => ({ id: r.id, seq, offset: base + r.end, result: r }));
+    return { seq, inline: [...older, ...added].slice(-MAX_INLINE) };
+  }
+
   private updateResult(tabId: string, resultId: string, fn: (r: QueryResult) => QueryResult) {
     const run = this.get(tabId);
-    this.patch(tabId, { results: run.results.map((r) => (r.id === resultId ? fn(r) : r)) });
+    this.patch(tabId, {
+      results: run.results.map((r) => (r.id === resultId ? fn(r) : r)),
+      inline: run.inline.map((b) => (b.id === resultId ? { ...b, result: fn(b.result) } : b)),
+    });
   }
 
   private patch(tabId: string, p: Partial<TabRun>) {

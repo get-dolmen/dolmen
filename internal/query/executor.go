@@ -60,6 +60,9 @@ type Result struct {
 	Message    string `json:"message,omitempty"`
 	DurationMs int64  `json:"durationMs"`
 	Error      string `json:"error,omitempty"`
+	// End is the UTF-16 offset in the request's SQL just past the statement,
+	// so the editor can show the result under it.
+	End int `json:"end"`
 }
 
 type ExecResponse struct {
@@ -276,7 +279,7 @@ func (e *Executor) Execute(req ExecRequest) (*ExecResponse, error) {
 	if open.Config.ReadOnly {
 		for _, st := range stmts {
 			if err := sqlsplit.CheckReadOnly(dialect, st.Text); err != nil {
-				return &ExecResponse{Results: []Result{{ID: e.newID(), Statement: st.Text, Error: err.Error()}}}, nil
+				return &ExecResponse{Results: []Result{{ID: e.newID(), Statement: st.Text, Error: err.Error(), End: sqlsplit.ByteToUTF16Offset(req.SQL, st.End)}}}, nil
 			}
 		}
 	}
@@ -333,6 +336,7 @@ func (e *Executor) Execute(req ExecRequest) (*ExecResponse, error) {
 	resp := &ExecResponse{Results: make([]Result, 0, len(stmts))}
 	for i, st := range stmts {
 		last := i == len(stmts)-1
+		end := sqlsplit.ByteToUTF16Offset(req.SQL, st.End)
 		start := time.Now()
 		var res Result
 		var cur *cursor
@@ -341,6 +345,7 @@ func (e *Executor) Execute(req ExecRequest) (*ExecResponse, error) {
 			if ctl := sqlsplit.TxControl(dialect, st.Text); ctl != "" {
 				res = e.txControl(s, ctl, st.Text)
 				res.DurationMs = time.Since(start).Milliseconds()
+				res.End = end
 				resp.Results = append(resp.Results, res)
 				if res.Error != "" {
 					break
@@ -348,7 +353,7 @@ func (e *Executor) Execute(req ExecRequest) (*ExecResponse, error) {
 				continue
 			}
 			if err := s.beginTx(); err != nil {
-				resp.Results = append(resp.Results, Result{ID: e.newID(), Statement: st.Text, RowsAffected: -1, Error: err.Error()})
+				resp.Results = append(resp.Results, Result{ID: e.newID(), Statement: st.Text, RowsAffected: -1, Error: err.Error(), End: end})
 				break
 			}
 			q = s.tx
@@ -356,6 +361,7 @@ func (e *Executor) Execute(req ExecRequest) (*ExecResponse, error) {
 		}
 		res, cur = e.runOne(ctx, q, dialect, st.Text, maxRows, last)
 		res.DurationMs = time.Since(start).Milliseconds()
+		res.End = end
 		resp.Results = append(resp.Results, res)
 		e.record(req.ConnID, res, ctx.Err() != nil)
 		if res.Error == "" && res.IsQuery {

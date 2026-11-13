@@ -59,6 +59,28 @@ import type { SyncConfig } from '../../core/models';
               </button>
             </div>
           </div>
+
+          <div class="field">
+            <span class="label">Query results</span>
+            <div class="choices two" role="radiogroup" aria-label="Where query results are shown">
+              <button type="button" class="choice" role="radio" [class.on]="!ui.inlineResults()"
+                      [attr.aria-checked]="!ui.inlineResults()" (click)="ui.inlineResults.set(false)">
+                <span class="preview dock" aria-hidden="true">
+                  <span class="work col"><span class="main-pane"></span><span class="results-pane"></span></span>
+                </span>
+                <span class="name">Bottom panel</span>
+                <span class="hint">Results, messages and history under the editor</span>
+              </button>
+              <button type="button" class="choice" role="radio" [class.on]="ui.inlineResults()"
+                      [attr.aria-checked]="ui.inlineResults()" (click)="ui.inlineResults.set(true)">
+                <span class="preview dock" aria-hidden="true">
+                  <span class="work col"><span class="code"></span><span class="inline-res"></span><span class="code"></span></span>
+                </span>
+                <span class="name">Inline</span>
+                <span class="hint">Under each statement, in the editor</span>
+              </button>
+            </div>
+          </div>
         </section>
 
         <section class="group">
@@ -156,6 +178,10 @@ import type { SyncConfig } from '../../core/models';
     .preview.dock .scratches { height: 40%; background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 1px; }
     .preview.dock .main-pane { flex: 1; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 2px; }
     .preview.dock .left-dock { flex: 0 0 34%; background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 2px; }
+    .preview.dock .work.col { flex-direction: column; }
+    .preview.dock .results-pane { flex: 0 0 38%; background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 2px; }
+    .preview.dock .code { flex: 0 0 4px; margin: 2px 30% 2px 0; background: var(--border); border-radius: 1px; }
+    .preview.dock .inline-res { flex: 1; background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 2px; }
     .name { font-weight: 600; }
     .hint { font-size: var(--fs-xs); color: var(--text-faint); line-height: 1.25; }
     .form { display: flex; flex-direction: column; gap: 10px; }

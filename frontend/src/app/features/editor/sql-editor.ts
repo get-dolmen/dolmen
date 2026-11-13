@@ -1,10 +1,12 @@
-import { Component, ElementRef, OnDestroy, afterNextRender, effect, inject, signal, untracked, viewChild } from '@angular/core';
+import { ApplicationRef, Component, ElementRef, EnvironmentInjector, OnDestroy, afterNextRender, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { ConnectionStore } from '../../core/connection.store';
 import { EditorBridge, type EditorHandle, type RunTarget } from '../../core/editor-bridge';
+import { RunStore } from '../../core/run.store';
 import { SchemaStore } from '../../core/schema.store';
 import { TabStore } from '../../core/tab.store';
 import { Ui, applyThemeAttribute } from '../../core/ui';
 import { monacoLanguage } from '../../core/sql';
+import { InlineZones } from './inline-zones';
 import { applyTheme, initMonaco, monaco, setCompletionSource } from './monaco-setup';
 
 /** One Monaco instance; each tab owns a model so undo history and view state survive tab switches. */
@@ -23,6 +25,9 @@ export class SqlEditor implements EditorHandle, OnDestroy {
   private schema = inject(SchemaStore);
   private bridge = inject(EditorBridge);
   private ui = inject(Ui);
+  private runs = inject(RunStore);
+  private appRef = inject(ApplicationRef);
+  private injector = inject(EnvironmentInjector);
   private host = viewChild.required<ElementRef<HTMLDivElement>>('host');
 
   readonly flash = signal(false);
@@ -31,6 +36,7 @@ export class SqlEditor implements EditorHandle, OnDestroy {
   private viewStates = new Map<string, monaco.editor.ICodeEditorViewState | null>();
   private currentId = '';
   private resize?: ResizeObserver;
+  private inline?: InlineZones;
 
   constructor() {
     afterNextRender(() => this.create());
@@ -49,6 +55,14 @@ export class SqlEditor implements EditorHandle, OnDestroy {
       const tabs = this.tabs.tabs().filter((t) => t.kind === 'sql');
       const active = this.tabs.active();
       untracked(() => this.sync(tabs.map((t) => t.id), active?.kind === 'sql' ? active.id : undefined));
+    });
+
+    // Inline results: follow runs, the setting and the shown tab.
+    effect(() => {
+      const runs = this.runs.runs();
+      const on = this.ui.inlineResults();
+      const active = this.tabs.activeId();
+      untracked(() => this.inline?.update(runs, on, active));
     });
 
     // Keep each model's language in line with its tab's connection.
@@ -86,6 +100,7 @@ export class SqlEditor implements EditorHandle, OnDestroy {
     applyTheme();
     this.resize = new ResizeObserver(() => this.editor?.layout());
     this.resize.observe(this.host().nativeElement);
+    this.inline = new InlineZones(this.editor, this.runs, this.appRef, this.injector, this.models);
 
     setCompletionSource(async (model) => {
       const tabId = [...this.models].find(([, m]) => m === model)?.[0];
@@ -135,6 +150,7 @@ export class SqlEditor implements EditorHandle, OnDestroy {
       }
     }
     if (!activeId) {
+      this.inline?.clear();
       if (this.currentId) {
         if (this.models.has(this.currentId)) this.viewStates.set(this.currentId, this.editor.saveViewState());
         this.currentId = '';
@@ -147,7 +163,9 @@ export class SqlEditor implements EditorHandle, OnDestroy {
       this.viewStates.set(this.currentId, this.editor.saveViewState());
     }
     this.currentId = activeId;
+    this.inline?.clear(); // zones belong to the editor, not to the model
     this.editor.setModel(this.modelFor(activeId));
+    this.inline?.update(this.runs.runs(), this.ui.inlineResults(), activeId);
     const vs = this.viewStates.get(activeId);
     if (vs) this.editor.restoreViewState(vs);
     this.editor.focus();
@@ -170,10 +188,10 @@ export class SqlEditor implements EditorHandle, OnDestroy {
     const model = ed?.getModel();
     if (!ed || !model) return null;
     const sel = ed.getSelection();
-    if (sel && !sel.isEmpty()) return { sql: model.getValueInRange(sel), cursor: -1 };
-    if (mode === 'all') return { sql: model.getValue(), cursor: -1 };
+    if (sel && !sel.isEmpty()) return { sql: model.getValueInRange(sel), cursor: -1, base: model.getOffsetAt(sel.getStartPosition()) };
+    if (mode === 'all') return { sql: model.getValue(), cursor: -1, base: 0 };
     const pos = ed.getPosition();
-    return { sql: model.getValue(), cursor: pos ? model.getOffsetAt(pos) : 0 };
+    return { sql: model.getValue(), cursor: pos ? model.getOffsetAt(pos) : 0, base: 0 };
   }
 
   insert(text: string) {
@@ -198,6 +216,7 @@ export class SqlEditor implements EditorHandle, OnDestroy {
   ngOnDestroy() {
     this.bridge.detach(this);
     this.resize?.disconnect();
+    this.inline?.dispose();
     for (const m of this.models.values()) m.dispose();
     this.editor?.dispose();
   }

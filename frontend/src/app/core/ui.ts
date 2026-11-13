@@ -15,6 +15,8 @@ interface Persisted {
   scratchWidth: number;
   /** Whether the scratch panel is expanded when docked on the left. */
   scratchOpen: boolean;
+  /** Query results shown in the editor under each statement instead of the bottom panel. */
+  inlineResults: boolean;
 }
 
 function load(): Partial<Persisted> {
@@ -72,6 +74,8 @@ export class Ui {
   readonly scratchWidth = signal(this.saved.scratchWidth ?? 260);
   /** Collapses the dedicated scratch panel without moving it back under the explorer. */
   readonly scratchOpen = signal(this.saved.scratchOpen ?? true);
+  /** Results under each statement in the editor (DataGrip style) instead of the bottom panel. */
+  readonly inlineResults = signal(this.saved.inlineResults ?? false);
   readonly paletteOpen = signal(false);
   readonly paletteQuery = signal('');
   /** Bumped to ask the sidebar to reveal a table. */
@@ -90,6 +94,7 @@ export class Ui {
         scratchPosition: this.scratchPosition(),
         scratchWidth: this.scratchWidth(),
         scratchOpen: this.scratchOpen(),
+        inlineResults: this.inlineResults(),
       };
       try {
         localStorage.setItem(KEY, JSON.stringify(p));

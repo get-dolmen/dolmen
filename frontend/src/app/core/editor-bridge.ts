@@ -4,6 +4,8 @@ export interface RunTarget {
   sql: string;
   /** UTF-16 offset of the caret; -1 runs every statement of `sql`. */
   cursor: number;
+  /** Model offset where `sql` starts (the selection start, else 0). */
+  base: number;
 }
 
 /** What the SQL editor component exposes to the rest of the app. */

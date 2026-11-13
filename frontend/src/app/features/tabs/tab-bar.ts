@@ -5,7 +5,7 @@ import { ConnectionStore } from '../../core/connection.store';
 import { RunStore } from '../../core/run.store';
 import { TxStore } from '../../core/tx.store';
 import { TabStore, type EditorTab } from '../../core/tab.store';
-import { MOD } from '../../core/ui';
+import { MOD, Ui } from '../../core/ui';
 import { Autofocus } from '../../shared/autofocus';
 import { ClickOutside, clampMenu } from '../../shared/click-outside';
 import { ScratchStore } from '../../core/scratch.store';
@@ -94,6 +94,8 @@ import { Icon } from '../../shared/icon';
             <dm-icon [name]="t.locked ? 'lock' : 'unlock'" [size]="14" />
           </button>
         }
+        <button class="txmode" (click)="ui.inlineResults.set(!ui.inlineResults())" [attr.aria-pressed]="ui.inlineResults()"
+                [title]="ui.inlineResults() ? 'Results show under each statement. Click to use the bottom panel.' : 'Results show in the bottom panel. Click to show them under each statement.'">Results: {{ ui.inlineResults() ? 'Inline' : 'Panel' }}</button>
         @if (!readOnly()) {
           <button class="txmode" (click)="openTxMenu($event)" [class.manual]="t.txMode === 'manual'"
                   title="Transaction mode for this tab">Tx: {{ t.txMode === 'manual' ? 'Manual' : 'Auto' }} <span class="caret">▾</span></button>
@@ -173,6 +175,7 @@ export class TabBar {
   private scratches = inject(ScratchStore);
   private schema = inject(SchemaStore);
   readonly tx = inject(TxStore);
+  readonly ui = inject(Ui);
   readonly editing = signal('');
   readonly mod = MOD;
   readonly txMenu = signal<{ x: number; y: number } | null>(null);

@@ -164,3 +164,12 @@ func TestTxControl(t *testing.T) {
 		}
 	}
 }
+
+func TestByteToUTF16Offset(t *testing.T) {
+	s := "é😀a"
+	for _, c := range []struct{ b, u16 int }{{0, 0}, {2, 1}, {6, 3}, {7, 4}, {99, 4}} {
+		if got := ByteToUTF16Offset(s, c.b); got != c.u16 {
+			t.Errorf("ByteToUTF16Offset(%d) = %d, want %d", c.b, got, c.u16)
+		}
+	}
+}

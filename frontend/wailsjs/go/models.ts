@@ -591,6 +591,7 @@ export namespace query {
 	    message?: string;
 	    durationMs: number;
 	    error?: string;
+	    end: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Result(source);
@@ -609,6 +610,7 @@ export namespace query {
 	        this.message = source["message"];
 	        this.durationMs = source["durationMs"];
 	        this.error = source["error"];
+	        this.end = source["end"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

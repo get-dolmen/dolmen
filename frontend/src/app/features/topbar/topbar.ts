@@ -46,7 +46,7 @@ import { WindowToggleMaximise } from '../../../../wailsjs/runtime';
       }
       <button class="btn ghost icon" (click)="ui.sidebarOpen.set(!ui.sidebarOpen())" [class.on]="ui.sidebarOpen()"
               [title]="'Toggle explorer (' + mod + 'B)'" aria-label="Toggle explorer">
-        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor"/><rect x="10" y="3" width="4" height="10" fill="currentColor" opacity=".5"/></svg>
+        <dm-icon name="panelRight" [size]="16" />
       </button>
       <button class="btn ghost icon" (click)="cmds.openSettings()" [title]="'Settings (' + mod + ',)'" aria-label="Settings">
         <dm-icon name="settings" [size]="16" />

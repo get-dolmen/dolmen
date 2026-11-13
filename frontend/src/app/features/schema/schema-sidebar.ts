@@ -119,11 +119,12 @@ type DragItem = { kind: 'conn'; id: string; name: string } | { kind: 'folder'; i
           @case ('table') {
             <div class="row" role="treeitem" tabindex="0" [style.padding-left.px]="pad(r.depth)" [attr.aria-expanded]="r.open" [attr.id]="'n-' + r.key"
                  [class.sel]="selected() === r.key" [class.hl]="highlight() === r.key"
-                 (click)="$event.detail < 2 && toggle(r)" (dblclick)="cmds.openTableData(r.connId, r.database, r.table)"
+                 (dblclick)="cmds.openTableData(r.connId, r.database, r.table)"
                  (focus)="selected.set(r.key)"
                  (contextmenu)="openMenu($event, { kind: 'table', connId: r.connId, database: r.database, scope: r.scope, table: r.table })"
                  title="Double-click to open the data · right-click for actions">
-              <span class="chev" [class.open]="r.open">›</span>
+              <span class="chev toggle" [class.open]="r.open" role="button" [attr.aria-label]="r.open ? 'Hide columns' : 'Show columns'"
+                    (click)="$event.stopPropagation(); toggle(r)" (dblclick)="$event.stopPropagation()">›</span>
               <span class="icon" [class.view]="r.table.type === 'view'" aria-hidden="true">{{ r.table.type === 'view' ? '◇' : '▦' }}</span>
               <span class="name ellipsis">{{ r.table.name }}</span>
               @if (r.loading) { <span class="spin"></span> }
@@ -165,7 +166,20 @@ type DragItem = { kind: 'conn'; id: string; name: string } | { kind: 'folder'; i
             <button class="menu-item" (click)="menuAction('scratch')">New scratch for this table</button>
             <button class="menu-item" (click)="menuAction('insert')">Insert name</button>
             <button class="menu-item" (click)="menuAction('copy')">Copy name</button>
-            <button class="menu-item" (click)="menuAction('ddl')">Show DDL</button>
+            <div class="menu-sep"></div>
+            <div class="menu-sub">
+              <button class="menu-item">New<span class="hint">‹</span></button>
+              <div class="menu sub">
+                <button class="menu-item" (click)="menuAction('newtable')">Table…</button>
+              </div>
+            </div>
+            <div class="menu-sub">
+              <button class="menu-item">DDL<span class="hint">‹</span></button>
+              <div class="menu sub">
+                <button class="menu-item" (click)="menuAction('ddl')">Show DDL</button>
+                <button class="menu-item" (click)="menuAction('copyddl')">Copy DDL to clipboard</button>
+              </div>
+            </div>
             <div class="menu-sep"></div>
             <button class="menu-item danger" (click)="menuAction('drop')">Drop {{ m.table.type === 'view' ? 'view' : 'table' }}…</button>
           }
@@ -173,6 +187,17 @@ type DragItem = { kind: 'conn'; id: string; name: string } | { kind: 'folder'; i
             <button class="menu-item" (click)="menuAction('newtab')">New tab on this database</button>
             <button class="menu-item" (click)="menuAction('use')">Use in current tab</button>
             <button class="menu-item" (click)="menuAction('copy')">Copy name</button>
+            <button class="menu-item" (click)="menuAction('refresh')">Refresh</button>
+            <div class="menu-sep"></div>
+            <div class="menu-sub">
+              <button class="menu-item">New<span class="hint">‹</span></button>
+              <div class="menu sub">
+                <button class="menu-item" (click)="menuAction('newdb')">Database…</button>
+              </div>
+            </div>
+            <div class="menu-sep"></div>
+            <button class="menu-item danger" (click)="menuAction('dropdb')" [disabled]="isMainDb(m.connId, m.database)"
+                    [title]="isMainDb(m.connId, m.database) ? 'The connection itself uses this database' : ''">Drop database…</button>
           }
           @case ('conn') {
             @if (m.conn.connected) {
@@ -215,6 +240,14 @@ type DragItem = { kind: 'conn'; id: string; name: string } | { kind: 'folder'; i
     .row.note { cursor: default; font-size: var(--fs-xs); font-style: italic; }
     .chev { width: 12px; flex: none; text-align: center; color: var(--text-faint); transition: transform 0.12s; font-size: 14px; line-height: 1; }
     .chev.open { transform: rotate(90deg); }
+    .chev.toggle { width: 16px; margin: 0 -2px; border-radius: 3px; cursor: pointer; }
+    .chev.toggle:hover { color: var(--text); background: var(--bg-active); }
+    /* Submenus open to the left: the explorer sits at the right edge of the window. */
+    .menu .menu-item:disabled { opacity: 0.45; cursor: default; background: none; }
+    .menu-sub { position: relative; }
+    .menu-sub > .menu.sub { display: none; position: absolute; top: -5px; right: calc(100% - 2px); left: auto; min-width: 180px; }
+    .menu-sub:hover > .menu.sub, .menu-sub:focus-within > .menu.sub { display: block; }
+    .menu-sub:hover > .menu-item { background: var(--bg-hover); }
     .dot.off { opacity: 0.35; }
     .icon { width: 14px; flex: none; text-align: center; color: var(--text-faint); font-size: 12px; }
     .icon.db { color: var(--accent); }
@@ -585,6 +618,8 @@ export class SchemaSidebar {
           case 'insert': return this.cmds.insertName(connId, t.schema, t.name, database);
           case 'copy': return void this.cmds.copy(t.name);
           case 'ddl': return void this.cmds.showDDL(connId, t, database);
+          case 'copyddl': return void this.cmds.copyDDL(connId, t, database);
+          case 'newtable': return void this.cmds.newTable(connId, t.schema, database);
           case 'drop': return void this.cmds.dropTable(connId, t, database);
         }
         return;
@@ -595,6 +630,9 @@ export class SchemaSidebar {
           case 'newtab': return this.cmds.newTab(m.connId, m.database);
           case 'use': return this.useInTab(m.connId, m.database);
           case 'copy': return void this.cmds.copy(db);
+          case 'refresh': return void this.schema.refreshScope(m.scope);
+          case 'newdb': return void this.cmds.createDatabase(m.connId);
+          case 'dropdb': return void this.cmds.dropDatabase(m.connId, db);
         }
         return;
       }
@@ -611,6 +649,12 @@ export class SchemaSidebar {
         }
       }
     }
+  }
+
+  /** The database the connection itself is opened on (it cannot be dropped from here). */
+  isMainDb(connId: string, database: string): boolean {
+    const cur = this.schema.databases()[connId]?.current;
+    return !database || database === cur;
   }
 
   async useInTab(connId: string, database: string) {

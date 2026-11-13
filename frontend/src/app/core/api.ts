@@ -33,6 +33,8 @@ export class Api {
   dropTable = (connId: string, db: string, schema: string, table: string, type: string) =>
     App.DropTable(connId, db, schema, table, type);
   quoteIdent = (connId: string, name: string) => App.QuoteIdent(connId, name);
+  createDatabase = (connId: string, name: string) => App.CreateDatabase(connId, name);
+  dropDatabase = (connId: string, name: string) => App.DropDatabase(connId, name);
 
   readTable = (tabId: string, connId: string, db: string, manual: boolean,
     req: { schema: string; table: string; type: string; where: string; orderBy: string; offset: number; limit: number }) =>

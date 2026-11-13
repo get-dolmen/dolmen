@@ -34,6 +34,10 @@ export function CountTableRows(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['CountTableRows'](arg1, arg2, arg3, arg4, arg5);
 }
 
+export function CreateDatabase(arg1, arg2) {
+  return window['go']['main']['App']['CreateDatabase'](arg1, arg2);
+}
+
 export function CreateScratch(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
   return window['go']['main']['App']['CreateScratch'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
@@ -52,6 +56,10 @@ export function DeleteScratch(arg1) {
 
 export function Disconnect(arg1) {
   return window['go']['main']['App']['Disconnect'](arg1);
+}
+
+export function DropDatabase(arg1, arg2) {
+  return window['go']['main']['App']['DropDatabase'](arg1, arg2);
 }
 
 export function DropTable(arg1, arg2, arg3, arg4, arg5) {

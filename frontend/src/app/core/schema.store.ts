@@ -81,6 +81,15 @@ export class SchemaStore {
     await this.loadSchemas(connId);
   }
 
+  /** Reloads one database (scope) of a connection, keeping the others cached. */
+  async refreshScope(scope: string) {
+    const data = { ...this.data() };
+    delete data[scope];
+    this.data.set(data);
+    for (const k of [...this.inflight.keys()]) if (k.startsWith(scope + '|')) this.inflight.delete(k);
+    await this.loadSchemas(scope);
+  }
+
   loadDatabases(connId: string): Promise<unknown> {
     if (this.databases()[connId]) return Promise.resolve();
     return this.once(`${connId}|databases`, async () => {

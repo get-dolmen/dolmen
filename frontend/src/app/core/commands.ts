@@ -12,7 +12,8 @@ import { ScratchStore } from './scratch.store';
 import { Toasts } from './toast';
 import { Ui, MOD } from './ui';
 import { Confirm } from '../shared/confirm';
-import { qualified, selectTop } from './sql';
+import { Prompt } from '../shared/prompt';
+import { createTableTemplate, qualified, selectTop } from './sql';
 import type { ConnectionView, DbTable } from './models';
 import { ClipboardSetText } from '../../../wailsjs/runtime/runtime';
 import { ConnectionDialog } from '../features/connections/connection-dialog';
@@ -41,6 +42,7 @@ export class Commands {
   private tx = inject(TxStore);
   private scratches = inject(ScratchStore);
   private confirm = inject(Confirm);
+  private prompt = inject(Prompt);
 
   list(): Command[] {
     const active = this.tabs.active();
@@ -236,6 +238,60 @@ export class Commands {
     }
   }
 
+  /** Copies a table's or view's DDL to the clipboard. */
+  async copyDDL(connId: string, t: DbTable, database = '') {
+    try {
+      const ddl = await this.api.tableDDL(connId, database, t.schema, t.name, t.type);
+      if (await this.copy(ddl.trim() + '\n')) this.toasts.success(`Copied the DDL of ${t.name}`);
+    } catch (e) {
+      this.toasts.error(errorText(e));
+    }
+  }
+
+  /** Opens a scratch with a CREATE TABLE to complete and run, in the given schema. */
+  async newTable(connId: string, schema: string, database = '') {
+    const conn = this.conns.get(connId);
+    if (!conn) return;
+    const name = await this.prompt.ask({ title: 'New table', label: schema ? `Table name in ${schema}` : 'Table name', value: 'new_table', confirmLabel: 'Open script' });
+    if (!name) return;
+    const def = this.schema.get(this.schema.scope(connId, database))?.defaultSchema;
+    const sql = createTableTemplate(conn.kind, qualified(conn.kind, schema, name, def));
+    await this.scratches.createIn({ connId, database }, sql, this.scratches.freeName(`create_${name}`));
+  }
+
+  /** Creates a database on the connection's server, then shows it in the explorer. */
+  async createDatabase(connId: string) {
+    const name = await this.prompt.ask({ title: 'New database', label: 'Database name', confirmLabel: 'Create' });
+    if (!name) return;
+    try {
+      await this.api.createDatabase(connId, name);
+      this.toasts.success(`Created database ${name}`);
+      await this.schema.refresh(connId);
+    } catch (e) {
+      this.toasts.error(errorText(e));
+    }
+  }
+
+  /** Drops a database after a confirmation; its tabs are closed (their sessions are gone). */
+  async dropDatabase(connId: string, database: string) {
+    const tabs = this.tabs.tabs().filter((x) => x.connId === connId && x.database === database);
+    const extra = tabs.length ? `\n\n${tabs.length} tab${tabs.length === 1 ? '' : 's'} using it will lose ${tabs.length === 1 ? 'its' : 'their'} session, and data tabs on it will close.` : '';
+    if (!(await this.confirm.ask(`Drop the database ${database}?\n\nThis cannot be undone.${extra}`,
+      { title: 'Drop database', confirmLabel: 'Drop database', danger: true }))) return;
+    try {
+      await this.api.dropDatabase(connId, database);
+      this.toasts.success(`Dropped database ${database}`);
+      for (const tab of tabs) {
+        this.tx.forget(tab.id);
+        this.runs.forget(tab.id);
+        if (tab.kind === 'table') void this.tabs.close(tab.id);
+      }
+      await this.schema.refresh(connId);
+    } catch (e) {
+      this.toasts.error(errorText(e));
+    }
+  }
+
   /** New empty scratch filed under a table. */
   newScratchFor(connId: string, t: DbTable, database = '') {
     void this.scratches.createIn({ connId, database, schema: t.schema, table: t.name });
@@ -248,14 +304,18 @@ export class Commands {
     this.editor.focus();
   }
 
-  async copy(text: string) {
+  /** Copies text to the clipboard; false (after a toast) when it failed. */
+  async copy(text: string): Promise<boolean> {
     try {
       if (!(await ClipboardSetText(text))) throw new Error();
+      return true;
     } catch {
       try {
         await navigator.clipboard.writeText(text);
+        return true;
       } catch {
         this.toasts.error('Clipboard is not available');
+        return false;
       }
     }
   }

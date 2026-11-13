@@ -222,11 +222,19 @@ func (e *Executor) CloseTab(tabID string) {
 }
 
 // CloseConnection releases every session bound to a connection.
-func (e *Executor) CloseConnection(connID string) {
+func (e *Executor) CloseConnection(connID string) { e.closeWhere(func(s *session) bool { return s.connID == connID }) }
+
+// CloseDatabase releases the sessions bound to one database of a connection
+// (not its main one), before that database is dropped.
+func (e *Executor) CloseDatabase(connID, database string) {
+	e.closeWhere(func(s *session) bool { return s.connID == connID && s.db == database })
+}
+
+func (e *Executor) closeWhere(match func(*session) bool) {
 	e.mu.Lock()
 	var drop []*session
 	for id, s := range e.tabs {
-		if s.connID == connID {
+		if match(s) {
 			drop = append(drop, s)
 			delete(e.tabs, id)
 		}

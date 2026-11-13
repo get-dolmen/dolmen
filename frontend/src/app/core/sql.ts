@@ -26,6 +26,17 @@ export function selectTop(kind: DbKind, target: string, n = 100): string {
     : `SELECT *\nFROM ${target}\nLIMIT ${n};`;
 }
 
+/** A CREATE TABLE to fill in, with the dialect's usual auto-increment key. */
+export function createTableTemplate(kind: DbKind, target: string): string {
+  const [id, text] = {
+    postgres: ['bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY', 'varchar(255) NOT NULL'],
+    mysql: ['BIGINT AUTO_INCREMENT PRIMARY KEY', 'VARCHAR(255) NOT NULL'],
+    oracle: ['NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY', 'VARCHAR2(255) NOT NULL'],
+    sqlite: ['INTEGER PRIMARY KEY', 'TEXT NOT NULL'],
+  }[kind];
+  return `CREATE TABLE ${target} (\n    id ${id},\n    name ${text}\n);\n`;
+}
+
 /** Monaco language id for a dialect. */
 export function monacoLanguage(kind: DbKind | undefined): string {
   switch (kind) {

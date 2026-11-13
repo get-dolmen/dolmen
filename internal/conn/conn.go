@@ -363,6 +363,20 @@ func (m *Manager) GetDB(ctx context.Context, id, database string) (*Open, error)
 	return o, nil
 }
 
+// CloseDB closes the pool opened for another database of the connection.
+func (m *Manager) CloseDB(id, database string) {
+	m.mu.Lock()
+	var x *Open
+	if e := m.open[id]; e != nil {
+		x = e.extra[database]
+		delete(e.extra, database)
+	}
+	m.mu.Unlock()
+	if x != nil {
+		x.Close()
+	}
+}
+
 func (m *Manager) Disconnect(id string) {
 	m.mu.Lock()
 	e := m.open[id]

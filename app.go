@@ -506,6 +506,56 @@ func (a *App) DropTable(connID, database, schema, table, typ string) error {
 	return err
 }
 
+// CreateDatabase creates a database on the connection's server (engines
+// with a database level, i.e. Postgres).
+func (a *App) CreateDatabase(connID, name string) error {
+	o, err := a.serverPool(connID, name)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := metaCtx()
+	defer cancel()
+	_, err = o.DB.ExecContext(ctx, "CREATE DATABASE "+o.Driver.QuoteIdent(name))
+	return err
+}
+
+// DropDatabase drops another database of the connection's server. Dolmen's
+// own sessions on it are closed first; the server refuses while any remain.
+func (a *App) DropDatabase(connID, name string) error {
+	o, err := a.serverPool(connID, name)
+	if err != nil {
+		return err
+	}
+	if name == o.CurrentDB {
+		return fmt.Errorf("cannot drop %s: the connection itself uses it", name)
+	}
+	a.exec.CloseDatabase(connID, name)
+	a.conns.CloseDB(connID, name)
+	ctx, cancel := metaCtx()
+	defer cancel()
+	_, err = o.DB.ExecContext(ctx, "DROP DATABASE "+o.Driver.QuoteIdent(name))
+	return err
+}
+
+// serverPool returns the main pool of a writable connection whose engine has
+// a database level, for statements that act on whole databases.
+func (a *App) serverPool(connID, name string) (*conn.Open, error) {
+	if strings.TrimSpace(name) == "" {
+		return nil, errors.New("a database name is required")
+	}
+	o, err := a.open(connID, "")
+	if err != nil {
+		return nil, err
+	}
+	if o.Config.ReadOnly {
+		return nil, errors.New("read-only connection: cannot create or drop databases")
+	}
+	if _, ok := o.Driver.(driver.DatabaseLister); !ok {
+		return nil, fmt.Errorf("%s connections have no database level", o.Config.Kind)
+	}
+	return o, nil
+}
+
 // QuoteIdent quotes an identifier for the connection's dialect.
 func (a *App) QuoteIdent(connID, name string) (string, error) {
 	o, err := a.open(connID, "")

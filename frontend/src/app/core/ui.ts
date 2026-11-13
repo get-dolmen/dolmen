@@ -13,6 +13,8 @@ interface Persisted {
   theme: Theme;
   scratchPosition: ScratchPosition;
   scratchWidth: number;
+  /** Whether the scratch panel is expanded when docked on the left. */
+  scratchOpen: boolean;
 }
 
 function load(): Partial<Persisted> {
@@ -68,6 +70,8 @@ export class Ui {
   /** Scratches sit under the explorer by default, or in a dedicated left panel. */
   readonly scratchPosition = signal<ScratchPosition>(validScratchPosition(this.saved.scratchPosition) ? this.saved.scratchPosition : 'explorer');
   readonly scratchWidth = signal(this.saved.scratchWidth ?? 260);
+  /** Collapses the dedicated scratch panel without moving it back under the explorer. */
+  readonly scratchOpen = signal(this.saved.scratchOpen ?? true);
   readonly paletteOpen = signal(false);
   readonly paletteQuery = signal('');
   /** Bumped to ask the sidebar to reveal a table. */
@@ -85,6 +89,7 @@ export class Ui {
         theme: this.theme(),
         scratchPosition: this.scratchPosition(),
         scratchWidth: this.scratchWidth(),
+        scratchOpen: this.scratchOpen(),
       };
       try {
         localStorage.setItem(KEY, JSON.stringify(p));
@@ -100,5 +105,7 @@ export class Ui {
   /** Moves the scratch files between the explorer and a dedicated left panel. */
   toggleScratchPosition() {
     this.scratchPosition.update((p) => (p === 'left' ? 'explorer' : 'left'));
+    // Docking on the left always shows the panel; it can then be collapsed on its own.
+    if (this.scratchPosition() === 'left') this.scratchOpen.set(true);
   }
 }

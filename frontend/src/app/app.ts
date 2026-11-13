@@ -20,7 +20,7 @@ import { Topbar } from './features/topbar/topbar';
   template: `
     <dm-topbar />
     <div class="main">
-      @if (ui.scratchPosition() === 'left') {
+      @if (ui.scratchPosition() === 'left' && ui.scratchOpen()) {
         <dm-scratch-list class="scratch-left" [style.width.px]="ui.scratchWidth()" />
         <div class="split v" role="separator" aria-orientation="vertical" aria-label="Resize scratches"
              (pointerdown)="dragScratches($event)" (dblclick)="ui.scratchWidth.set(260)"></div>

@@ -89,6 +89,8 @@ export interface HistoryEntry {
 export interface TabState {
   id: string; name: string; connId: string; database?: string; content?: string;
   kind?: 'sql' | 'table'; schema?: string; table?: string; tableType?: string; txMode?: 'manual';
+  /** SQL tabs: the connection and database are pinned. */
+  locked?: boolean;
 }
 
 export type TxMode = 'auto' | 'manual';
@@ -142,6 +144,7 @@ export interface ScratchInfo {
   database?: string;
   schema?: string;
   table?: string;
+  locked?: boolean;
   createdAt: number;
   updatedAt: number;
   size: number;

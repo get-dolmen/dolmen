@@ -80,11 +80,11 @@ type Menu =
             </div>
           } @else {
             @let s = r.node.scratch;
-            <div class="row file" role="treeitem" tabindex="0" draggable="true" [style.padding-left.px]="8 + r.depth * 14 + 14"
+            <div class="row file" role="treeitem" tabindex="0" [attr.draggable]="s.locked ? null : 'true'" [style.padding-left.px]="8 + r.depth * 14 + 14"
                  [class.open]="store.openIds().has(s.id)" [class.active]="s.id === tabs.activeId()"
                  (click)="editing() !== s.id && store.open(s.id)" (keydown.enter)="store.open(s.id)" (keydown.f2)="editing.set(s.id)"
                  (contextmenu)="openFileMenu($event, s)" (dragstart)="onDragStart($event, s)" (dragend)="dropKey.set('')"
-                 [title]="(s.preview || s.name) + '\\nDrag onto a folder to move it'">
+                 [title]="(s.preview || s.name) + (s.locked ? '\\nLocked to its connection and database' : '\\nDrag onto a folder to move it')">
               <dm-icon name="file" [size]="14" class="fi" />
               @if (editing() === s.id) {
                 <input class="rename" dmAutofocus [value]="s.name" (click)="$event.stopPropagation()"
@@ -92,6 +92,7 @@ type Menu =
                        (blur)="rename(s, $any($event.target).value)" />
               } @else {
                 <span class="label ellipsis">{{ s.name }}</span>
+                @if (s.locked) { <dm-icon name="lock" [size]="12" class="lock" /> }
                 <span class="when">{{ ago(s.updatedAt) }}</span>
               }
             </div>
@@ -107,6 +108,7 @@ type Menu =
         @if (m.kind === 'file') {
           <button class="menu-item" (click)="act('open')">Open</button>
           <button class="menu-item" (click)="act('rename')">Rename<span class="hint">F2</span></button>
+          <button class="menu-item" (click)="act(m.s.locked ? 'unlock' : 'lock')">{{ m.s.locked ? 'Unlock database' : 'Lock to its database' }}</button>
           <button class="menu-item" (click)="act('duplicate')">Duplicate</button>
           <button class="menu-item" (click)="act('export')">Save as file…</button>
           @if (m.s.table) {
@@ -150,6 +152,7 @@ type Menu =
     .ficon.tbl { color: var(--text-faint); }
     .fi { color: var(--text-faint); flex: none; }
     .row.open .fi { color: var(--accent); }
+    .lock { color: var(--text-muted); flex: none; }
     .when { margin-left: auto; padding-left: 6px; font-size: var(--fs-xs); color: var(--text-faint); }
     .rename { flex: 1; min-width: 0; height: 20px; padding: 0 4px; border: 1px solid var(--accent); border-radius: 3px; background: var(--bg-panel); outline: none; font-size: var(--fs); }
     .empty { margin: 4px 14px 10px; font-size: var(--fs-xs); color: var(--text-faint); }
@@ -261,6 +264,8 @@ export class ScratchList {
     switch (action) {
       case 'open': return void this.store.open(s.id);
       case 'rename': return this.editing.set(s.id);
+      case 'lock': return void this.store.setLocked(s.id, true);
+      case 'unlock': return void this.store.setLocked(s.id, false);
       case 'duplicate': return void this.store.duplicate(s.id);
       case 'export': return void this.store.exportFile(s.id);
       case 'untable': return void this.store.moveTo(s.id, { connId: s.connId, database: s.database ?? '', schema: '', table: '' });

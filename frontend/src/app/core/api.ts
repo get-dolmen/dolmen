@@ -80,6 +80,7 @@ export class Api {
   createScratch = (id: string, name: string, connId: string, db: string, schema: string, table: string, content: string) =>
     App.CreateScratch(id, name, connId, db, schema, table, content) as unknown as Promise<TabState>;
   linkScratch = (id: string, connId: string, db: string, schema: string, table: string) => App.LinkScratch(id, connId, db, schema, table);
+  setScratchLock = (id: string, locked: boolean) => App.SetScratchLock(id, locked);
   deleteScratch = (id: string) => App.DeleteScratch(id);
   duplicateScratch = (id: string, newId: string, name: string) => App.DuplicateScratch(id, newId, name) as unknown as Promise<TabState>;
   exportScratch = (id: string) => App.ExportScratch(id);

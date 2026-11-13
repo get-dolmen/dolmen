@@ -33,11 +33,11 @@ export class ScratchStore {
     const out = this.saved().map((s) => {
       seen.add(s.id);
       const t = open.get(s.id);
-      return t ? { ...s, name: t.name, connId: t.connId, database: t.database } : s;
+      return t ? { ...s, name: t.name, connId: t.connId, database: t.database, locked: t.locked } : s;
     });
     for (const t of open.values()) {
       if (!seen.has(t.id) && t.content.trim()) {
-        out.unshift({ id: t.id, name: t.name, connId: t.connId, database: t.database, createdAt: Date.now(), updatedAt: Date.now(), size: t.content.length });
+        out.unshift({ id: t.id, name: t.name, connId: t.connId, database: t.database, locked: t.locked, createdAt: Date.now(), updatedAt: Date.now(), size: t.content.length });
       }
     }
     return out;
@@ -184,6 +184,11 @@ export class ScratchStore {
 
   /** Moves a scratch to another folder. An open tab follows the new connection / database. */
   async moveTo(id: string, where: { connId: string; database: string; schema: string; table: string }) {
+    const locked = this.tabs.get(id)?.locked ?? this.saved().find((x) => x.id === id)?.locked;
+    if (locked) {
+      this.toasts.error('This scratch is locked to its connection and database. Unlock it first.');
+      return;
+    }
     const tab = this.tabs.get(id);
     if (tab && (tab.connId !== where.connId || tab.database !== where.database)) {
       if (!(await this.tx.confirmLeave(id))) return;
@@ -192,6 +197,20 @@ export class ScratchStore {
     try {
       await this.api.linkScratch(id, where.connId, where.database, where.schema, where.table);
       await this.refresh();
+    } catch (e) {
+      this.toasts.error(errorText(e));
+    }
+  }
+
+  /** Pins or unpins a scratch's connection and database. */
+  async setLocked(id: string, locked: boolean) {
+    try {
+      // The backend stores the lock with the scratch: let it see the tab first.
+      await this.tabs.flush(id);
+      await this.tabs.saveLayoutNow();
+      await this.api.setScratchLock(id, locked);
+      this.tabs.setLocked(id, locked);
+      this.saved.update((xs) => xs.map((x) => (x.id === id ? { ...x, locked } : x)));
     } catch (e) {
       this.toasts.error(errorText(e));
     }

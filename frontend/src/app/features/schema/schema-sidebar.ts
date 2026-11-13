@@ -4,6 +4,7 @@ import { Commands } from '../../core/commands';
 import { ConnectionStore } from '../../core/connection.store';
 import { SchemaStore, scopeOf, type ConnSchema } from '../../core/schema.store';
 import { TabStore } from '../../core/tab.store';
+import { Toasts } from '../../core/toast';
 import { Ui } from '../../core/ui';
 import { TxStore } from '../../core/tx.store';
 import { ClickOutside, clampMenu } from '../../shared/click-outside';
@@ -237,6 +238,7 @@ export class SchemaSidebar {
   readonly ui = inject(Ui);
   private tx = inject(TxStore);
   private confirm = inject(Confirm);
+  private toasts = inject(Toasts);
   private el = inject<ElementRef<HTMLElement>>(ElementRef);
 
   readonly filter = signal('');
@@ -611,7 +613,12 @@ export class SchemaSidebar {
 
   async useInTab(connId: string, database: string) {
     const t = this.tabs.active();
-    if (!t || !(await this.tx.confirmLeave(t.id))) return;
+    if (!t) return;
+    if (t.locked) {
+      this.toasts.error(`${t.name} is locked to its connection and database. Unlock it first.`);
+      return;
+    }
+    if (!(await this.tx.confirmLeave(t.id))) return;
     this.tabs.setConnection(t.id, connId, database);
   }
 

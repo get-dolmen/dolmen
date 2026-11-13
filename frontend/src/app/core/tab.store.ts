@@ -13,6 +13,8 @@ export interface EditorTab {
   kind: 'sql' | 'table';
   /** 'manual' keeps a transaction open across runs until Commit / Rollback */
   txMode: TxMode;
+  /** SQL tabs: pins the connection and database so they cannot be switched by accident. */
+  locked: boolean;
   table?: { schema: string; name: string; type: string };
   content: string;
   /** content changed and not yet written to disk */
@@ -44,6 +46,7 @@ export class TabStore {
       this.tabs.set(ws.tabs.map((t) => ({
         id: t.id, name: t.name, connId: t.connId, database: t.database ?? '', content: t.content ?? '', dirty: false,
         kind: t.kind === 'table' ? 'table' : 'sql', txMode: t.txMode === 'manual' ? 'manual' : 'auto',
+        locked: !!t.locked,
         table: t.kind === 'table' ? { schema: t.schema ?? '', name: t.table ?? '', type: t.tableType ?? 'table' } : undefined,
       })));
       this.activeId.set(ws.tabs.some((t) => t.id === ws.activeId) ? ws.activeId : ws.tabs[0]?.id ?? '');
@@ -56,13 +59,13 @@ export class TabStore {
   get(id: string) { return this.tabs().find((t) => t.id === id); }
 
   create(connId = '', content = '', name?: string, database = ''): EditorTab {
-    return this.insert({ id: crypto.randomUUID(), name: name ?? this.nextName(), connId, database, kind: 'sql', txMode: 'auto', content, dirty: !!content });
+    return this.insert({ id: crypto.randomUUID(), name: name ?? this.nextName(), connId, database, kind: 'sql', txMode: 'auto', locked: false, content, dirty: !!content });
   }
 
   /** Opens an existing scratch file in a new tab. */
   openScratch(t: TabState): EditorTab {
     return this.insert({
-      id: t.id, name: t.name, connId: t.connId, database: t.database ?? '', kind: 'sql', txMode: 'auto',
+      id: t.id, name: t.name, connId: t.connId, database: t.database ?? '', kind: 'sql', txMode: 'auto', locked: !!t.locked,
       content: t.content ?? '', dirty: false,
     }, false);
   }
@@ -78,7 +81,7 @@ export class TabStore {
 
   /** Opens a data-editor tab for a table. */
   createTable(connId: string, database: string, table: { schema: string; name: string; type: string }): EditorTab {
-    return this.insert({ id: crypto.randomUUID(), name: table.name, connId, database, kind: 'table', txMode: 'auto', table, content: '', dirty: false });
+    return this.insert({ id: crypto.randomUUID(), name: table.name, connId, database, kind: 'table', txMode: 'auto', locked: false, table, content: '', dirty: false });
   }
 
   private insert(tab: EditorTab, save = true): EditorTab {
@@ -143,9 +146,21 @@ export class TabStore {
 
   setConnection(id: string, connId: string, database = '') {
     const t = this.get(id);
-    if (!t || (t.connId === connId && t.database === database)) return;
+    if (!t) return;
+    if (t.locked) {
+      this.toasts.error(`${t.name} is locked to its connection and database. Unlock it first.`);
+      return;
+    }
+    if (t.connId === connId && t.database === database) return;
     this.patch(id, { connId, database });
     void this.api.releaseTabSession(id);
+    this.saveLayoutSoon();
+  }
+
+  /** Pins or unpins a SQL tab's connection and database. */
+  setLocked(id: string, locked: boolean) {
+    if (this.get(id)?.locked === locked) return;
+    this.patch(id, { locked });
     this.saveLayoutSoon();
   }
 
@@ -226,18 +241,34 @@ export class TabStore {
 
   private saveLayoutSoon() {
     clearTimeout(this.layoutTimer);
-    this.layoutTimer = setTimeout(() => {
-      const ws = {
-        activeId: this.activeId(),
-        tabs: this.tabs().map((t) => ({
-          id: t.id, name: t.name, connId: t.connId, database: t.database || undefined,
-          kind: t.kind === 'table' ? ('table' as const) : undefined,
-          schema: t.table?.schema, table: t.table?.name, tableType: t.table?.type,
-          txMode: t.txMode === 'manual' ? ('manual' as const) : undefined,
-        })),
-      };
-      this.api.saveWorkspaceLayout(ws).catch((e) => this.toasts.error(errorText(e)));
-    }, LAYOUT_SAVE_MS);
+    this.layoutTimer = setTimeout(() => void this.saveLayout(), LAYOUT_SAVE_MS);
+  }
+
+  /**
+   * Saves the layout now. Actions that address a scratch by ID (locking it, for
+   * one) need the backend to know the tab before the debounce fires.
+   */
+  async saveLayoutNow() {
+    clearTimeout(this.layoutTimer);
+    await this.saveLayout();
+  }
+
+  private async saveLayout() {
+    const ws = {
+      activeId: this.activeId(),
+      tabs: this.tabs().map((t) => ({
+        id: t.id, name: t.name, connId: t.connId, database: t.database || undefined,
+        kind: t.kind === 'table' ? ('table' as const) : undefined,
+        schema: t.table?.schema, table: t.table?.name, tableType: t.table?.type,
+        txMode: t.txMode === 'manual' ? ('manual' as const) : undefined,
+        locked: t.locked || undefined,
+      })),
+    };
+    try {
+      await this.api.saveWorkspaceLayout(ws);
+    } catch (e) {
+      this.toasts.error(errorText(e));
+    }
   }
 
   private patch(id: string, p: Partial<EditorTab>) {

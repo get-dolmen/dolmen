@@ -103,6 +103,8 @@ export function SaveTabContent(arg1:string,arg2:string):Promise<void>;
 
 export function SaveWorkspaceLayout(arg1:scratch.Workspace):Promise<void>;
 
+export function SetScratchLock(arg1:string,arg2:boolean):Promise<void>;
+
 export function SyncNow(arg1:string):Promise<gitsync.Result>;
 
 export function SyncStatus():Promise<gitsync.Status>;

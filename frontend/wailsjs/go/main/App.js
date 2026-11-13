@@ -190,6 +190,10 @@ export function SaveWorkspaceLayout(arg1) {
   return window['go']['main']['App']['SaveWorkspaceLayout'](arg1);
 }
 
+export function SetScratchLock(arg1, arg2) {
+  return window['go']['main']['App']['SetScratchLock'](arg1, arg2);
+}
+
 export function SyncNow(arg1) {
   return window['go']['main']['App']['SyncNow'](arg1);
 }

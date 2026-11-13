@@ -759,6 +759,14 @@ func (a *App) LinkScratch(id, connID, database, schema, table string) error {
 	return a.scratch.Link(id, connID, database, schema, table)
 }
 
+// SetScratchLock pins or unpins a scratch's connection and database link.
+func (a *App) SetScratchLock(id string, locked bool) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return a.scratch.SetLock(id, locked)
+}
+
 // RenameScratch renames a scratch; ".sql" is added when the name has no extension.
 func (a *App) RenameScratch(id, name string) (string, error) {
 	if err := a.ready(); err != nil {

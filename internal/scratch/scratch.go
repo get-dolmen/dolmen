@@ -36,7 +36,10 @@ type Tab struct {
 	Table     string `json:"table,omitempty"`
 	TableType string `json:"tableType,omitempty"`
 	// TxMode is "manual" when the tab keeps transactions open; "" = auto-commit.
-	TxMode  string `json:"txMode,omitempty"`
+	TxMode string `json:"txMode,omitempty"`
+	// Locked pins the scratch to its connection and database, so it cannot be
+	// moved to another folder or database by accident.
+	Locked  bool   `json:"locked,omitempty"`
 	Content string `json:"content,omitempty"` // not stored in the manifest
 }
 
@@ -53,6 +56,7 @@ type Info struct {
 	Database  string `json:"database,omitempty"`
 	Schema    string `json:"schema,omitempty"` // table the scratch is filed under (optional)
 	Table     string `json:"table,omitempty"`
+	Locked    bool   `json:"locked,omitempty"`
 	CreatedAt int64  `json:"createdAt"` // unix ms
 	UpdatedAt int64  `json:"updatedAt"` // unix ms
 	Size      int    `json:"size"`
@@ -65,6 +69,7 @@ type meta struct {
 	Database  string `json:"database,omitempty"`
 	Schema    string `json:"schema,omitempty"`
 	Table     string `json:"table,omitempty"`
+	Locked    bool   `json:"locked,omitempty"`
 	CreatedAt int64  `json:"createdAt"`
 	UpdatedAt int64  `json:"updatedAt"`
 }
@@ -144,7 +149,7 @@ func (s *Store) loadIndex() error {
 		}
 		m := &meta{Name: id + ".sql", CreatedAt: st.ModTime().UnixMilli(), UpdatedAt: st.ModTime().UnixMilli()}
 		if t, ok := tabs[id]; ok {
-			m.Name, m.ConnID, m.Database = t.Name, t.ConnID, t.Database
+			m.Name, m.ConnID, m.Database, m.Locked = t.Name, t.ConnID, t.Database, t.Locked
 		}
 		s.index[id] = m
 		changed = true
@@ -197,7 +202,7 @@ func (s *Store) Load() (Workspace, error) {
 			if m == nil {
 				continue // its scratch was deleted
 			}
-			t.Name, t.ConnID, t.Database = m.Name, m.ConnID, m.Database
+			t.Name, t.ConnID, t.Database, t.Locked = m.Name, m.ConnID, m.Database, m.Locked
 			if p, err := s.filePath(t.ID); err == nil {
 				c, _ := os.ReadFile(p)
 				t.Content = string(c)
@@ -231,7 +236,10 @@ func (s *Store) SaveLayout(ws Workspace) error {
 					atomicWrite(p, nil)
 				}
 			}
-			if m.ConnID != t.ConnID || m.Database != t.Database {
+			if m.Locked {
+				// A locked scratch keeps its link whatever this tab (or a bug) says.
+				t.ConnID, t.Database = m.ConnID, m.Database
+			} else if m.ConnID != t.ConnID || m.Database != t.Database {
 				// Moved to another connection or database: the table link no longer applies.
 				m.Schema, m.Table = "", ""
 			}
@@ -239,6 +247,7 @@ func (s *Store) SaveLayout(ws Workspace) error {
 				m.Name, m.ConnID, m.Database = t.Name, t.ConnID, t.Database
 				changed = true
 			}
+			t.Locked = m.Locked
 			changed = changed || m.CreatedAt == 0
 		}
 		out.Tabs = append(out.Tabs, t)
@@ -281,7 +290,7 @@ func (s *Store) List() []Info {
 	defer s.mu.Unlock()
 	out := make([]Info, 0, len(s.index))
 	for id, m := range s.index {
-		info := Info{ID: id, Name: m.Name, ConnID: m.ConnID, Database: m.Database, Schema: m.Schema, Table: m.Table, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
+		info := Info{ID: id, Name: m.Name, ConnID: m.ConnID, Database: m.Database, Schema: m.Schema, Table: m.Table, Locked: m.Locked, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
 		if p, err := s.filePath(id); err == nil {
 			if b, err := os.ReadFile(p); err == nil {
 				info.Size = len(b)
@@ -325,7 +334,7 @@ func (s *Store) Get(id string) (Tab, error) {
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return Tab{}, err
 	}
-	return Tab{ID: id, Name: m.Name, ConnID: m.ConnID, Database: m.Database, Kind: "sql", Content: string(b)}, nil
+	return Tab{ID: id, Name: m.Name, ConnID: m.ConnID, Database: m.Database, Kind: "sql", Locked: m.Locked, Content: string(b)}, nil
 }
 
 // Create adds a scratch file and returns it. Schema and table optionally file
@@ -349,6 +358,7 @@ func (s *Store) Create(id, name, connID, database, schema, table, content string
 }
 
 // Link files a scratch under a connection, database and optionally a table.
+// A locked scratch refuses to move until it is unlocked.
 func (s *Store) Link(id, connID, database, schema, table string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -359,8 +369,23 @@ func (s *Store) Link(id, connID, database, schema, table string) error {
 	if table == "" {
 		schema = ""
 	}
+	if m.Locked && (m.ConnID != connID || m.Database != database || m.Schema != schema || m.Table != table) {
+		return fmt.Errorf("scratch %s is locked to %s; unlock it first", id, m.Name)
+	}
 	m.ConnID, m.Database, m.Schema, m.Table = connID, database, schema, table
 	m.UpdatedAt = now()
+	return s.writeIndex()
+}
+
+// SetLock pins or unpins a scratch's connection and database link.
+func (s *Store) SetLock(id string, locked bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m := s.index[id]
+	if m == nil {
+		return fmt.Errorf("scratch %s not found", id)
+	}
+	m.Locked = locked
 	return s.writeIndex()
 }
 
@@ -416,6 +441,13 @@ func (s *Store) Replace(entries []Entry) error {
 		}
 		keep[e.ID] = true
 	}
+	// Locks are local preferences, not part of the synced entry: keep them.
+	locked := make(map[string]bool, len(s.index))
+	for id, m := range s.index {
+		if m.Locked {
+			locked[id] = true
+		}
+	}
 	for id := range s.index {
 		if keep[id] {
 			continue
@@ -443,7 +475,7 @@ func (s *Store) Replace(entries []Entry) error {
 		}
 		index[e.ID] = &meta{
 			Name: name, ConnID: e.ConnID, Database: e.Database, Schema: e.Schema, Table: e.Table,
-			CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt,
+			Locked: locked[e.ID], CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt,
 		}
 	}
 	s.index = index

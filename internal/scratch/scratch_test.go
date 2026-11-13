@@ -113,3 +113,46 @@ func TestTableLink(t *testing.T) {
 		t.Fatalf("unlink: %+v", i)
 	}
 }
+
+func TestLockPinsLink(t *testing.T) {
+	s, _ := NewStore(t.TempDir())
+	if _, err := s.Create("a", "a.sql", "c1", "db1", "", "", "select 1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetLock("a", true); err != nil {
+		t.Fatal(err)
+	}
+	if i := s.List()[0]; !i.Locked {
+		t.Fatalf("not locked: %+v", i)
+	}
+	if err := s.Link("a", "c2", "db2", "", ""); err == nil {
+		t.Fatal("locked scratch accepted a new link")
+	}
+	// A layout save cannot move it either: the index owns the link.
+	if err := s.SaveLayout(Workspace{Tabs: []Tab{{ID: "a", Name: "a.sql", ConnID: "c9", Database: "db9"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if i := s.List()[0]; i.ConnID != "c1" || i.Database != "db1" {
+		t.Fatalf("locked link changed: %+v", i)
+	}
+	if ws, _ := s.Load(); len(ws.Tabs) != 1 || ws.Tabs[0].ConnID != "c1" || !ws.Tabs[0].Locked {
+		t.Fatalf("loaded lock: %+v", ws.Tabs)
+	}
+	// A sync replacement keeps the local lock.
+	if err := s.Replace([]Entry{{ID: "a", Name: "a.sql", ConnID: "c1", Database: "db1"}}); err != nil {
+		t.Fatal(err)
+	}
+	if i := s.List()[0]; !i.Locked {
+		t.Fatal("Replace dropped the lock")
+	}
+	// Unlocking lets it move again.
+	if err := s.SetLock("a", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Link("a", "c2", "db2", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if i := s.List()[0]; i.ConnID != "c2" || i.Database != "db2" || i.Locked {
+		t.Fatalf("unlocked link: %+v", i)
+	}
+}

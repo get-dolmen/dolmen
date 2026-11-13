@@ -694,6 +694,7 @@ export namespace scratch {
 	    database?: string;
 	    schema?: string;
 	    table?: string;
+	    locked?: boolean;
 	    createdAt: number;
 	    updatedAt: number;
 	    size: number;
@@ -711,6 +712,7 @@ export namespace scratch {
 	        this.database = source["database"];
 	        this.schema = source["schema"];
 	        this.table = source["table"];
+	        this.locked = source["locked"];
 	        this.createdAt = source["createdAt"];
 	        this.updatedAt = source["updatedAt"];
 	        this.size = source["size"];
@@ -727,6 +729,7 @@ export namespace scratch {
 	    table?: string;
 	    tableType?: string;
 	    txMode?: string;
+	    locked?: boolean;
 	    content?: string;
 	
 	    static createFrom(source: any = {}) {
@@ -744,6 +747,7 @@ export namespace scratch {
 	        this.table = source["table"];
 	        this.tableType = source["tableType"];
 	        this.txMode = source["txMode"];
+	        this.locked = source["locked"];
 	        this.content = source["content"];
 	    }
 	}

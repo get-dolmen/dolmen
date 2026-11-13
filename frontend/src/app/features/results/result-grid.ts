@@ -49,9 +49,14 @@ const ROWNUM: ColDef = {
   cellClass: 'rownum',
 };
 
+/** A cell never shows more than this: long text would be laid out in full on every scroll. */
+const MAX_SHOWN = 500;
+
+/** Text shown in a grid cell. Copy, export and tooltips read the full value. */
 export function display(v: Cell): string {
   if (v === null || v === undefined) return 'NULL';
-  return typeof v === 'string' ? v : String(v);
+  const s = typeof v === 'string' ? v : String(v);
+  return s.length > MAX_SHOWN ? s.slice(0, MAX_SHOWN) + '…' : s;
 }
 
 /** Estimates a column width from the header and a sample of values. */
@@ -95,6 +100,8 @@ function widthFor(name: string, rows: Cell[][], i: number): number {
 export class ResultGrid {
   private cmds = inject(Commands);
   readonly result = input.required<QueryResult>();
+  /** Shows long text in a tooltip on hover (off inline, where it covers the code). */
+  readonly tooltips = input(true);
   readonly theme = gridTheme;
 
   readonly defaultColDef: ColDef = {
@@ -104,7 +111,7 @@ export class ResultGrid {
     suppressHeaderMenuButton: true,
     valueFormatter: (p) => display(p.value),
     cellClass: (p) => (p.value === null ? 'null' : typeof p.value === 'number' ? 'num' : ''),
-    tooltipValueGetter: (p) => (typeof p.value === 'string' && p.value.length > 60 ? p.value.slice(0, 2000) : undefined),
+    tooltipValueGetter: (p) => (this.tooltips() && typeof p.value === 'string' && p.value.length > 60 ? p.value.slice(0, 2000) : undefined),
   };
 
   private api?: GridApi;

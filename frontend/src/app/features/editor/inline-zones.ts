@@ -242,8 +242,10 @@ export class InlineZones {
     // Keys typed in the grid must not reach Monaco's keybindings (the app's
     // own shortcuts listen on window in the capture phase and still work).
     z.dom.addEventListener('keydown', (e) => e.stopPropagation());
-    // The wheel scrolls the grid while it can, then the editor.
+    // The wheel scrolls the grid while it can, then the editor (vertically).
+    // Monaco never sees it: it would cancel the grid's native scrolling.
     z.dom.addEventListener('wheel', (e) => {
+      e.stopPropagation();
       if (e.defaultPrevented || e.ctrlKey || canScroll(e.target as HTMLElement, z.dom, e.deltaX, e.deltaY)) return;
       e.preventDefault();
       const unit = e.deltaMode === WheelEvent.DOM_DELTA_LINE ? 20 : 1;

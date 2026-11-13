@@ -50,7 +50,7 @@ export function inlineHeight(r: QueryResult): number {
     @if (r.error) {
       <pre class="error">{{ r.error }}</pre>
     } @else if (r.isQuery) {
-      <dm-result-grid class="grid" [result]="r" />
+      <dm-result-grid class="grid" [result]="r" [tooltips]="false" />
     }
     <div class="grip" title="Drag to resize" (pointerdown)="resizeStart.emit($event)" (dblclick)="resetHeight.emit()"></div>
 

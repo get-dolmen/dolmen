@@ -217,3 +217,31 @@ func TestTunnelRequiresHostAndUser(t *testing.T) {
 		t.Error("missing user accepted")
 	}
 }
+
+func TestExpandHome(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("DOLMEN_KEYS", "/keys")
+	want := filepath.Join(home, ".ssh", "id_ed25519")
+	cases := map[string]string{
+		"~/.ssh/id_ed25519":             want,
+		`"~/.ssh/id_ed25519"`:           want,
+		"  '~/.ssh/id_ed25519'  ":       want,
+		"%USERPROFILE%/.ssh/id_ed25519": want,
+		"%DOLMEN_KEYS%/id_rsa":          filepath.Clean("/keys/id_rsa"),
+		"/a/%NOT_SET_ANYWHERE%/b":       filepath.Clean("/a/%NOT_SET_ANYWHERE%/b"),
+		"/srv/c$/50%/id_rsa":            filepath.Clean("/srv/c$/50%/id_rsa"),
+		"":                              "",
+		`""`:                            "",
+	}
+	if filepath.Separator == '\\' {
+		cases[`~\.ssh\id_ed25519`] = want
+		cases[`"C:\Users\me\.ssh\id_rsa"`] = `C:\Users\me\.ssh\id_rsa`
+	}
+	for in, out := range cases {
+		if got := expandHome(in); got != out {
+			t.Errorf("expandHome(%q) = %q, want %q", in, got, out)
+		}
+	}
+}

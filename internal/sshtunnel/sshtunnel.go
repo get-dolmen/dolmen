@@ -217,14 +217,51 @@ func hostKeyCallback(cfg Config) (ssh.HostKeyCallback, error) {
 	return knownhosts.New(path)
 }
 
+// expandHome turns a key path as typed or pasted into one the OS can open.
+// It drops the quotes Windows Explorer adds with "Copy as path", expands
+// %VAR% variables, and resolves a leading ~ followed by either separator.
 func expandHome(path string) string {
 	path = strings.TrimSpace(path)
-	if path == "~" || strings.HasPrefix(path, "~/") {
+	if len(path) >= 2 && (path[0] == '"' || path[0] == '\'') && path[len(path)-1] == path[0] {
+		path = strings.TrimSpace(path[1 : len(path)-1])
+	}
+	if path == "" {
+		return ""
+	}
+	path = expandPercentVars(path)
+	if path == "~" || strings.HasPrefix(path, "~/") || strings.HasPrefix(path, `~\`) {
 		if home, err := os.UserHomeDir(); err == nil {
-			return filepath.Join(home, strings.TrimPrefix(path, "~"))
+			return filepath.Join(home, path[1:])
 		}
 	}
-	return path
+	return filepath.Clean(path)
+}
+
+// expandPercentVars replaces %NAME% with the variable's value, as cmd.exe
+// does. Unset names and lone % signs are left as they are.
+func expandPercentVars(s string) string {
+	var b strings.Builder
+	for {
+		start := strings.IndexByte(s, '%')
+		if start < 0 {
+			break
+		}
+		end := strings.IndexByte(s[start+1:], '%')
+		if end <= 0 {
+			break
+		}
+		value := os.Getenv(s[start+1 : start+1+end])
+		if value == "" {
+			b.WriteString(s[:start+1])
+			s = s[start+1:]
+			continue
+		}
+		b.WriteString(s[:start])
+		b.WriteString(value)
+		s = s[start+2+end:]
+	}
+	b.WriteString(s)
+	return b.String()
 }
 
 func closeIfSet(c io.Closer) {

@@ -10,6 +10,10 @@ import { Icon } from '../../shared/icon';
 import { KIND_LABELS, type ConnectionView } from '../../core/models';
 import { WindowToggleMaximise } from '../../../../wailsjs/runtime';
 
+/** Room kept for the connection menu when it is placed under its button. */
+const MENU_WIDTH = 260;
+const MENU_HEIGHT = 320;
+
 @Component({
   selector: 'dm-topbar',
   imports: [ClickOutside, Icon],
@@ -48,7 +52,7 @@ export class Topbar {
       return;
     }
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    this.menu.set(clampMenu(r.left, r.bottom + 4, 260, 320));
+    this.menu.set(clampMenu(r.left, r.bottom + 4, MENU_WIDTH, MENU_HEIGHT));
   }
 
   async choose(c: ConnectionView) {

@@ -43,33 +43,33 @@ export class TableData implements TableHandle, OnDestroy {
   private whereInput = viewChild<ElementRef<HTMLInputElement>>('whereInput');
   private searchInput = viewChild<ElementRef<HTMLInputElement>>('search');
 
-  readonly tab = input.required<EditorTab>();
-  readonly theme = gridTheme;
-  readonly mod = MOD;
-  readonly sizes = PAGE_SIZES;
-  readonly refreshChoices = REFRESH_SECONDS;
+  public readonly tab = input.required<EditorTab>();
+  public readonly theme = gridTheme;
+  public readonly mod = MOD;
+  public readonly sizes = PAGE_SIZES;
+  public readonly refreshChoices = REFRESH_SECONDS;
   /** Click-and-drag selects a block of cells, like a spreadsheet. */
 
-  where = '';
-  orderBy = '';
-  readonly page = signal<TablePage | null>(null);
-  readonly offset = signal(0);
-  readonly limit = signal(100);
-  readonly loading = signal(false);
-  readonly applying = signal(false);
-  readonly error = signal('');
-  readonly previewOpen = signal(false);
-  readonly searchOpen = signal(false);
-  readonly quick = signal('');
-  readonly copyMenu = signal<{ x: number; y: number } | null>(null);
-  readonly cellMenu = signal<{ x: number; y: number; row: GridRow; colIndex: number; value: Cell | undefined } | null>(null);
-  readonly sizeMenu = signal<{ x: number; y: number } | null>(null);
-  readonly formats = COPY_FORMATS;
-  readonly totalCount = signal<number | null>(null);
-  readonly counting = signal(false);
-  readonly autoMenu = signal<{ x: number; y: number } | null>(null);
-  readonly autoRefresh = signal(false);
-  readonly refreshSeconds = signal(REFRESH_SECONDS[0]);
+  public where = '';
+  public orderBy = '';
+  public readonly page = signal<TablePage | null>(null);
+  public readonly offset = signal(0);
+  public readonly limit = signal(100);
+  public readonly loading = signal(false);
+  public readonly applying = signal(false);
+  public readonly error = signal('');
+  public readonly previewOpen = signal(false);
+  public readonly searchOpen = signal(false);
+  public readonly quick = signal('');
+  public readonly copyMenu = signal<{ x: number; y: number } | null>(null);
+  public readonly cellMenu = signal<{ x: number; y: number; row: GridRow; colIndex: number; value: Cell | undefined } | null>(null);
+  public readonly sizeMenu = signal<{ x: number; y: number } | null>(null);
+  public readonly formats = COPY_FORMATS;
+  public readonly totalCount = signal<number | null>(null);
+  public readonly counting = signal(false);
+  public readonly autoMenu = signal<{ x: number; y: number } | null>(null);
+  public readonly autoRefresh = signal(false);
+  public readonly refreshSeconds = signal(REFRESH_SECONDS[0]);
   private refreshTimer?: ReturnType<typeof setInterval>;
   /** Sort chosen from a column header; typing an ORDER BY replaces it. */
   private sortState = signal<{ col: string; dir: 'asc' | 'desc' } | null>(null);
@@ -82,12 +82,12 @@ export class TableData implements TableHandle, OnDestroy {
 
   private kind = computed<DbKind>(() => this.conns.get(this.tab().connId)?.kind ?? 'postgres');
 
-  readonly pending = computed(() => {
+  public readonly pending = computed(() => {
     this.version();
     return this.rows.filter((r) => r.isNew || this.deleted.has(r.id) || rowChanged(r)).length;
   });
 
-  readonly preview = computed(() => {
+  public readonly preview = computed(() => {
     this.version();
     const p = this.page();
     const t = this.tab().table;
@@ -96,7 +96,7 @@ export class TableData implements TableHandle, OnDestroy {
     return previewSQL(buildChanges(p.columns, this.rows, this.deleted), qualified(k, t.schema, t.name), (n) => quoteIdentifier(k, n));
   });
 
-  readonly rangeText = computed(() => {
+  public readonly rangeText = computed(() => {
     const p = this.page();
     if (!p) return '';
     if (!p.rows.length) return 'No rows';
@@ -107,7 +107,7 @@ export class TableData implements TableHandle, OnDestroy {
     return `${from}–${to}${p.hasMore ? '+' : ''}`;
   });
 
-  readonly defaultColDef: ColDef<GridRow> = {
+  public readonly defaultColDef: ColDef<GridRow> = {
     sortable: false, // sorting happens in SQL so it covers every page
     resizable: true,
     minWidth: 80,
@@ -118,13 +118,13 @@ export class TableData implements TableHandle, OnDestroy {
   private range?: CellRangeSelection<GridRow>;
   private host = inject<ElementRef<HTMLElement>>(ElementRef);
 
-  readonly rowId = (p: { data: GridRow }) => p.data.id;
-  readonly rowClassRules = {
+  public readonly rowId = (p: { data: GridRow }) => p.data.id;
+  public readonly rowClassRules = {
     'row-new': (p: { data?: GridRow }) => !!p.data?.isNew,
     'row-deleted': (p: { data?: GridRow }) => !!p.data && this.deleted.has(p.data.id),
   };
 
-  constructor() {
+  public constructor() {
     effect(() => {
       const n = this.pending();
       untracked(() => {
@@ -134,33 +134,33 @@ export class TableData implements TableHandle, OnDestroy {
     });
   }
 
-  onReady(e: GridReadyEvent<GridRow>) {
+  public onReady(e: GridReadyEvent<GridRow>) {
     this.grid = e.api;
     this.range = new CellRangeSelection(e.api, this.host.nativeElement, '__row');
     this.bridge.attach(this.tab().id, this);
     void this.reload(0);
   }
 
-  ngOnDestroy() {
+  public ngOnDestroy() {
     this.range?.destroy();
     this.stopAutoRefresh();
     this.bridge.detach(this.tab().id);
   }
 
-  openAutoMenu(e: MouseEvent) {
+  public openAutoMenu(e: MouseEvent) {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     this.autoMenu.set(clampMenu(rect.left, rect.bottom + 4, 170, 40 + (REFRESH_SECONDS.length + 1) * 26));
   }
 
-  setAutoRefresh(seconds: number) {
+  public setAutoRefresh(seconds: number) {
     this.autoMenu.set(null);
     if (seconds > 0) this.refreshSeconds.set(seconds);
     this.autoRefresh.set(seconds > 0);
     this.startAutoRefresh();
   }
 
-  label(seconds: number) { return seconds === 60 ? 'minute' : `${seconds} s`; }
-  autoLabel() { return this.label(this.refreshSeconds()); }
+  public label(seconds: number) { return seconds === 60 ? 'minute' : `${seconds} s`; }
+  public autoLabel() { return this.label(this.refreshSeconds()); }
 
   private startAutoRefresh() {
     this.stopAutoRefresh();
@@ -185,20 +185,20 @@ export class TableData implements TableHandle, OnDestroy {
     }
   }
 
-  setLimit(n: number) {
+  public setLimit(n: number) {
     this.sizeMenu.set(null);
     this.limit.set(n);
     void this.reload(0);
   }
 
-  openSizeMenu(e: MouseEvent) {
+  public openSizeMenu(e: MouseEvent) {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     this.sizeMenu.set(clampMenu(rect.right - 140, rect.bottom + 4, 140, 40 + PAGE_SIZES.length * 26));
   }
 
-  refresh() { void this.reload(this.offset()); }
+  public refresh() { void this.reload(this.offset()); }
 
-  onOrderByEnter() {
+  public onOrderByEnter() {
     this.sortState.set(null);
     void this.reload(0);
   }
@@ -211,7 +211,7 @@ export class TableData implements TableHandle, OnDestroy {
     };
   }
 
-  async reload(offset: number, silent = false) {
+  public async reload(offset: number, silent = false) {
     if (!silent && this.pending() && !(await this.confirm.ask(`Discard ${this.pending()} pending change(s)?`,
       { title: 'Discard changes', confirmLabel: 'Discard', danger: true }))) return;
     const t = this.tab();
@@ -236,7 +236,7 @@ export class TableData implements TableHandle, OnDestroy {
   }
 
   /** Counts every row matching the current filter, not just the loaded page. */
-  async countRows() {
+  public async countRows() {
     if (this.counting()) return;
     const t = this.tab();
     if (!t.table) return;
@@ -322,7 +322,7 @@ export class TableData implements TableHandle, OnDestroy {
     return true;
   }
 
-  addRow() {
+  public addRow() {
     const p = this.page();
     if (!p?.editable) return;
     const row: GridRow = { id: `n${++this.seq}`, isNew: true, orig: [], cells: p.columns.map(() => undefined) };
@@ -343,7 +343,7 @@ export class TableData implements TableHandle, OnDestroy {
   }
 
   /** Marks the selected rows (or the focused one) as deleted; a second click restores them. */
-  deleteRows() {
+  public deleteRows() {
     const api = this.grid;
     if (!api) return;
     let nodes = this.selectionRows().flatMap((r) => {
@@ -372,7 +372,7 @@ export class TableData implements TableHandle, OnDestroy {
     this.version.update((x) => x + 1);
   }
 
-  setNull() {
+  public setNull() {
     const api = this.grid;
     const f = api?.getFocusedCell();
     if (!api || !f || f.column.getColId() === '__row') return;
@@ -382,38 +382,38 @@ export class TableData implements TableHandle, OnDestroy {
     node.setDataValue(f.column, null);
   }
 
-  revert() {
+  public revert() {
     const p = this.page();
     if (p) this.setPage(p);
   }
 
-  togglePreview() {
+  public togglePreview() {
     this.grid?.stopEditing();
     this.previewOpen.update((v) => !v);
   }
 
-  copyPreview() { void this.cmds.copy(this.preview().join('\n\n')); }
+  public copyPreview() { void this.cmds.copy(this.preview().join('\n\n')); }
 
-  toggleSearch() {
+  public toggleSearch() {
     const open = !this.searchOpen();
     this.searchOpen.set(open);
     if (open) setTimeout(() => this.searchInput()?.nativeElement.focus());
     else this.setQuick('');
   }
 
-  setQuick(q: string) {
+  public setQuick(q: string) {
     this.quick.set(q);
     this.grid?.setGridOption('quickFilterText', q);
   }
 
-  copyPage(format: CopyFormat = 'tsv') {
+  public copyPage(format: CopyFormat = 'tsv') {
     const p = this.page();
     if (!p) return;
     this.copyMenu.set(null);
     void this.cmds.copy(formatRows(format, p.columns, this.rows.filter((r) => !r.isNew).map((r) => r.cells as Cell[]), true));
   }
 
-  copySelected(format: CopyFormat) {
+  public copySelected(format: CopyFormat) {
     const p = this.page();
     if (!p) return;
     this.copyMenu.set(null);
@@ -423,14 +423,14 @@ export class TableData implements TableHandle, OnDestroy {
     void this.cmds.copy(formatRows(format, sel ? sel.columns : p.columns, rows, true));
   }
 
-  openCopyMenu(e: MouseEvent) {
+  public openCopyMenu(e: MouseEvent) {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     this.copyMenu.set(clampMenu(rect.right - 210, rect.bottom + 4, 210, 360));
   }
 
   // ---------- cell context menu ----------
 
-  onCellMenu(e: CellContextMenuEvent<GridRow>) {
+  public onCellMenu(e: CellContextMenuEvent<GridRow>) {
     const ev = e.event as MouseEvent | undefined;
     if (!ev || !e.data) return;
     ev.preventDefault();
@@ -447,7 +447,7 @@ export class TableData implements TableHandle, OnDestroy {
     });
   }
 
-  selectedCount(): number { return this.selectionRows().length; }
+  public selectedCount(): number { return this.selectionRows().length; }
 
   /**
    * Rows covered by the drag selection, or else the grid's selected rows
@@ -489,7 +489,7 @@ export class TableData implements TableHandle, OnDestroy {
     };
   }
 
-  onCellKey(e: CellKeyDownEvent<GridRow> | FullWidthCellKeyDownEvent<GridRow>) {
+  public onCellKey(e: CellKeyDownEvent<GridRow> | FullWidthCellKeyDownEvent<GridRow>) {
     const ev = e.event as KeyboardEvent | undefined;
     if (!('column' in e) || !ev || ev.key.toLowerCase() !== 'c' || !(isMac ? ev.metaKey : ev.ctrlKey)) return;
     ev.preventDefault();
@@ -517,35 +517,35 @@ export class TableData implements TableHandle, OnDestroy {
     return !!m && !!c && !!this.page()?.editable && c.editable && !this.deleted.has(m.row.id);
   }
 
-  canNullCell() {
+  public canNullCell() {
     const m = this.cellMenu();
     return !!m && this.cellEditable() && m.value !== null;
   }
 
-  cellChanged() {
+  public cellChanged() {
     const m = this.cellMenu();
     return !!m && m.colIndex >= 0 && !m.row.isNew && isChanged(m.row, m.colIndex);
   }
 
-  cellRowDeleted() {
+  public cellRowDeleted() {
     const m = this.cellMenu();
     return !!m && this.deleted.has(m.row.id);
   }
 
-  copyCellValue() {
+  public copyCellValue() {
     const m = this.cellMenu();
     if (!m || m.colIndex < 0) return;
     this.cellMenu.set(null);
     void this.cmds.copy(m.value === null || m.value === undefined ? '' : String(m.value));
   }
 
-  copyCellColumn() {
+  public copyCellColumn() {
     const c = this.menuColumn();
     this.cellMenu.set(null);
     if (c) void this.cmds.copy(c.name);
   }
 
-  copyCellRow() {
+  public copyCellRow() {
     const m = this.cellMenu();
     const p = this.page();
     if (!m || !p) return;
@@ -553,13 +553,13 @@ export class TableData implements TableHandle, OnDestroy {
     void this.cmds.copy(formatRows('tsv', p.columns, [m.row.cells.map((v) => v ?? null) as Cell[]], true));
   }
 
-  copyCellSelection() {
+  public copyCellSelection() {
     this.cellMenu.set(null);
     this.copySelected('tsv');
   }
 
   /** Starts a WHERE condition on the clicked column with the clicked value. */
-  filterByCell() {
+  public filterByCell() {
     const m = this.cellMenu();
     const c = this.menuColumn();
     if (!m || !c || m.value === undefined) return;
@@ -574,14 +574,14 @@ export class TableData implements TableHandle, OnDestroy {
     void this.reload(0);
   }
 
-  setCellNull() {
+  public setCellNull() {
     const m = this.cellMenu();
     if (!m || !this.cellEditable()) return;
     this.cellMenu.set(null);
     this.grid?.getRowNode(m.row.id)?.setDataValue(`c${m.colIndex}`, null);
   }
 
-  revertCell() {
+  public revertCell() {
     const m = this.cellMenu();
     if (!m || !this.cellChanged()) return;
     this.cellMenu.set(null);
@@ -590,7 +590,7 @@ export class TableData implements TableHandle, OnDestroy {
     if (node) this.grid?.refreshCells({ rowNodes: [node] });
   }
 
-  deleteCellRow() {
+  public deleteCellRow() {
     const m = this.cellMenu();
     this.cellMenu.set(null);
     if (!m) return;
@@ -602,12 +602,12 @@ export class TableData implements TableHandle, OnDestroy {
     this.deleteRows();
   }
 
-  ddl() {
+  public ddl() {
     const t = this.tab();
     if (t.table) void this.cmds.showDDL(t.connId, { schema: t.table.schema, name: t.table.name, type: t.table.type as 'table' | 'view' }, t.database);
   }
 
-  async apply() {
+  public async apply() {
     const p = this.page();
     const t = this.tab();
     if (!p?.editable || !t.table || this.applying()) return;

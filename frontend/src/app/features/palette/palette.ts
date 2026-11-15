@@ -2,7 +2,7 @@ import { Component, ElementRef, afterNextRender, computed, inject, signal, viewC
 import fuzzysort from 'fuzzysort';
 import { Commands } from '../../core/commands';
 import { ConnectionStore } from '../../core/connection.store';
-import { SchemaStore, parseScope } from '../../core/schema.store';
+import { SchemaStore, parseConnectionScope } from '../../core/schema.store';
 import { TabStore } from '../../core/tab.store';
 import { Ui, MOD } from '../../core/ui';
 import { TxStore } from '../../core/tx.store';
@@ -56,7 +56,7 @@ export class Palette {
     afterNextRender(() => this.input().nativeElement.focus());
     // Each connection's own database, plus any other database already browsed in the explorer.
     const connected = new Set(this.conns.connected().map((c) => c.id));
-    const scopes = new Set([...connected, ...Object.keys(this.schema.data()).filter((s) => connected.has(parseScope(s).connId))]);
+    const scopes = new Set([...connected, ...Object.keys(this.schema.data()).filter((s) => connected.has(parseConnectionScope(s).connId))]);
     for (const s of scopes) void this.schema.loadAllTables(s);
   }
 
@@ -84,7 +84,7 @@ export class Palette {
     }
     // Tables of every loaded scope: each connection and, for Postgres, each browsed database.
     for (const [scope, cs] of Object.entries(this.schema.data())) {
-      const { connId, database } = parseScope(scope);
+      const { connId, database } = parseConnectionScope(scope);
       const c = this.conns.get(connId);
       if (!c?.connected) continue;
       const where = database ? `${c.name} · ${database}` : c.name;

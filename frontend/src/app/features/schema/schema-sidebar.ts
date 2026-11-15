@@ -2,7 +2,7 @@ import { Component, ElementRef, computed, effect, inject, signal, untracked } fr
 import { FormsModule } from '@angular/forms';
 import { Commands } from '../../core/commands';
 import { ConnectionStore } from '../../core/connection.store';
-import { SchemaStore, scopeOf, type ConnSchema } from '../../core/schema.store';
+import { SchemaStore, connectionScope, type ConnSchema } from '../../core/schema.store';
 import { TabStore } from '../../core/tab.store';
 import { Toasts } from '../../core/toast';
 import { Ui } from '../../core/ui';
@@ -89,7 +89,7 @@ export class SchemaSidebar {
       if (!r) return;
       untracked(async () => {
         this.filter.set('');
-        const scope = this.schema.scope(r.connId, r.database);
+        const scope = this.schema.scopeFor(r.connId, r.database);
         this.expand(`c:${r.connId}`);
         const dbs = this.schema.databases()[r.connId];
         if (dbs?.supported) this.expand(`d:${r.connId}:${r.database || dbs.current}`);
@@ -180,7 +180,7 @@ export class SchemaSidebar {
       }
       for (const db of d.databases) {
         const isCurrent = db === d.current;
-        const place: Place = { connId: conn.id, database: isCurrent ? '' : db, scope: isCurrent ? conn.id : scopeOf(conn.id, db) };
+        const place: Place = { connId: conn.id, database: isCurrent ? '' : db, scope: isCurrent ? conn.id : connectionScope(conn.id, db) };
         const dk = `d:${conn.id}:${db}`;
         const cs = data[place.scope];
         const open = exp.has(dk) || (!!f && !!cs);

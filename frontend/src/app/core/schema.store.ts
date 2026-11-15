@@ -29,13 +29,15 @@ export interface ServerDatabases {
  * database on the same server ("<connId>@<database>", Postgres only).
  * Connection IDs are UUIDs, so they never contain "@".
  */
-export function scopeOf(connId: string, database = ''): string {
-  return database ? `${connId}@${database}` : connId;
+export function connectionScope(connectionId: string, database = ''): string {
+  return database ? `${connectionId}@${database}` : connectionId;
 }
 
-export function parseScope(scope: string): { connId: string; database: string } {
-  const i = scope.indexOf('@');
-  return i < 0 ? { connId: scope, database: '' } : { connId: scope.slice(0, i), database: scope.slice(i + 1) };
+export function parseConnectionScope(scope: string): { connId: string; database: string } {
+  const separatorIndex = scope.indexOf('@');
+  return separatorIndex < 0
+    ? { connId: scope, database: '' }
+    : { connId: scope.slice(0, separatorIndex), database: scope.slice(separatorIndex + 1) };
 }
 
 /** Caches database metadata per scope for the sidebar, palette and autocomplete. */
@@ -60,9 +62,9 @@ export class SchemaStore {
   public get(scope: string): ConnSchema | undefined { return this.data()[scope]; }
 
   /** The scope for a tab or tree node; the connection's own database maps to the plain connection scope. */
-  public scope(connId: string, database = ''): string {
-    const cur = this.databases()[connId]?.current;
-    return scopeOf(connId, database && database !== cur ? database : '');
+  public scopeFor(connectionId: string, database = ''): string {
+    const current = this.databases()[connectionId]?.current;
+    return connectionScope(connectionId, database && database !== current ? database : '');
   }
 
   /** Forgets everything cached for a connection, including its other databases. */
@@ -100,7 +102,7 @@ export class SchemaStore {
 
   public loadSchemas(scope: string): Promise<unknown> {
     if (this.get(scope)?.loaded) return Promise.resolve();
-    const { connId, database } = parseScope(scope);
+    const { connId, database } = parseConnectionScope(scope);
     return this.once(`${scope}|schemas`, async () => {
       const s = await this.api.listSchemas(connId, database);
       const schemas = s.schemas.length ? s.schemas : s.default ? [s.default] : [];
@@ -110,7 +112,7 @@ export class SchemaStore {
 
   public loadTables(scope: string, schema: string): Promise<unknown> {
     if (this.get(scope)?.tables[schema]) return Promise.resolve();
-    const { connId, database } = parseScope(scope);
+    const { connId, database } = parseConnectionScope(scope);
     return this.once(`${scope}|tables|${schema}`, async () => {
       const t = await this.api.listTables(connId, database, schema);
       this.update(scope, (c) => ({ ...c, tables: { ...c.tables, [schema]: t } }));
@@ -119,7 +121,7 @@ export class SchemaStore {
 
   public loadColumns(scope: string, schema: string, table: string): Promise<unknown> {
     if (this.get(scope)?.columns[`${schema}.${table}`]) return Promise.resolve();
-    const { connId, database } = parseScope(scope);
+    const { connId, database } = parseConnectionScope(scope);
     return this.once(`${scope}|cols|${schema}.${table}`, async () => {
       const cols = await this.api.listColumns(connId, database, schema, table);
       this.update(scope, (c) => ({ ...c, columns: { ...c.columns, [`${schema}.${table}`]: cols } }));
@@ -129,7 +131,7 @@ export class SchemaStore {
   /** Loads every column of a schema in one query (used by autocomplete). */
   public loadAllColumns(scope: string, schema: string): Promise<unknown> {
     if (this.get(scope)?.fullColumns[schema]) return Promise.resolve();
-    const { connId, database } = parseScope(scope);
+    const { connId, database } = parseConnectionScope(scope);
     return this.once(`${scope}|allcols|${schema}`, async () => {
       const cols = await this.api.listColumns(connId, database, schema, '');
       const grouped: Record<string, DbColumn[]> = {};

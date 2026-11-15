@@ -108,7 +108,7 @@ export class SqlEditor implements EditorHandle, OnDestroy {
       const conn = this.conns.get(tab?.connId);
       if (!tab || !conn?.connected) return undefined;
       await this.schema.loadDatabases(conn.id);
-      const scope = this.schema.scope(conn.id, tab.database);
+      const scope = this.schema.scopeFor(conn.id, tab.database);
       await this.schema.loadSchemas(scope);
       const s = this.schema.get(scope);
       if (!s) return undefined;

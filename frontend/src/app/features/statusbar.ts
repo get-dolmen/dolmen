@@ -131,7 +131,7 @@ export class Statusbar implements OnDestroy {
   readonly database = computed(() => this.tabs.active()?.database ?? '');
   readonly schemaName = computed(() => {
     const c = this.conn();
-    return c ? this.schema.get(this.schema.scope(c.id, this.database()))?.defaultSchema ?? '' : '';
+    return c ? this.schema.get(this.schema.scopeFor(c.id, this.database()))?.defaultSchema ?? '' : '';
   });
 
   readonly tx = computed(() => this.txs.get(this.tabs.activeId()));

@@ -200,7 +200,7 @@ export class Commands {
   async selectTop(connId: string, t: DbTable, database = '') {
     const conn = this.conns.get(connId);
     if (!conn) return;
-    const def = this.schema.get(this.schema.scope(connId, database))?.defaultSchema;
+    const def = this.schema.get(this.schema.scopeFor(connId, database))?.defaultSchema;
     const sql = selectTop(conn.kind, qualified(conn.kind, t.schema, t.name, def));
     if (!(await this.scratches.createIn({ connId, database, schema: t.schema, table: t.name }, sql))) return;
     // Let the editor pick up the new tab's model before running.
@@ -254,7 +254,7 @@ export class Commands {
     if (!conn) return;
     const name = await this.prompt.ask({ title: 'New table', label: schema ? `Table name in ${schema}` : 'Table name', value: 'new_table', confirmLabel: 'Open script' });
     if (!name) return;
-    const def = this.schema.get(this.schema.scope(connId, database))?.defaultSchema;
+    const def = this.schema.get(this.schema.scopeFor(connId, database))?.defaultSchema;
     const sql = createTableTemplate(conn.kind, qualified(conn.kind, schema, name, def));
     await this.scratches.createIn({ connId, database }, sql, this.scratches.freeName(`create_${name}`));
   }
@@ -300,7 +300,7 @@ export class Commands {
   insertName(connId: string, schema: string, name: string, database = '') {
     const conn = this.conns.get(connId);
     if (!conn) return;
-    this.editor.insert(qualified(conn.kind, schema, name, this.schema.get(this.schema.scope(connId, database))?.defaultSchema));
+    this.editor.insert(qualified(conn.kind, schema, name, this.schema.get(this.schema.scopeFor(connId, database))?.defaultSchema));
     this.editor.focus();
   }
 

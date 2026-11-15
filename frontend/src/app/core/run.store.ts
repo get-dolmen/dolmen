@@ -22,7 +22,7 @@ export interface InlineBlock {
 }
 
 /** Older inline results are dropped beyond this many per tab. */
-const MAX_INLINE = 30;
+const MAX_INLINE_BLOCKS = 30;
 
 export interface TabRun {
   running: boolean;
@@ -38,7 +38,7 @@ export interface TabRun {
 
 export const PAGE_SIZE = 1000;
 
-const emptyRun = (): TabRun => ({ running: false, startedAt: 0, results: [], activeResult: 0, messages: [], panel: 'results', inline: [], seq: 0 });
+const createEmptyRun = (): TabRun => ({ running: false, startedAt: 0, results: [], activeResult: 0, messages: [], panel: 'results', inline: [], seq: 0 });
 
 @Injectable({ providedIn: 'root' })
 export class RunStore {
@@ -47,21 +47,21 @@ export class RunStore {
   private conns = inject(ConnectionStore);
   private editor = inject(EditorBridge);
   private toasts = inject(Toasts);
-  private tx = inject(TxStore);
+  private transactionStore = inject(TxStore);
   private ui = inject(Ui);
 
   public readonly runs = signal<Record<string, TabRun>>({});
 
-  public get(tabId: string): TabRun { return this.runs()[tabId] ?? emptyRun(); }
+  public get(tabId: string): TabRun { return this.runs()[tabId] ?? createEmptyRun(); }
 
   public setPanel(tabId: string, panel: ResultsPanel) { this.patch(tabId, { panel }); }
-  public setActiveResult(tabId: string, i: number) { this.patch(tabId, { activeResult: i, panel: 'results' }); }
+  public setActiveResult(tabId: string, index: number) { this.patch(tabId, { activeResult: index, panel: 'results' }); }
 
   /** Removes inline results from a tab (all of them when `ids` is omitted). */
-  public dismissInline(tabId: string, ids?: readonly string[]) {
+  public dismissInline(tabId: string, resultIds?: readonly string[]) {
     const run = this.get(tabId);
-    const drop = ids && new Set(ids);
-    const inline = drop ? run.inline.filter((b) => !drop.has(b.id)) : [];
+    const dismissedIds = resultIds && new Set(resultIds);
+    const inline = dismissedIds ? run.inline.filter((block) => !dismissedIds.has(block.id)) : [];
     if (inline.length !== run.inline.length) this.patch(tabId, { inline });
   }
 
@@ -74,47 +74,49 @@ export class RunStore {
       this.toasts.error('Choose a connection for this tab first.');
       return;
     }
-    const target = this.editor.runTarget(mode);
-    if (!target || !target.sql.trim()) return;
+    const runTarget = this.editor.runTarget(mode);
+    if (!runTarget || !runTarget.sql.trim()) return;
     if (!(await this.conns.ensureConnected(tab.connId))) return;
 
     const startedAt = Date.now();
     this.patch(tab.id, { running: true, startedAt, finishedMs: undefined });
     try {
-      const resp = await this.api.execute({ tabId: tab.id, connId: tab.connId, database: tab.database, sql: target.sql, cursor: target.cursor, maxRows: PAGE_SIZE, manual: tab.txMode === 'manual' });
-      this.tx.set(tab.id, resp.tx);
+      const response = await this.api.execute({ tabId: tab.id, connId: tab.connId, database: tab.database, sql: runTarget.sql, cursor: runTarget.cursor, maxRows: PAGE_SIZE, manual: tab.txMode === 'manual' });
+      this.transactionStore.set(tab.id, response.tx);
       const now = Date.now();
       const messages: RunMessage[] = [];
-      if (resp.notice) messages.push({ time: now, kind: resp.cancelled ? 'error' : 'info', text: resp.notice });
-      for (const r of resp.results) messages.push(describe(r, now));
-      const results = resp.results.filter((r) => r.isQuery && !r.error);
-      const failed = resp.results.some((r) => r.error);
-      const prev = this.get(tab.id);
-      const inline = this.ui.inlineResults();
+      if (response.notice) messages.push({ time: now, kind: response.cancelled ? 'error' : 'info', text: response.notice });
+      for (const result of response.results) messages.push(describeResult(result, now));
+      const results = response.results.filter((result) => result.isQuery && !result.error);
+      const hasFailure = response.results.some((result) => result.error);
+      const previous = this.get(tab.id);
+      const inlineResultsEnabled = this.ui.inlineResults();
       this.patch(tab.id, {
         running: false,
         finishedMs: now - startedAt,
         results,
         activeResult: Math.max(0, results.length - 1),
-        messages: [...messages, ...prev.messages].slice(0, 500),
-        panel: failed || !results.length ? 'messages' : 'results',
-        ...(inline ? this.inlineFor(prev, resp.results, target.base) : {}),
+        messages: [...messages, ...previous.messages].slice(0, 500),
+        panel: hasFailure || !results.length ? 'messages' : 'results',
+        ...(inlineResultsEnabled ? this.inlineFor(previous, response.results, runTarget.base) : {}),
       });
-      if (inline) {
-        if (resp.notice) this.toasts.show(resp.notice, resp.cancelled ? 'error' : 'info');
-        const done = resp.results.filter((r) => !r.error && !r.isQuery).length;
-        if (resp.results.length > 1 && done) this.toasts.success(`${done} statement${done === 1 ? '' : 's'} executed.`);
+      if (inlineResultsEnabled) {
+        if (response.notice) this.toasts.show(response.notice, response.cancelled ? 'error' : 'info');
+        const executedCount = response.results.filter((result) => !result.error && !result.isQuery).length;
+        if (response.results.length > 1 && executedCount) {
+          this.toasts.success(`${executedCount} statement${executedCount === 1 ? '' : 's'} executed.`);
+        }
       }
-      if (failed) this.editor.flashError();
-    } catch (e) {
-      const prev = this.get(tab.id);
+      if (hasFailure) this.editor.flashError();
+    } catch (error) {
+      const previous = this.get(tab.id);
       this.patch(tab.id, {
         running: false,
         finishedMs: Date.now() - startedAt,
-        messages: [{ time: Date.now(), kind: 'error' as const, text: errorText(e) }, ...prev.messages],
+        messages: [{ time: Date.now(), kind: 'error' as const, text: errorText(error) }, ...previous.messages],
         panel: 'messages',
       });
-      if (this.ui.inlineResults()) this.toasts.error(errorText(e));
+      if (this.ui.inlineResults()) this.toasts.error(errorText(error));
     }
   }
 
@@ -124,36 +126,36 @@ export class RunStore {
 
   public async fetchMore(tabId: string, resultId: string) {
     try {
-      const r = await this.api.fetchMore(tabId, resultId, PAGE_SIZE);
-      this.updateResult(tabId, resultId, (res) => ({
-        ...res,
-        rows: res.rows.concat(r.rows),
-        hasMore: r.hasMore,
-        canFetchMore: r.hasMore && !r.error,
+      const page = await this.api.fetchMore(tabId, resultId, PAGE_SIZE);
+      this.updateResult(tabId, resultId, (current) => ({
+        ...current,
+        rows: current.rows.concat(page.rows),
+        hasMore: page.hasMore,
+        canFetchMore: page.hasMore && !page.error,
       }));
-      if (r.error) this.toasts.error(r.error);
-    } catch (e) {
-      this.toasts.error(errorText(e));
-      this.updateResult(tabId, resultId, (res) => ({ ...res, canFetchMore: false }));
+      if (page.error) this.toasts.error(page.error);
+    } catch (error) {
+      this.toasts.error(errorText(error));
+      this.updateResult(tabId, resultId, (current) => ({ ...current, canFetchMore: false }));
     }
   }
 
   public async export(tabId: string, resultId: string, format: 'csv' | 'json') {
     try {
-      const r = await this.api.exportResult(tabId, resultId, format);
-      if (!r.path) return;
+      const exported = await this.api.exportResult(tabId, resultId, format);
+      if (!exported.path) return;
       // Exporting drains the server cursor, so no further pages can be fetched.
-      this.updateResult(tabId, resultId, (res) => ({ ...res, canFetchMore: false }));
-      this.toasts.success(`Exported ${r.rows.toLocaleString()} rows to ${r.path}`);
-    } catch (e) {
-      this.toasts.error(`Export failed: ${errorText(e)}`);
+      this.updateResult(tabId, resultId, (current) => ({ ...current, canFetchMore: false }));
+      this.toasts.success(`Exported ${exported.rows.toLocaleString()} rows to ${exported.path}`);
+    } catch (error) {
+      this.toasts.error(`Export failed: ${errorText(error)}`);
     }
   }
 
   public forget(tabId: string) {
-    const r = { ...this.runs() };
-    delete r[tabId];
-    this.runs.set(r);
+    const runs = { ...this.runs() };
+    delete runs[tabId];
+    this.runs.set(runs);
   }
 
   /**
@@ -161,36 +163,40 @@ export class RunStore {
    * statements only when a single one ran (a script would flood the editor).
    * Earlier results lose their server cursor, so they cannot fetch more.
    */
-  private inlineFor(prev: TabRun, results: QueryResult[], base: number): Pick<TabRun, 'inline' | 'seq'> {
-    const seq = prev.seq + 1;
-    const older = prev.inline.map((b) => (b.result.canFetchMore ? { ...b, result: { ...b.result, canFetchMore: false } } : b));
+  private inlineFor(previous: TabRun, results: QueryResult[], baseOffset: number): Pick<TabRun, 'inline' | 'seq'> {
+    const seq = previous.seq + 1;
+    const older = previous.inline.map((block) =>
+      (block.result.canFetchMore ? { ...block, result: { ...block.result, canFetchMore: false } } : block));
     const added = results
-      .filter((r) => r.error || r.isQuery || results.length === 1)
-      .map((r) => ({ id: r.id, seq, offset: base + r.end, result: r }));
-    return { seq, inline: [...older, ...added].slice(-MAX_INLINE) };
+      .filter((result) => result.error || result.isQuery || results.length === 1)
+      .map((result) => ({ id: result.id, seq, offset: baseOffset + result.end, result }));
+    return { seq, inline: [...older, ...added].slice(-MAX_INLINE_BLOCKS) };
   }
 
-  private updateResult(tabId: string, resultId: string, fn: (r: QueryResult) => QueryResult) {
+  private updateResult(tabId: string, resultId: string, transform: (result: QueryResult) => QueryResult) {
     const run = this.get(tabId);
     this.patch(tabId, {
-      results: run.results.map((r) => (r.id === resultId ? fn(r) : r)),
-      inline: run.inline.map((b) => (b.id === resultId ? { ...b, result: fn(b.result) } : b)),
+      results: run.results.map((result) => (result.id === resultId ? transform(result) : result)),
+      inline: run.inline.map((block) =>
+        (block.id === resultId ? { ...block, result: transform(block.result) } : block)),
     });
   }
 
-  private patch(tabId: string, p: Partial<TabRun>) {
-    this.runs.set({ ...this.runs(), [tabId]: { ...this.get(tabId), ...p } });
+  private patch(tabId: string, changes: Partial<TabRun>) {
+    this.runs.set({ ...this.runs(), [tabId]: { ...this.get(tabId), ...changes } });
   }
 }
 
-function describe(r: QueryResult, time: number): RunMessage {
-  const ms = `${r.durationMs.toLocaleString()} ms`;
-  if (r.error) return { time, kind: 'error', text: r.error, statement: r.statement };
-  if (r.message) return { time, kind: 'info', text: r.message, statement: r.statement };
-  if (r.isQuery) {
-    const n = r.rows.length.toLocaleString();
-    return { time, kind: 'ok', text: `${n}${r.hasMore ? '+' : ''} row${r.rows.length === 1 ? '' : 's'} fetched in ${ms}`, statement: r.statement };
+function describeResult(result: QueryResult, time: number): RunMessage {
+  const elapsed = `${result.durationMs.toLocaleString()} ms`;
+  if (result.error) return { time, kind: 'error', text: result.error, statement: result.statement };
+  if (result.message) return { time, kind: 'info', text: result.message, statement: result.statement };
+  if (result.isQuery) {
+    const count = result.rows.length.toLocaleString();
+    return { time, kind: 'ok', text: `${count}${result.hasMore ? '+' : ''} row${result.rows.length === 1 ? '' : 's'} fetched in ${elapsed}`, statement: result.statement };
   }
-  const affected = r.rowsAffected >= 0 ? `${r.rowsAffected.toLocaleString()} row${r.rowsAffected === 1 ? '' : 's'} affected` : 'Done';
-  return { time, kind: 'ok', text: `${affected} in ${ms}`, statement: r.statement };
+  const affected = result.rowsAffected >= 0
+    ? `${result.rowsAffected.toLocaleString()} row${result.rowsAffected === 1 ? '' : 's'} affected`
+    : 'Done';
+  return { time, kind: 'ok', text: `${affected} in ${elapsed}`, statement: result.statement };
 }

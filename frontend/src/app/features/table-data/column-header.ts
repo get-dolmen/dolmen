@@ -16,25 +16,7 @@ export interface ColumnHeaderParams {
 @Component({
   selector: 'dm-column-header',
   imports: [Icon],
-  template: `
-    @if (col(); as c) {
-      <span class="kind" [class.pk]="c.pk" [title]="c.pk ? 'Primary key' : c.type">
-        <dm-icon [name]="c.pk ? 'key' : 'column'" [size]="13" />
-      </span>
-      <span class="name" [title]="c.name + ' · ' + c.type + (c.nullable ? '' : ' · not null')">{{ c.name }}</span>
-      <button class="hb filter" (click)="filter($event)" [title]="'Filter on ' + c.name" aria-label="Filter on this column">
-        <dm-icon name="filter" [size]="12" />
-      </button>
-      <span class="spacer"></span>
-      <button class="hb sort" [class.on]="sort()" (click)="toggleSort($event)" [title]="sortTitle()" aria-label="Sort">
-        @switch (sort()) {
-          @case ('asc') { <dm-icon name="arrowUp" [size]="12" /> }
-          @case ('desc') { <dm-icon name="arrowDown" [size]="12" /> }
-          @default { <span class="both">⇅</span> }
-        }
-      </button>
-    }
-  `,
+  templateUrl: './column-header.html',
   styles: `
     :host { display: flex; align-items: center; gap: 5px; width: 100%; min-width: 0; font-family: var(--font-mono); font-weight: 600; font-size: 12px; color: var(--text); }
     .kind { color: var(--text-faint); display: inline-flex; }

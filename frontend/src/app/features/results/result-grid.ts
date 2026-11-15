@@ -88,7 +88,7 @@ export class ResultGrid {
   public readonly tooltips = input(true);
   public readonly theme = gridTheme;
 
-  public readonly defaultColDef: ColDef = {
+  public readonly defaultColumnDefinition: ColDef = {
     sortable: true,
     resizable: true,
     minWidth: 60,
@@ -100,7 +100,7 @@ export class ResultGrid {
       : undefined),
   };
 
-  private api?: GridApi;
+  private gridApi?: GridApi;
   private shownResultId = '';
   private shownRowCount = 0;
 
@@ -112,18 +112,18 @@ export class ResultGrid {
   }
 
   public onGridReady(event: GridReadyEvent) {
-    this.api = event.api;
+    this.gridApi = event.api;
     this.shownResultId = '';
     this.renderResult(this.result());
   }
 
   private renderResult(result: QueryResult) {
-    const api = this.api;
-    if (!api) return;
+    const gridApi = this.gridApi;
+    if (!gridApi) return;
     if (result.id === this.shownResultId) {
       // Same result with more rows (Fetch more): append without resetting scroll.
       if (result.rows.length > this.shownRowCount) {
-        api.applyTransaction({ add: result.rows.slice(this.shownRowCount) });
+        gridApi.applyTransaction({ add: result.rows.slice(this.shownRowCount) });
         this.shownRowCount = result.rows.length;
       }
       return;
@@ -135,8 +135,8 @@ export class ResultGrid {
       valueGetter: (params) => (params.data as Cell[] | undefined)?.[columnIndex] ?? null,
       width: estimateColumnWidth(column.name, result.rows, columnIndex),
     }));
-    api.setGridOption('columnDefs', [ROW_NUMBER_COLUMN, ...columns]);
-    api.setGridOption('rowData', result.rows);
+    gridApi.setGridOption('columnDefs', [ROW_NUMBER_COLUMN, ...columns]);
+    gridApi.setGridOption('rowData', result.rows);
     this.shownResultId = result.id;
     this.shownRowCount = result.rows.length;
   }
@@ -147,7 +147,7 @@ export class ResultGrid {
     if (!('column' in event) || !keyboardEvent) return;
     if (keyboardEvent.key.toLowerCase() !== 'c' || !(isMac ? keyboardEvent.metaKey : keyboardEvent.ctrlKey)) return;
     keyboardEvent.preventDefault();
-    const selectedRows = this.api?.getSelectedRows() as Cell[][] | undefined;
+    const selectedRows = this.gridApi?.getSelectedRows() as Cell[][] | undefined;
     if (selectedRows && selectedRows.length > 1) {
       void this.commandService.copy(rowsToTSV(this.result().columns, selectedRows, true));
     } else if (event.column.getColId() !== '__row') {
@@ -159,6 +159,6 @@ export class ResultGrid {
   }
 
   public selectedRows(): Cell[][] {
-    return (this.api?.getSelectedRows() as Cell[][]) ?? [];
+    return (this.gridApi?.getSelectedRows() as Cell[][]) ?? [];
   }
 }

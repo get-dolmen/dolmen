@@ -30,17 +30,17 @@ export class TabStore {
   private api = inject(Api);
   private toasts = inject(Toasts);
 
-  readonly tabs = signal<EditorTab[]>([]);
-  readonly activeId = signal<string>('');
-  readonly active = computed(() => this.tabs().find((t) => t.id === this.activeId()));
-  readonly loaded = signal(false);
+  public readonly tabs = signal<EditorTab[]>([]);
+  public readonly activeId = signal<string>('');
+  public readonly active = computed(() => this.tabs().find((t) => t.id === this.activeId()));
+  public readonly loaded = signal(false);
 
   private contentTimers = new Map<string, ReturnType<typeof setTimeout>>();
   /** Content writes in flight, so a close or delete can wait for them. */
   private contentSaves = new Map<string, Set<Promise<void>>>();
   private layoutTimer?: ReturnType<typeof setTimeout>;
 
-  async load() {
+  public async load() {
     try {
       const ws = await this.api.loadWorkspace();
       this.tabs.set(ws.tabs.map((t) => ({
@@ -56,14 +56,14 @@ export class TabStore {
     this.loaded.set(true);
   }
 
-  get(id: string) { return this.tabs().find((t) => t.id === id); }
+  public get(id: string) { return this.tabs().find((t) => t.id === id); }
 
-  create(connId = '', content = '', name?: string, database = ''): EditorTab {
+  public create(connId = '', content = '', name?: string, database = ''): EditorTab {
     return this.insert({ id: crypto.randomUUID(), name: name ?? this.nextName(), connId, database, kind: 'sql', txMode: 'auto', locked: false, content, dirty: !!content });
   }
 
   /** Opens an existing scratch file in a new tab. */
-  openScratch(t: TabState): EditorTab {
+  public openScratch(t: TabState): EditorTab {
     return this.insert({
       id: t.id, name: t.name, connId: t.connId, database: t.database ?? '', kind: 'sql', txMode: 'auto', locked: !!t.locked,
       content: t.content ?? '', dirty: false,
@@ -71,16 +71,16 @@ export class TabStore {
   }
 
   /** Extra names to avoid when naming new scratches (set by the scratch store). */
-  takenNames: () => string[] = () => [];
+  public takenNames: () => string[] = () => [];
 
   /** Updates a tab's name without touching the scratch index (already renamed). */
-  setName(id: string, name: string) {
+  public setName(id: string, name: string) {
     this.patch(id, { name });
     this.saveLayoutSoon();
   }
 
   /** Opens a data-editor tab for a table. */
-  createTable(connId: string, database: string, table: { schema: string; name: string; type: string }): EditorTab {
+  public createTable(connId: string, database: string, table: { schema: string; name: string; type: string }): EditorTab {
     return this.insert({ id: crypto.randomUUID(), name: table.name, connId, database, kind: 'table', txMode: 'auto', locked: false, table, content: '', dirty: false });
   }
 
@@ -96,21 +96,21 @@ export class TabStore {
     return tab;
   }
 
-  activate(id: string) {
+  public activate(id: string) {
     if (this.get(id)) {
       this.activeId.set(id);
       this.saveLayoutSoon();
     }
   }
 
-  activateRelative(delta: number) {
+  public activateRelative(delta: number) {
     const list = this.tabs();
     const i = list.findIndex((t) => t.id === this.activeId());
     if (i < 0 || list.length < 2) return;
     this.activate(list[(i + delta + list.length) % list.length].id);
   }
 
-  async close(id: string) {
+  public async close(id: string) {
     const list = this.tabs();
     const i = list.findIndex((t) => t.id === id);
     if (i < 0) return;
@@ -129,14 +129,14 @@ export class TabStore {
     }
   }
 
-  rename(id: string, name: string) {
+  public rename(id: string, name: string) {
     name = name.trim();
     if (!name) return;
     this.patch(id, { name });
     this.saveLayoutSoon();
   }
 
-  move(from: number, to: number) {
+  public move(from: number, to: number) {
     const list = [...this.tabs()];
     const [t] = list.splice(from, 1);
     list.splice(to, 0, t);
@@ -144,7 +144,7 @@ export class TabStore {
     this.saveLayoutSoon();
   }
 
-  setConnection(id: string, connId: string, database = '') {
+  public setConnection(id: string, connId: string, database = '') {
     const t = this.get(id);
     if (!t) return;
     if (t.locked) {
@@ -158,24 +158,24 @@ export class TabStore {
   }
 
   /** Pins or unpins a SQL tab's connection and database. */
-  setLocked(id: string, locked: boolean) {
+  public setLocked(id: string, locked: boolean) {
     if (this.get(id)?.locked === locked) return;
     this.patch(id, { locked });
     this.saveLayoutSoon();
   }
 
-  setTxMode(id: string, txMode: TxMode) {
+  public setTxMode(id: string, txMode: TxMode) {
     if (this.get(id)?.txMode === txMode) return;
     this.patch(id, { txMode });
     this.saveLayoutSoon();
   }
 
   /** Data tabs report pending, unsaved edits through the dirty flag. */
-  setDirty(id: string, dirty: boolean) {
+  public setDirty(id: string, dirty: boolean) {
     if (this.get(id) && this.get(id)!.dirty !== dirty) this.patch(id, { dirty });
   }
 
-  setContent(id: string, content: string) {
+  public setContent(id: string, content: string) {
     const t = this.get(id);
     if (!t || t.content === content) return;
     this.patch(id, { content, dirty: true });
@@ -183,14 +183,14 @@ export class TabStore {
   }
 
   /** Takes a version that is already on disk (pulled by git sync) without marking it dirty. */
-  adoptContent(id: string, content: string) {
+  public adoptContent(id: string, content: string) {
     const t = this.get(id);
     if (!t || t.content === content) return;
     this.patch(id, { content, dirty: false });
   }
 
   /** Writes pending content immediately and waits for writes already in flight. */
-  flush(id?: string): Promise<unknown> {
+  public flush(id?: string): Promise<unknown> {
     const ids = id ? [id] : [...new Set([...this.contentTimers.keys(), ...this.contentSaves.keys()])];
     const writes: Promise<unknown>[] = [];
     for (const tid of ids) {
@@ -248,7 +248,7 @@ export class TabStore {
    * Saves the layout now. Actions that address a scratch by ID (locking it, for
    * one) need the backend to know the tab before the debounce fires.
    */
-  async saveLayoutNow() {
+  public async saveLayoutNow() {
     clearTimeout(this.layoutTimer);
     await this.saveLayout();
   }

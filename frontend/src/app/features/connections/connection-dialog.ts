@@ -17,65 +17,65 @@ import {
   styleUrl: './connection-dialog.scss',
 })
 export class ConnectionDialog {
-  readonly ref = inject<DialogRef<ConnectionView | undefined>>(DialogRef);
-  readonly view = inject<ConnectionView | undefined>(DIALOG_DATA);
+  public readonly ref = inject<DialogRef<ConnectionView | undefined>>(DialogRef);
+  public readonly view = inject<ConnectionView | undefined>(DIALOG_DATA);
   private api = inject(Api);
   private store = inject(ConnectionStore);
   private confirm = inject(Confirm);
 
-  readonly kinds: DbKind[] = ['postgres', 'mysql', 'oracle', 'sqlite'];
-  readonly labels = KIND_LABELS;
-  readonly colors = CONNECTION_COLORS;
-  readonly editing = !!this.view;
-  readonly oracleModes = [
+  public readonly kinds: DbKind[] = ['postgres', 'mysql', 'oracle', 'sqlite'];
+  public readonly labels = KIND_LABELS;
+  public readonly colors = CONNECTION_COLORS;
+  public readonly editing = !!this.view;
+  public readonly oracleModes = [
     { value: 'service', label: 'Service name' },
     { value: 'sid', label: 'SID' },
   ];
-  readonly oracleRoles = [
+  public readonly oracleRoles = [
     { value: '', label: 'Normal' },
     { value: 'SYSDBA', label: 'SYSDBA' },
     { value: 'SYSOPER', label: 'SYSOPER' },
   ];
-  readonly sshMethods = [
+  public readonly sshMethods = [
     { value: 'password', label: 'Password' },
     { value: 'key', label: 'Private key' },
     { value: 'agent', label: 'SSH agent' },
   ];
 
-  form: ConnectionConfig = this.view
+  public form: ConnectionConfig = this.view
     ? { ...this.view, password: '' }
     : { id: '', name: '', kind: 'postgres', host: 'localhost', readOnly: false, color: CONNECTION_COLORS[0] };
 
   /** Oracle service names live in `database`; the mode only changes the options. */
-  oracleMode: 'service' | 'sid' = this.form.options?.['SID'] ? 'sid' : 'service';
-  oracleRole = this.form.options?.['DBA PRIVILEGE'] ?? '';
+  public oracleMode: 'service' | 'sid' = this.form.options?.['SID'] ? 'sid' : 'service';
+  public oracleRole = this.form.options?.['DBA PRIVILEGE'] ?? '';
 
   /** Working copy of the tunnel settings, kept even when the tunnel is off. */
-  ssh: SSHConfig = this.view?.ssh
+  public ssh: SSHConfig = this.view?.ssh
     ? { ...this.view.ssh }
     : { enabled: false, port: 22, method: 'password' };
 
-  readonly busy = signal<'' | 'test' | 'save'>('');
-  readonly status = signal<{ text: string; error: boolean } | null>(null);
+  public readonly busy = signal<'' | 'test' | 'save'>('');
+  public readonly status = signal<{ text: string; error: boolean } | null>(null);
   private kind = signal(this.form.kind);
-  readonly defaultPort = computed(() => String(DEFAULT_PORTS[this.kind()] ?? ''));
+  public readonly defaultPort = computed(() => String(DEFAULT_PORTS[this.kind()] ?? ''));
 
-  placeholderName() {
+  public placeholderName() {
     if (this.form.kind === 'sqlite') return this.form.filePath?.split(/[\\/]/).pop() || 'local.db';
     return [this.form.host || 'localhost', this.form.database].filter(Boolean).join(' / ');
   }
 
-  databaseLabel() {
+  public databaseLabel() {
     if (this.form.kind !== 'oracle') return 'Database';
     return this.oracleMode === 'sid' ? 'SID' : 'Service name';
   }
 
-  databasePlaceholder() {
+  public databasePlaceholder() {
     if (this.form.kind === 'oracle') return this.oracleMode === 'sid' ? 'ORCL' : 'FREEPDB1';
     return this.form.kind === 'postgres' ? 'postgres' : 'optional';
   }
 
-  setKind(k: DbKind) {
+  public setKind(k: DbKind) {
     this.form.kind = k;
     this.kind.set(k);
     this.form.port = undefined;
@@ -83,20 +83,20 @@ export class ConnectionDialog {
     this.status.set(null);
   }
 
-  setOracleMode(mode: string) {
+  public setOracleMode(mode: string) {
     this.oracleMode = mode === 'sid' ? 'sid' : 'service';
   }
 
-  setSSHMethod(method: string) {
+  public setSSHMethod(method: string) {
     if (method === 'password' || method === 'key' || method === 'agent') this.ssh.method = method;
   }
 
-  async pickFile() {
+  public async pickFile() {
     const path = await this.api.pickSQLiteFile();
     if (path) this.form.filePath = path;
   }
 
-  async pickKey() {
+  public async pickKey() {
     const path = await this.api.pickSSHKey();
     if (path) this.ssh.keyPath = path;
   }
@@ -124,7 +124,7 @@ export class ConnectionDialog {
     return f;
   }
 
-  async test() {
+  public async test() {
     this.busy.set('test');
     this.status.set(null);
     try {
@@ -137,7 +137,7 @@ export class ConnectionDialog {
     }
   }
 
-  async save() {
+  public async save() {
     this.busy.set('save');
     try {
       const saved = await this.store.save(this.config());
@@ -149,7 +149,7 @@ export class ConnectionDialog {
     }
   }
 
-  async remove() {
+  public async remove() {
     if (!this.view) return;
     if (!(await this.confirm.ask(`Delete the connection “${this.view.name}”?`,
       { title: 'Delete connection', confirmLabel: 'Delete', danger: true }))) return;

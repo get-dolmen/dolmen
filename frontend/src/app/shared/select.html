@@ -3,18 +3,18 @@
         [attr.aria-controls]="open() ? listId : null"
         [attr.aria-activedescendant]="open() ? listId + '-' + focus() : null"
         [disabled]="disabled()" (click)="toggle()" (keydown)="onKey($event)">
-  <span class="text" [class.faint]="!current()">{{ current()?.label ?? placeholder() }}</span>
+  <span class="text" [class.faint]="!currentOption()">{{ currentOption()?.label ?? placeholder() }}</span>
   <dm-icon name="chevron" [size]="14" />
 </button>
 @if (open()) {
   <div class="menu" role="listbox" [id]="listId" [attr.aria-label]="label()"
-       [style.left.px]="pos().x" [style.top.px]="pos().y" [style.width.px]="width()">
-    @for (o of options(); track o.value; let i = $index) {
-      <button type="button" class="menu-item" role="option" [id]="listId + '-' + i"
-              [attr.aria-selected]="o.value === value()" [class.sel]="o.value === value()"
-              [class.focus]="i === focus()" (mouseenter)="focus.set(i)" (click)="choose(o)">
-        <span class="text">{{ o.label }}</span>
-        @if (o.value === value()) { <span class="check">✓</span> }
+       [style.left.px]="position().x" [style.top.px]="position().y" [style.width.px]="width()">
+    @for (option of options(); track option.value; let index = $index) {
+      <button type="button" class="menu-item" role="option" [id]="listId + '-' + index"
+              [attr.aria-selected]="option.value === value()" [class.sel]="option.value === value()"
+              [class.focus]="index === focus()" (mouseenter)="focus.set(index)" (click)="choose(option)">
+        <span class="text">{{ option.label }}</span>
+        @if (option.value === value()) { <span class="check">✓</span> }
       </button>
     }
   </div>

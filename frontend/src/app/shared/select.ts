@@ -7,7 +7,7 @@ export interface SelectOption {
   label: string;
 }
 
-let nextId = 0;
+let nextSelectId = 0;
 
 /**
  * A select drawn by the app instead of the OS, so it matches the menus and
@@ -32,14 +32,14 @@ export class Select {
   public readonly disabled = input(false);
   public readonly valueChange = output<string>();
 
-  public readonly listId = `dm-select-${nextId++}`;
+  public readonly listId = `dm-select-${nextSelectId++}`;
   public readonly open = signal(false);
   public readonly focus = signal(0);
-  public readonly pos = signal({ x: 0, y: 0 });
+  public readonly position = signal({ x: 0, y: 0 });
   public readonly width = signal(0);
-  public readonly current = computed(() => this.options().find((o) => o.value === this.value()));
+  public readonly currentOption = computed(() => this.options().find((option) => option.value === this.value()));
 
-  private el = inject<ElementRef<HTMLElement>>(ElementRef);
+  private elementRef = inject<ElementRef<HTMLElement>>(ElementRef);
 
   public constructor() {
     // A fixed popup cannot follow a scrolling dialog, so close it instead.
@@ -59,50 +59,50 @@ export class Select {
 
   public show() {
     if (this.disabled()) return;
-    const r = this.el.nativeElement.getBoundingClientRect();
+    const bounds = this.elementRef.nativeElement.getBoundingClientRect();
     const height = Math.min(220, this.options().length * 26 + 8);
     // Open upwards when the list does not fit below but does above.
-    const below = window.innerHeight - r.bottom - 8;
-    const y = below >= height || r.top < height ? r.bottom + 4 : r.top - height - 4;
-    const width = Math.max(r.width, 190);
+    const spaceBelow = window.innerHeight - bounds.bottom - 8;
+    const top = spaceBelow >= height || bounds.top < height ? bounds.bottom + 4 : bounds.top - height - 4;
+    const width = Math.max(bounds.width, 190);
     this.width.set(width);
-    this.pos.set(clampMenu(r.left, y, width, height));
-    this.focus.set(Math.max(0, this.options().findIndex((o) => o.value === this.value())));
+    this.position.set(clampMenu(bounds.left, top, width, height));
+    this.focus.set(Math.max(0, this.options().findIndex((option) => option.value === this.value())));
     this.open.set(true);
   }
 
-  public choose(o: SelectOption) {
+  public choose(option: SelectOption) {
     this.close();
-    if (o.value !== this.value()) this.valueChange.emit(o.value);
+    if (option.value !== this.value()) this.valueChange.emit(option.value);
   }
 
-  public onKey(e: KeyboardEvent) {
-    const opts = this.options();
+  public onKey(event: KeyboardEvent) {
+    const options = this.options();
     if (!this.open()) {
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
         this.show();
       }
       return;
     }
-    switch (e.key) {
-      case 'ArrowDown': e.preventDefault(); this.focus.set(Math.min(opts.length - 1, this.focus() + 1)); break;
-      case 'ArrowUp': e.preventDefault(); this.focus.set(Math.max(0, this.focus() - 1)); break;
-      case 'Home': e.preventDefault(); this.focus.set(0); break;
-      case 'End': e.preventDefault(); this.focus.set(opts.length - 1); break;
+    switch (event.key) {
+      case 'ArrowDown': event.preventDefault(); this.focus.set(Math.min(options.length - 1, this.focus() + 1)); break;
+      case 'ArrowUp': event.preventDefault(); this.focus.set(Math.max(0, this.focus() - 1)); break;
+      case 'Home': event.preventDefault(); this.focus.set(0); break;
+      case 'End': event.preventDefault(); this.focus.set(options.length - 1); break;
       case 'Enter':
       case ' ': {
-        e.preventDefault();
-        const o = opts[this.focus()];
-        if (o) this.choose(o);
+        event.preventDefault();
+        const option = options[this.focus()];
+        if (option) this.choose(option);
         break;
       }
-      case 'Escape': e.preventDefault(); this.close(); break;
+      case 'Escape': event.preventDefault(); this.close(); break;
       case 'Tab': this.close(); break;
     }
   }
 
-  public onOutside(e: MouseEvent) {
-    if (this.open() && !this.el.nativeElement.contains(e.target as Node)) this.close();
+  public onOutside(event: MouseEvent) {
+    if (this.open() && !this.elementRef.nativeElement.contains(event.target as Node)) this.close();
   }
 }

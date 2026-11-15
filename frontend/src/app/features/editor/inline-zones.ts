@@ -35,7 +35,7 @@ export class InlineZones {
   private tabId = '';
   private disposables: monaco.IDisposable[] = [];
 
-  constructor(
+  public constructor(
     private editor: monaco.editor.IStandaloneCodeEditor,
     private runs: RunStore,
     private appRef: ApplicationRef,
@@ -49,7 +49,7 @@ export class InlineZones {
   }
 
   /** Brings the zones in line with the runs, for the tab shown in the editor. */
-  update(runs: Record<string, TabRun>, enabled: boolean, tabId: string) {
+  public update(runs: Record<string, TabRun>, enabled: boolean, tabId: string) {
     this.anchor(runs);
     if (tabId !== this.tabId || !enabled) this.clear();
     this.tabId = tabId;
@@ -90,12 +90,12 @@ export class InlineZones {
   }
 
   /** Removes every zone from the editor (before a model switch). */
-  clear() {
+  public clear() {
     if (!this.zones.size) return;
     this.editor.changeViewZones((acc) => { for (const z of [...this.zones.values()]) this.remove(z, acc); });
   }
 
-  dispose() {
+  public dispose() {
     this.clear();
     for (const a of this.anchors.values()) if (!a.model.isDisposed()) a.model.deltaDecorations([a.decoration], []);
     this.anchors.clear();

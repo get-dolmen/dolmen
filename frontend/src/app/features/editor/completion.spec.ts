@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { completionContext, expectsTable, parseTableRefs, splitName, statementAround } from './completion';
+import { completionContext, expectsTable, parseTableReferences, splitName, statementAround } from './completion';
 
-describe('parseTableRefs', () => {
+describe('parseTableReferences', () => {
   it('finds tables and aliases across FROM and JOIN', () => {
-    const refs = parseTableRefs('select * from public.orders o join users as u on u.id = o.user_id left join items where 1=1');
-    expect(refs).toEqual([
+    const references = parseTableReferences(
+      'select * from public.orders o join users as u on u.id = o.user_id left join items where 1=1',
+    );
+    expect(references).toEqual([
       { schema: 'public', table: 'orders', alias: 'o' },
       { schema: undefined, table: 'users', alias: 'u' },
       { schema: undefined, table: 'items', alias: undefined },
@@ -12,17 +14,23 @@ describe('parseTableRefs', () => {
   });
 
   it('follows comma-separated FROM lists', () => {
-    const refs = parseTableRefs('select * from a x, b, "My Table" t where x.id = 1');
-    expect(refs.map((r) => [r.table, r.alias])).toEqual([['a', 'x'], ['b', undefined], ['My Table', 't']]);
+    const references = parseTableReferences('select * from a x, b, "My Table" t where x.id = 1');
+    expect(references.map((reference) => [reference.table, reference.alias])).toEqual([
+      ['a', 'x'], ['b', undefined], ['My Table', 't'],
+    ]);
   });
 
   it('does not treat clause keywords as aliases', () => {
-    expect(parseTableRefs('select * from t where a = 1')).toEqual([{ schema: undefined, table: 't', alias: undefined }]);
-    expect(parseTableRefs('update t set a = 1')[0].alias).toBeUndefined();
+    expect(parseTableReferences('select * from t where a = 1')).toEqual([
+      { schema: undefined, table: 't', alias: undefined },
+    ]);
+    expect(parseTableReferences('update t set a = 1')[0].alias).toBeUndefined();
   });
 
   it('handles quoted identifiers', () => {
-    expect(parseTableRefs('select * from `db`.`my tbl` m')).toEqual([{ schema: 'db', table: 'my tbl', alias: 'm' }]);
+    expect(parseTableReferences('select * from `db`.`my tbl` m')).toEqual([
+      { schema: 'db', table: 'my tbl', alias: 'm' },
+    ]);
   });
 });
 

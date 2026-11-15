@@ -1,6 +1,6 @@
 // Pure helpers for schema-aware SQL completion (no Monaco imports, so they are unit-testable).
 
-export interface TableRef {
+export interface TableReference {
   schema?: string;
   table: string;
   alias?: string;
@@ -13,60 +13,60 @@ const NOT_ALIAS = new Set([
 ]);
 
 /** Removes surrounding identifier quotes. */
-export function unquote(s: string): string {
-  const m = /^(["`])(.*)\1$/.exec(s);
-  return m ? m[2].split(m[1] + m[1]).join(m[1]) : s;
+export function unquote(name: string): string {
+  const match = /^(["`])(.*)\1$/.exec(name);
+  return match ? match[2].split(match[1] + match[1]).join(match[1]) : name;
 }
 
 /** Splits a possibly quoted dotted name: a."b.c" -> ['a', 'b.c']. */
-export function splitName(s: string): string[] {
+export function splitName(name: string): string[] {
   const parts: string[] = [];
-  const re = /"(?:[^"]|"")*"|`(?:[^`]|``)*`|[^.\s]+/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(s))) parts.push(unquote(m[0]));
+  const namePattern = /"(?:[^"]|"")*"|`(?:[^`]|``)*`|[^.\s]+/g;
+  let match: RegExpExecArray | null;
+  while ((match = namePattern.exec(name))) parts.push(unquote(match[0]));
   return parts;
 }
 
 const NAME = String.raw`(?:"(?:[^"]|"")*"|\x60(?:[^\x60]|\x60\x60)*\x60|[\w$#]+)`;
-const QNAME = String.raw`${NAME}(?:\s*\.\s*${NAME})*`;
-const REF = new RegExp(String.raw`(${QNAME})(?:\s+(?:as\s+)?(${NAME}))?`, 'iy');
+const QUALIFIED_NAME = String.raw`${NAME}(?:\s*\.\s*${NAME})*`;
+const REFERENCE = new RegExp(String.raw`(${QUALIFIED_NAME})(?:\s+(?:as\s+)?(${NAME}))?`, 'iy');
 
-function parseRef(text: string, at: number): { ref: TableRef; end: number } | null {
-  REF.lastIndex = at;
-  const m = REF.exec(text);
-  if (!m) return null;
-  const parts = splitName(m[1]);
-  let alias = m[2] ? unquote(m[2]) : undefined;
-  let end = REF.lastIndex;
+function parseReference(text: string, offset: number): { reference: TableReference; end: number } | null {
+  REFERENCE.lastIndex = offset;
+  const match = REFERENCE.exec(text);
+  if (!match) return null;
+  const parts = splitName(match[1]);
+  let alias = match[2] ? unquote(match[2]) : undefined;
+  let end = REFERENCE.lastIndex;
   if (alias && NOT_ALIAS.has(alias.toLowerCase())) {
     alias = undefined;
-    end = at + m[1].length;
+    end = offset + match[1].length;
   }
   const table = parts[parts.length - 1];
   const schema = parts.length > 1 ? parts[parts.length - 2] : undefined;
-  return { ref: { schema, table, alias }, end };
+  return { reference: { schema, table, alias }, end };
 }
 
 /** Finds the tables referenced by FROM / JOIN / UPDATE / INTO clauses, with their aliases. */
-export function parseTableRefs(stmt: string): TableRef[] {
-  const out: TableRef[] = [];
-  const kw = /\b(from|join|update|into)\s+/gi;
-  let m: RegExpExecArray | null;
-  while ((m = kw.exec(stmt))) {
-    let pos = kw.lastIndex;
+export function parseTableReferences(statement: string): TableReference[] {
+  const references: TableReference[] = [];
+  const keywordPattern = /\b(from|join|update|into)\s+/gi;
+  let match: RegExpExecArray | null;
+  while ((match = keywordPattern.exec(statement))) {
+    let position = keywordPattern.lastIndex;
     // FROM a x, b y: follow commas until the clause ends.
     for (;;) {
-      if (stmt[pos] === '(') break; // subquery
-      const r = parseRef(stmt, pos);
-      if (!r) break;
-      out.push(r.ref);
-      const rest = stmt.slice(r.end);
+      if (statement[position] === '(') break; // subquery
+      const parsed = parseReference(statement, position);
+      if (!parsed) break;
+      references.push(parsed.reference);
+      const rest = statement.slice(parsed.end);
       const comma = /^\s*,\s*/.exec(rest);
-      if (m[1].toLowerCase() !== 'from' || !comma || CLAUSE_END.test(rest.slice(0, comma[0].length))) break;
-      pos = r.end + comma[0].length;
+      if (match[1].toLowerCase() !== 'from' || !comma || CLAUSE_END.test(rest.slice(0, comma[0].length))) break;
+      position = parsed.end + comma[0].length;
     }
   }
-  return out;
+  return references;
 }
 
 export interface CompletionContext {
@@ -78,14 +78,18 @@ export interface CompletionContext {
   keyword: string;
 }
 
-export function completionContext(before: string): CompletionContext {
-  const m = /((?:(?:"(?:[^"]|"")*"|`(?:[^`]|``)*`|[\w$#]+)\s*\.\s*)*)("?[\w$#]*)$/.exec(before);
-  const chain = m?.[1] ?? '';
-  const word = (m?.[2] ?? '').replace(/^"/, '');
+export function completionContext(textBeforeCursor: string): CompletionContext {
+  const match = /((?:(?:"(?:[^"]|"")*"|`(?:[^`]|``)*`|[\w$#]+)\s*\.\s*)*)("?[\w$#]*)$/.exec(textBeforeCursor);
+  const chain = match?.[1] ?? '';
+  const word = (match?.[2] ?? '').replace(/^"/, '');
   const qualifier = chain ? splitName(chain.trim().replace(/\.$/, '')) : [];
-  const head = before.slice(0, before.length - (m?.[0].length ?? 0));
-  const kws = head.match(/\b(select|from|join|where|and|or|on|by|having|update|into|set|table|values|returning|as)\b/gi);
-  return { qualifier, word, keyword: (kws?.[kws.length - 1] ?? '').toLowerCase() };
+  const head = textBeforeCursor.slice(0, textBeforeCursor.length - (match?.[0].length ?? 0));
+  const keywords = head.match(/\b(select|from|join|where|and|or|on|by|having|update|into|set|table|values|returning|as)\b/gi);
+  return {
+    qualifier,
+    word,
+    keyword: (keywords?.[keywords.length - 1] ?? '').toLowerCase(),
+  };
 }
 
 /** True when the cursor follows a keyword that expects a table name. */
@@ -96,17 +100,17 @@ export function expectsTable(keyword: string): boolean {
 /** Returns the statement around `offset`, splitting naively on semicolons outside quotes. */
 export function statementAround(text: string, offset: number): { text: string; start: number } {
   let start = 0;
-  let quote = '';
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (quote) {
-      if (c === quote) quote = '';
+  let quoteCharacter = '';
+  for (let index = 0; index < text.length; index++) {
+    const character = text[index];
+    if (quoteCharacter) {
+      if (character === quoteCharacter) quoteCharacter = '';
       continue;
     }
-    if (c === "'" || c === '"' || c === '`') quote = c;
-    else if (c === ';') {
-      if (i >= offset) return { text: text.slice(start, i), start };
-      start = i + 1;
+    if (character === "'" || character === '"' || character === '`') quoteCharacter = character;
+    else if (character === ';') {
+      if (index >= offset) return { text: text.slice(start, index), start };
+      start = index + 1;
     }
   }
   return { text: text.slice(start), start };

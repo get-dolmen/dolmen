@@ -14,22 +14,7 @@ export interface PromptOptions {
 @Component({
   selector: 'dm-prompt-dialog',
   imports: [Autofocus],
-  template: `
-    <form class="dialog prompt" role="dialog" aria-modal="true" [attr.aria-label]="data.title"
-          (submit)="$event.preventDefault(); done(input.value)">
-      <header><h2>{{ data.title }}</h2></header>
-      <div class="body">
-        <label class="field">{{ data.label }}
-          <input #input class="input" [value]="data.value ?? ''" [placeholder]="data.placeholder ?? ''" spellcheck="false" autocomplete="off" dmAutofocus />
-        </label>
-      </div>
-      <footer>
-        <span class="spacer"></span>
-        <button class="btn" type="button" (click)="ref.close(null)">Cancel</button>
-        <button class="btn primary" type="submit">{{ data.confirmLabel || 'OK' }}</button>
-      </footer>
-    </form>
-  `,
+  templateUrl: './prompt.html',
   styles: `
     .prompt { width: 100%; }
     .field { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-sm); color: var(--text-muted); }

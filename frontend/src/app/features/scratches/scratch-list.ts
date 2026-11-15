@@ -65,7 +65,7 @@ export class ScratchList {
     const databases = this.schemaStore.databases();
     return buildScratchTree(this.scratchStore.list(), {
       connections: this.connectionStore.connections(),
-      currentDb: (connectionId) => databases[connectionId]?.current,
+      currentDatabase: (connectionId) => databases[connectionId]?.current,
     });
   });
 

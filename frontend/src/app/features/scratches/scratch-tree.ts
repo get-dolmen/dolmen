@@ -30,83 +30,106 @@ export type TreeNode = FolderNode | FileNode;
 export interface TreeContext {
   connections: ConnectionView[];
   /** The database a connection opens by itself (Postgres: from the server, once known). */
-  currentDb: (connId: string) => string | undefined;
+  currentDatabase: (connectionId: string) => string | undefined;
 }
 
 /** Label of a connection's own database: engines without a database level show their schema / service / file. */
-export function ownDbLabel(c: ConnectionView, current?: string): string {
-  if (current) return current;
-  if (c.kind === 'sqlite') return c.filePath?.split(/[\\/]/).pop() || 'main';
-  return c.database || (c.kind === 'postgres' ? 'postgres' : 'default');
+export function ownDatabaseLabel(connection: ConnectionView, currentDatabase?: string): string {
+  if (currentDatabase) return currentDatabase;
+  if (connection.kind === 'sqlite') return connection.filePath?.split(/[\\/]/).pop() || 'main';
+  return connection.database || (connection.kind === 'postgres' ? 'postgres' : 'default');
 }
 
-const byLabel = (a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' });
+const byLabel = (first: { label: string }, second: { label: string }) =>
+  first.label.localeCompare(second.label, undefined, { sensitivity: 'base' });
+
+/** An empty folder node, filled in by the caller. */
+function emptyFolder(key: string, level: FolderNode['level'], label: string): FolderNode {
+  return {
+    kind: 'folder', key, level, label, connId: '', database: '', schema: '', table: '', children: [], count: 0,
+  };
+}
 
 /**
  * Groups scratches into connection → database → table folders. Scratches
  * without a table sit directly in their database folder; scratches whose
  * connection no longer exists go to "No connection".
  */
-export function buildScratchTree(scratches: ScratchInfo[], ctx: TreeContext): FolderNode[] {
-  const conns = new Map(ctx.connections.map((c) => [c.id, c]));
+export function buildScratchTree(scratches: ScratchInfo[], context: TreeContext): FolderNode[] {
+  const connectionsById = new Map(context.connections.map((connection) => [connection.id, connection]));
   const roots = new Map<string, FolderNode>();
-  const none: FolderNode = { kind: 'folder', key: 'none', level: 'none', label: 'No connection', connId: '', database: '', schema: '', table: '', children: [], count: 0 };
+  const orphansFolder = emptyFolder('none', 'none', 'No connection');
 
-  const child = (parent: FolderNode, key: string, make: () => FolderNode): FolderNode => {
-    let f = parent.children.find((n): n is FolderNode => n.kind === 'folder' && n.key === key);
-    if (!f) {
-      f = make();
-      parent.children.push(f);
-    }
-    return f;
+  const childFolder = (parent: FolderNode, key: string, create: () => FolderNode): FolderNode => {
+    const existing = parent.children.find((child): child is FolderNode => child.kind === 'folder' && child.key === key);
+    if (existing) return existing;
+    const created = create();
+    parent.children.push(created);
+    return created;
   };
 
-  for (const s of scratches) {
-    const c = conns.get(s.connId);
-    if (!c) {
-      none.children.push({ kind: 'file', key: `f:${s.id}`, scratch: s });
-      none.count++;
+  for (const scratch of scratches) {
+    const connection = connectionsById.get(scratch.connId);
+    if (!connection) {
+      orphansFolder.children.push({ kind: 'file', key: `f:${scratch.id}`, scratch });
+      orphansFolder.count++;
       continue;
     }
-    let conn = roots.get(c.id);
-    if (!conn) {
-      conn = { kind: 'folder', key: `c:${c.id}`, level: 'conn', label: c.name, color: c.color, connId: c.id, database: '', schema: '', table: '', children: [], count: 0 };
-      roots.set(c.id, conn);
+    let connectionFolder = roots.get(connection.id);
+    if (!connectionFolder) {
+      connectionFolder = {
+        ...emptyFolder(`c:${connection.id}`, 'conn', connection.name),
+        color: connection.color, connId: connection.id,
+      };
+      roots.set(connection.id, connectionFolder);
     }
     // The connection's own database may be stored as '' or by name: same folder.
-    const current = ctx.currentDb(c.id);
-    const own = !s.database || s.database === current;
-    const dbLabel = own ? ownDbLabel(c, current) : s.database!;
-    const db = child(conn, `d:${c.id}:${dbLabel}`, () => ({
-      kind: 'folder', key: `d:${c.id}:${dbLabel}`, level: 'db', label: dbLabel, connId: c.id,
-      database: own ? '' : s.database!, schema: '', table: '', children: [], count: 0,
+    const currentDatabase = context.currentDatabase(connection.id);
+    const isOwnDatabase = !scratch.database || scratch.database === currentDatabase;
+    const databaseLabel = isOwnDatabase
+      ? ownDatabaseLabel(connection, currentDatabase)
+      : scratch.database!;
+    const databaseFolder = childFolder(connectionFolder, `d:${connection.id}:${databaseLabel}`, () => ({
+      ...emptyFolder(`d:${connection.id}:${databaseLabel}`, 'db', databaseLabel),
+      connId: connection.id,
+      database: isOwnDatabase ? '' : scratch.database!,
     }));
-    let parent = db;
-    if (s.table) {
-      parent = child(db, `t:${db.key}:${s.schema ?? ''}.${s.table}`, () => ({
-        kind: 'folder', key: `t:${db.key}:${s.schema ?? ''}.${s.table}`, level: 'table', label: s.table!, detail: s.schema || undefined,
-        connId: c.id, database: db.database, schema: s.schema ?? '', table: s.table!, children: [], count: 0,
+    let parentFolder = databaseFolder;
+    if (scratch.table) {
+      const tableKey = `t:${databaseFolder.key}:${scratch.schema ?? ''}.${scratch.table}`;
+      parentFolder = childFolder(databaseFolder, tableKey, () => ({
+        ...emptyFolder(tableKey, 'table', scratch.table!),
+        detail: scratch.schema || undefined,
+        connId: connection.id,
+        database: databaseFolder.database,
+        schema: scratch.schema ?? '',
+        table: scratch.table!,
       }));
-      parent.count++;
+      parentFolder.count++;
     }
-    parent.children.push({ kind: 'file', key: `f:${s.id}`, scratch: s });
-    db.count++;
-    conn.count++;
+    parentFolder.children.push({ kind: 'file', key: `f:${scratch.id}`, scratch });
+    databaseFolder.count++;
+    connectionFolder.count++;
   }
 
-  const sortTree = (f: FolderNode) => {
-    const folders = f.children.filter((n): n is FolderNode => n.kind === 'folder').sort(byLabel);
-    const files = f.children.filter((n): n is FileNode => n.kind === 'file')
-      .sort((a, b) => a.scratch.name.localeCompare(b.scratch.name, undefined, { numeric: true, sensitivity: 'base' }));
+  const sortTree = (folder: FolderNode) => {
+    const folders = folder.children.filter((child): child is FolderNode => child.kind === 'folder').sort(byLabel);
+    const files = folder.children
+      .filter((child): child is FileNode => child.kind === 'file')
+      .sort((first, second) => first.scratch.name.localeCompare(
+        second.scratch.name, undefined, { numeric: true, sensitivity: 'base' },
+      ));
     folders.forEach(sortTree);
-    f.children = [...folders, ...files];
+    folder.children = [...folders, ...files];
   };
   // Connections keep the explorer's order.
-  const order = new Map(ctx.connections.map((c, i) => [c.id, i]));
-  const out = [...roots.values()].sort((a, b) => (order.get(a.connId) ?? 0) - (order.get(b.connId) ?? 0));
-  if (none.children.length) out.push(none);
-  out.forEach(sortTree);
-  return out;
+  const connectionOrder = new Map(context.connections.map((connection, index) => [connection.id, index]));
+  const sortedRoots = [...roots.values()].sort(
+    (first, second) => (connectionOrder.get(first.connId) ?? 0) - (connectionOrder.get(second.connId) ?? 0),
+  );
+  if (orphansFolder.children.length) sortedRoots.push(orphansFolder);
+  sortedRoots.forEach(sortTree);
+  return sortedRoots;
 }
 
 export interface FlatRow {
@@ -116,25 +139,34 @@ export interface FlatRow {
 }
 
 /** Flattens the tree for rendering; with a filter, keeps matching scratches and their folders, all expanded. */
-export function flattenTree(roots: FolderNode[], collapsed: ReadonlySet<string>, filter = ''): FlatRow[] {
-  const f = filter.trim().toLowerCase();
-  const matches = (s: ScratchInfo) => !f || s.name.toLowerCase().includes(f) || (s.preview ?? '').toLowerCase().includes(f);
-  const out: FlatRow[] = [];
-  const walk = (n: TreeNode, depth: number): boolean => {
-    if (n.kind === 'file') {
-      if (!matches(n.scratch)) return false;
-      out.push({ node: n, depth, open: false });
+export function flattenTree(
+  roots: FolderNode[],
+  collapsedKeys: ReadonlySet<string>,
+  filter = '',
+): FlatRow[] {
+  const searchText = filter.trim().toLowerCase();
+  const matchesFilter = (scratch: ScratchInfo) => !searchText
+    || scratch.name.toLowerCase().includes(searchText)
+    || (scratch.preview ?? '').toLowerCase().includes(searchText);
+  const rows: FlatRow[] = [];
+  const walk = (node: TreeNode, depth: number): boolean => {
+    if (node.kind === 'file') {
+      if (!matchesFilter(node.scratch)) return false;
+      rows.push({ node, depth, open: false });
       return true;
     }
-    const at = out.length;
-    const open = !!f || !collapsed.has(n.key);
-    out.push({ node: n, depth, open });
-    let any = false;
-    if (open) for (const c of n.children) any = walk(c, depth + 1) || any;
-    else any = !f;
-    if (f && !any) out.length = at; // nothing matches below: hide the folder
-    return any || !f;
+    const rowStart = rows.length;
+    const open = !!searchText || !collapsedKeys.has(node.key);
+    rows.push({ node, depth, open });
+    let anyMatch = false;
+    if (open) {
+      for (const child of node.children) anyMatch = walk(child, depth + 1) || anyMatch;
+    } else {
+      anyMatch = !searchText;
+    }
+    if (searchText && !anyMatch) rows.length = rowStart; // nothing matches below: hide the folder
+    return anyMatch || !searchText;
   };
-  roots.forEach((r) => walk(r, 0));
-  return out;
+  roots.forEach((root) => walk(root, 0));
+  return rows;
 }

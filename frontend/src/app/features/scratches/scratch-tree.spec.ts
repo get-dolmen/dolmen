@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildScratchTree, flattenTree, ownDbLabel, type FolderNode } from './scratch-tree';
+import { buildScratchTree, flattenTree, ownDatabaseLabel, type FolderNode } from './scratch-tree';
 import type { ConnectionView, ScratchInfo } from '../../core/models';
 
 const conn = (id: string, name: string, kind: ConnectionView['kind'], extra: Partial<ConnectionView> = {}): ConnectionView =>
@@ -8,7 +8,10 @@ const scratch = (id: string, name: string, connId: string, database = '', table 
   ({ id, name, connId, database, table, schema, createdAt: 0, updatedAt: 0, size: 1 });
 
 const conns = [conn('pg', 'raspberry', 'postgres', { database: 'tabtime' }), conn('lite', 'shop', 'sqlite', { filePath: '/tmp/shop.db' })];
-const ctx = { connections: conns, currentDb: (id: string) => (id === 'pg' ? 'tabtime' : undefined) };
+const context = {
+  connections: conns,
+  currentDatabase: (connectionId: string) => (connectionId === 'pg' ? 'tabtime' : undefined),
+};
 
 const labels = (f: FolderNode): unknown =>
   [f.label, f.children.map((c) => (c.kind === 'file' ? c.scratch.name : labels(c)))];
@@ -22,7 +25,7 @@ describe('buildScratchTree', () => {
       scratch('4', 'other.sql', 'pg', 'blog'),
       scratch('5', 'local.sql', 'lite'),
       scratch('6', 'lost.sql', 'gone'),
-    ], ctx);
+    ], context);
     expect(tree.map(labels)).toEqual([
       ['raspberry', [
         ['blog', ['other.sql']],
@@ -39,14 +42,14 @@ describe('buildScratchTree', () => {
   });
 
   it('labels engines without a database level', () => {
-    expect(ownDbLabel(conns[1])).toBe('shop.db');
-    expect(ownDbLabel(conn('m', 'm', 'mysql', { database: 'app' }))).toBe('app');
-    expect(ownDbLabel(conn('o', 'o', 'oracle'))).toBe('default');
+    expect(ownDatabaseLabel(conns[1])).toBe('shop.db');
+    expect(ownDatabaseLabel(conn('m', 'm', 'mysql', { database: 'app' }))).toBe('app');
+    expect(ownDatabaseLabel(conn('o', 'o', 'oracle'))).toBe('default');
   });
 });
 
 describe('flattenTree', () => {
-  const tree = buildScratchTree([scratch('1', 'users.sql', 'pg', '', 'users', 'public'), scratch('2', 'report.sql', 'pg')], ctx);
+  const tree = buildScratchTree([scratch('1', 'users.sql', 'pg', '', 'users', 'public'), scratch('2', 'report.sql', 'pg')], context);
 
   it('honours collapsed folders', () => {
     const rows = flattenTree(tree, new Set(['c:pg']));

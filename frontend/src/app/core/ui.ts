@@ -27,31 +27,31 @@ function loadPersisted(): Partial<Persisted> {
   }
 }
 
-function validTheme(t: unknown): t is Theme {
-  return t === 'system' || t === 'light' || t === 'dark';
+function isTheme(value: unknown): value is Theme {
+  return value === 'system' || value === 'light' || value === 'dark';
 }
 
-function validScratchPosition(p: unknown): p is ScratchPosition {
-  return p === 'explorer' || p === 'left';
+function isScratchPosition(value: unknown): value is ScratchPosition {
+  return value === 'explorer' || value === 'left';
 }
 
 /** Sets the colour scheme on the document; "system" leaves the OS media query in charge. */
-export function applyThemeAttribute(t: Theme) {
-  if (t === 'system') delete document.documentElement.dataset['theme'];
-  else document.documentElement.dataset['theme'] = t;
+export function applyThemeAttribute(theme: Theme) {
+  if (theme === 'system') delete document.documentElement.dataset['theme'];
+  else document.documentElement.dataset['theme'] = theme;
 }
 
 /** Applies the saved theme before Angular bootstraps, so the window never flashes the wrong colours. */
 export function applyStoredTheme() {
-  const t = loadPersisted().theme;
-  applyThemeAttribute(validTheme(t) ? t : 'system');
+  const theme = loadPersisted().theme;
+  applyThemeAttribute(isTheme(theme) ? theme : 'system');
 }
 
 /** True when the app currently renders dark colours (explicit setting or OS preference). */
 export function isDarkTheme(): boolean {
-  const t = document.documentElement.dataset['theme'];
-  if (t === 'dark') return true;
-  if (t === 'light') return false;
+  const theme = document.documentElement.dataset['theme'];
+  if (theme === 'dark') return true;
+  if (theme === 'light') return false;
   return matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
@@ -62,31 +62,33 @@ export const MOD = isMac ? '⌘' : 'Ctrl+';
 /** Layout state, remembered per machine. */
 @Injectable({ providedIn: 'root' })
 export class Ui {
-  private saved = loadPersisted();
-  readonly sidebarOpen = signal(this.saved.sidebarOpen ?? true);
-  readonly sidebarWidth = signal(this.saved.sidebarWidth ?? 280);
+  private readonly saved = loadPersisted();
+  public readonly sidebarOpen = signal(this.saved.sidebarOpen ?? true);
+  public readonly sidebarWidth = signal(this.saved.sidebarWidth ?? 280);
   /** Editor share of the vertical space, 0..1. */
-  readonly editorRatio = signal(this.saved.editorRatio ?? 0.55);
+  public readonly editorRatio = signal(this.saved.editorRatio ?? 0.55);
   /** Light / dark appearance; "system" follows the OS. */
-  readonly theme = signal<Theme>(validTheme(this.saved.theme) ? this.saved.theme : 'system');
+  public readonly theme = signal<Theme>(isTheme(this.saved.theme) ? this.saved.theme : 'system');
   /** Scratches sit under the explorer by default, or in a dedicated left panel. */
-  readonly scratchPosition = signal<ScratchPosition>(validScratchPosition(this.saved.scratchPosition) ? this.saved.scratchPosition : 'explorer');
-  readonly scratchWidth = signal(this.saved.scratchWidth ?? 260);
+  public readonly scratchPosition = signal<ScratchPosition>(
+    isScratchPosition(this.saved.scratchPosition) ? this.saved.scratchPosition : 'explorer',
+  );
+  public readonly scratchWidth = signal(this.saved.scratchWidth ?? 260);
   /** Collapses the dedicated scratch panel without moving it back under the explorer. */
-  readonly scratchOpen = signal(this.saved.scratchOpen ?? true);
+  public readonly scratchOpen = signal(this.saved.scratchOpen ?? true);
   /** Results under each statement in the editor (DataGrip style) instead of the bottom panel. */
-  readonly inlineResults = signal(this.saved.inlineResults ?? false);
-  readonly paletteOpen = signal(false);
-  readonly paletteQuery = signal('');
+  public readonly inlineResults = signal(this.saved.inlineResults ?? false);
+  public readonly paletteOpen = signal(false);
+  public readonly paletteQuery = signal('');
   /** Bumped to ask the sidebar to reveal a table. */
-  readonly reveal = signal<{ connId: string; database: string; schema: string; table: string } | null>(null);
+  public readonly reveal = signal<{ connId: string; database: string; schema: string; table: string } | null>(null);
 
   constructor() {
     // Paint the remembered theme as soon as the store exists, then on every change.
     effect(() => applyThemeAttribute(this.theme()));
 
     effect(() => {
-      const p: Persisted = {
+      const persisted: Persisted = {
         sidebarOpen: this.sidebarOpen(),
         sidebarWidth: this.sidebarWidth(),
         editorRatio: this.editorRatio(),
@@ -97,7 +99,7 @@ export class Ui {
         inlineResults: this.inlineResults(),
       };
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
       } catch { /* storage unavailable */ }
     });
   }
@@ -109,7 +111,7 @@ export class Ui {
 
   /** Moves the scratch files between the explorer and a dedicated left panel. */
   public toggleScratchPosition() {
-    this.scratchPosition.update((p) => (p === 'left' ? 'explorer' : 'left'));
+    this.scratchPosition.update((position) => (position === 'left' ? 'explorer' : 'left'));
     // Docking on the left always shows the panel; it can then be collapsed on its own.
     if (this.scratchPosition() === 'left') this.scratchOpen.set(true);
   }

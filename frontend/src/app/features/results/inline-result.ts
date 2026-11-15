@@ -25,54 +25,7 @@ export function inlineHeight(r: QueryResult): number {
 @Component({
   selector: 'dm-inline-result',
   imports: [ResultGrid, ClickOutside],
-  template: `
-    @let r = block().result;
-    <div class="head" [class.err]="!!r.error">
-      @if (r.error) {
-        <span class="badge">Error</span>
-      } @else if (r.isQuery) {
-        <span class="info">{{ r.rows.length.toLocaleString() }}{{ r.hasMore ? '+' : '' }} row{{ r.rows.length === 1 && !r.hasMore ? '' : 's' }} · {{ r.durationMs.toLocaleString() }} ms</span>
-      } @else {
-        <span class="info">{{ summary(r) }}</span>
-      }
-      <span class="spacer"></span>
-      @if (r.isQuery && !r.error) {
-        @if (r.canFetchMore) {
-          <button class="btn sm" (click)="fetchMore()" [disabled]="fetching()">{{ fetching() ? 'Fetching…' : 'Fetch more' }}</button>
-        }
-        <button class="btn sm" (click)="openMenu($event, 'copy')">Copy ▾</button>
-        @if (live()) {
-          <button class="btn sm" (click)="openMenu($event, 'export')">Export ▾</button>
-        }
-      }
-      <button class="close" title="Close" aria-label="Close result" (click)="closed.emit()">×</button>
-    </div>
-    @if (r.error) {
-      <pre class="error">{{ r.error }}</pre>
-    } @else if (r.isQuery) {
-      <dm-result-grid class="grid" [result]="r" [tooltips]="false" />
-    }
-    <div class="grip" title="Drag to resize" (pointerdown)="resizeStart.emit($event)" (dblclick)="resetHeight.emit()"></div>
-
-    @if (menu(); as m) {
-      <div class="menu" [style.left.px]="m.x" [style.top.px]="m.y" (dmClickOutside)="menu.set(null)">
-        @if (m.kind === 'copy') {
-          <div class="menu-label">Copy all rows</div>
-          @for (f of formats; track f.id) {
-            <button class="menu-item" (click)="copy('all', f.id)">{{ f.label }}</button>
-          }
-          <div class="menu-sep"></div>
-          <div class="menu-label">Copy selected rows</div>
-          @for (f of formats; track f.id) {
-            <button class="menu-item" (click)="copy('selected', f.id)">{{ f.label }}</button>
-          }
-        } @else {
-          <button class="menu-item" (click)="export('csv')">Export as CSV…</button>
-          <button class="menu-item" (click)="export('json')">Export as JSON…</button>
-        }
-      </div>
-    }
-  `,
+  templateUrl: './inline-result.html',
   styles: `
     :host {
       display: flex; flex-direction: column; height: 100%; box-sizing: border-box;

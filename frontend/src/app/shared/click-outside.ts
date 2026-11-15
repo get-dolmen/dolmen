@@ -4,30 +4,30 @@ import { Directive, ElementRef, inject, output } from '@angular/core';
 @Directive({
   selector: '[dmClickOutside]',
   host: {
-    '(document:mousedown)': 'onDown($event)',
+    '(document:mousedown)': 'onMouseDown($event)',
     '(document:keydown.escape)': 'dmClickOutside.emit()',
   },
 })
 export class ClickOutside {
-  private el = inject<ElementRef<HTMLElement>>(ElementRef);
+  private elementRef = inject<ElementRef<HTMLElement>>(ElementRef);
   public readonly dmClickOutside = output<void>();
 
-  public onDown(e: MouseEvent) {
-    if (!this.el.nativeElement.contains(e.target as Node)) this.dmClickOutside.emit();
+  public onMouseDown(event: MouseEvent) {
+    if (!this.elementRef.nativeElement.contains(event.target as Node)) this.dmClickOutside.emit();
   }
 }
 
 export type MenuPos = { x: number; y: number };
 
 /** Keeps a menu opened at (x, y) inside the viewport. */
-export function clampMenu(x: number, y: number, w = 220, h = 260): MenuPos {
+export function clampMenu(x: number, y: number, width = 220, height = 260): MenuPos {
   return {
-    x: Math.max(4, Math.min(x, window.innerWidth - w - 4)),
-    y: Math.max(4, Math.min(y, window.innerHeight - h - 4)),
+    x: Math.max(4, Math.min(x, window.innerWidth - width - 4)),
+    y: Math.max(4, Math.min(y, window.innerHeight - height - 4)),
   };
 }
 
 /** Places a menu under its trigger, or closes it when it is already open. */
-export function toggleMenuAt(current: MenuPos | null, trigger: DOMRect, w = 220, h = 260): MenuPos | null {
-  return current ? null : clampMenu(trigger.left, trigger.bottom + 4, w, h);
+export function toggleMenuAt(current: MenuPos | null, trigger: DOMRect, width = 220, height = 260): MenuPos | null {
+  return current ? null : clampMenu(trigger.left, trigger.bottom + 4, width, height);
 }

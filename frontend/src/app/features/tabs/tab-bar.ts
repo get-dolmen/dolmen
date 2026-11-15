@@ -19,44 +19,44 @@ import { Icon } from '../../shared/icon';
   styleUrl: './tab-bar.scss',
 })
 export class TabBar {
-  readonly tabs = inject(TabStore);
-  readonly cmds = inject(Commands);
+  public readonly tabs = inject(TabStore);
+  public readonly cmds = inject(Commands);
   private conns = inject(ConnectionStore);
   private runs = inject(RunStore);
   private scratches = inject(ScratchStore);
   private schema = inject(SchemaStore);
-  readonly tx = inject(TxStore);
-  readonly ui = inject(Ui);
-  readonly editing = signal('');
-  readonly mod = MOD;
-  readonly txMenu = signal<{ x: number; y: number } | null>(null);
-  readonly dbMenu = signal<{ x: number; y: number } | null>(null);
-  readonly tab = computed(() => this.tabs.active());
-  readonly txState = computed(() => this.tx.get(this.tabs.activeId()));
-  readonly since = computed(() => new Date(this.txState().startedAt).toLocaleTimeString());
-  readonly readOnly = computed(() => !!this.conns.get(this.tabs.active()?.connId)?.readOnly);
-  readonly dbInfo = computed(() => {
+  public readonly tx = inject(TxStore);
+  public readonly ui = inject(Ui);
+  public readonly editing = signal('');
+  public readonly mod = MOD;
+  public readonly txMenu = signal<{ x: number; y: number } | null>(null);
+  public readonly dbMenu = signal<{ x: number; y: number } | null>(null);
+  public readonly tab = computed(() => this.tabs.active());
+  public readonly txState = computed(() => this.tx.get(this.tabs.activeId()));
+  public readonly since = computed(() => new Date(this.txState().startedAt).toLocaleTimeString());
+  public readonly readOnly = computed(() => !!this.conns.get(this.tabs.active()?.connId)?.readOnly);
+  public readonly dbInfo = computed(() => {
     const t = this.tab();
     return t?.kind === 'sql' ? this.schema.databases()[t.connId] : undefined;
   });
-  readonly showDb = computed(() => !!this.dbInfo()?.supported && (this.dbInfo()?.databases.length ?? 0) > 1);
-  readonly dbLabel = computed(() => {
+  public readonly showDb = computed(() => !!this.dbInfo()?.supported && (this.dbInfo()?.databases.length ?? 0) > 1);
+  public readonly dbLabel = computed(() => {
     const t = this.tab();
     if (!t) return '';
     return t.database || this.dbInfo()?.current || 'default';
   });
 
-  openTxMenu(e: MouseEvent) {
+  public openTxMenu(e: MouseEvent) {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     this.txMenu.set(clampMenu(r.right - 300, r.bottom + 4, 300, 160));
   }
 
-  setMode(mode: 'auto' | 'manual') {
+  public setMode(mode: 'auto' | 'manual') {
     const t = this.tabs.active();
     if (t && this.tx.setMode(t.id, mode)) this.txMenu.set(null);
   }
 
-  openDbMenu(e: MouseEvent) {
+  public openDbMenu(e: MouseEvent) {
     const t = this.tab();
     if (!t || t.locked) return;
     if (!this.dbInfo()) void this.schema.loadDatabases(t.connId);
@@ -64,12 +64,12 @@ export class TabBar {
     this.dbMenu.set(clampMenu(r.right - 240, r.bottom + 4, 240, 260));
   }
 
-  isCurrentDb(db: string) {
+  public isCurrentDb(db: string) {
     const t = this.tab();
     return !!t && (t.database || this.dbInfo()?.current || '') === db;
   }
 
-  async chooseDb(db: string) {
+  public async chooseDb(db: string) {
     this.dbMenu.set(null);
     const t = this.tab();
     const info = this.dbInfo();
@@ -80,21 +80,21 @@ export class TabBar {
     this.tabs.setConnection(t.id, t.connId, next);
   }
 
-  color(t: EditorTab) { return this.conns.get(t.connId)?.color ?? null; }
+  public color(t: EditorTab) { return this.conns.get(t.connId)?.color ?? null; }
   /** "connection" or "connection/database" for data tabs. */
-  where(t: EditorTab) {
+  public where(t: EditorTab) {
     const c = this.conns.get(t.connId)?.name ?? '?';
     return t.database ? `${c}/${t.database}` : c;
   }
 
-  running(t: EditorTab) { return !!this.runs.runs()[t.id]?.running; }
+  public running(t: EditorTab) { return !!this.runs.runs()[t.id]?.running; }
 
-  title(t: EditorTab) {
+  public title(t: EditorTab) {
     const c = this.conns.get(t.connId);
     return `${t.name}${c ? ' · ' + c.name : ''}\nDouble-click to rename`;
   }
 
-  rename(t: EditorTab, name: string) {
+  public rename(t: EditorTab, name: string) {
     if (this.editing() !== t.id) return;
     this.editing.set('');
     if (!name.trim() || name.trim() === t.name) return;
@@ -103,14 +103,14 @@ export class TabBar {
     else this.tabs.rename(t.id, name);
   }
 
-  readonly menu = signal<{ x: number; y: number; t: EditorTab } | null>(null);
+  public readonly menu = signal<{ x: number; y: number; t: EditorTab } | null>(null);
 
-  openMenu(e: MouseEvent, t: EditorTab) {
+  public openMenu(e: MouseEvent, t: EditorTab) {
     e.preventDefault();
     this.menu.set({ ...clampMenu(e.clientX, e.clientY, 210, 240), t });
   }
 
-  async act(action: string) {
+  public async act(action: string) {
     const m = this.menu();
     this.menu.set(null);
     if (!m) return;
@@ -128,7 +128,7 @@ export class TabBar {
     }
   }
 
-  drop(e: CdkDragDrop<unknown>) {
+  public drop(e: CdkDragDrop<unknown>) {
     if (e.previousIndex !== e.currentIndex) this.tabs.move(e.previousIndex, e.currentIndex);
   }
 }

@@ -10,48 +10,48 @@ import { Ui, isMac } from './ui';
  */
 @Injectable({ providedIn: 'root' })
 export class Hotkeys {
-  private cmds = inject(Commands);
-  private ui = inject(Ui);
-  private tabs = inject(TabStore);
-  private runs = inject(RunStore);
+  private commandService = inject(Commands);
+  private uiState = inject(Ui);
+  private tabStore = inject(TabStore);
+  private runStore = inject(RunStore);
 
   public install() {
-    window.addEventListener('keydown', (e) => this.handle(e), true);
-    window.addEventListener('beforeunload', () => this.tabs.flush());
+    window.addEventListener('keydown', (event) => this.handle(event), true);
+    window.addEventListener('beforeunload', () => this.tabStore.flush());
   }
 
   private handle(event: KeyboardEvent) {
-    const mod = isMac ? event.metaKey : event.ctrlKey;
+    const modifierPressed = isMac ? event.metaKey : event.ctrlKey;
     const key = event.key.toLowerCase();
-    let done = true;
+    let handled = true;
 
-    if (mod && !event.altKey && key === 'p') {
-      this.ui.paletteOpen() ? this.ui.paletteOpen.set(false) : this.ui.openPalette(event.shiftKey ? '>' : '');
-    } else if (this.ui.paletteOpen() || document.querySelector('.cdk-overlay-pane')) {
+    if (modifierPressed && !event.altKey && key === 'p') {
+      this.uiState.paletteOpen() ? this.uiState.paletteOpen.set(false) : this.uiState.openPalette(event.shiftKey ? '>' : '');
+    } else if (this.uiState.paletteOpen() || document.querySelector('.cdk-overlay-pane')) {
       return; // let the palette or a dialog handle its own keys
-    } else if (mod && key === 'enter') {
-      event.shiftKey ? this.cmds.runAll() : this.cmds.run();
-    } else if (mod && !event.shiftKey && key === 't') {
-      this.cmds.newTab();
-    } else if (mod && !event.shiftKey && key === 'w') {
-      this.cmds.closeTab();
-    } else if (mod && !event.shiftKey && key === 'b') {
-      this.ui.sidebarOpen.update((v) => !v);
-    } else if (mod && !event.shiftKey && key === 's') {
-      this.cmds.save();
-    } else if (mod && !event.shiftKey && key === ',') {
-      this.cmds.openSettings();
+    } else if (modifierPressed && key === 'enter') {
+      event.shiftKey ? this.commandService.runAll() : this.commandService.run();
+    } else if (modifierPressed && !event.shiftKey && key === 't') {
+      this.commandService.newTab();
+    } else if (modifierPressed && !event.shiftKey && key === 'w') {
+      this.commandService.closeTab();
+    } else if (modifierPressed && !event.shiftKey && key === 'b') {
+      this.uiState.sidebarOpen.update((open) => !open);
+    } else if (modifierPressed && !event.shiftKey && key === 's') {
+      this.commandService.save();
+    } else if (modifierPressed && !event.shiftKey && key === ',') {
+      this.commandService.openSettings();
     } else if (event.ctrlKey && key === 'tab') {
-      this.tabs.activateRelative(event.shiftKey ? -1 : 1);
-    } else if (mod && event.shiftKey && (event.key === ']' || event.key === '[' || event.key === '}' || event.key === '{')) {
-      this.tabs.activateRelative(event.key === ']' || event.key === '}' ? 1 : -1);
-    } else if (key === 'escape' && this.runs.get(this.tabs.activeId()).running) {
-      this.cmds.cancel();
+      this.tabStore.activateRelative(event.shiftKey ? -1 : 1);
+    } else if (modifierPressed && event.shiftKey && (event.key === ']' || event.key === '[' || event.key === '}' || event.key === '{')) {
+      this.tabStore.activateRelative(event.key === ']' || event.key === '}' ? 1 : -1);
+    } else if (key === 'escape' && this.runStore.get(this.tabStore.activeId()).running) {
+      this.commandService.cancel();
     } else {
-      done = false;
+      handled = false;
     }
 
-    if (done) {
+    if (handled) {
       event.preventDefault();
       event.stopPropagation();
     }

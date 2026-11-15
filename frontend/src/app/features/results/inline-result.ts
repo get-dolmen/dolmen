@@ -46,7 +46,7 @@ export class InlineResult {
   private resultGrid = viewChild(ResultGrid);
   public readonly fetching = signal(false);
   public readonly menu = signal<{ x: number; y: number; kind: 'copy' | 'export' } | null>(null);
-  public readonly formats = COPY_FORMATS;
+  public readonly copyFormats = COPY_FORMATS;
 
   public summary(result: QueryResult): string {
     if (result.message) return result.message;

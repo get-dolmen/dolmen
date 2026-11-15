@@ -131,7 +131,7 @@ export class ScratchStore {
     if (!(await this.confirmDialog.ask(`Delete the scratch file “${scratch?.name ?? id}”? This cannot be undone.`,
       { title: 'Delete scratch file', confirmLabel: 'Delete', danger: true }))) return false;
     try {
-      // Closing waits for the tab'scratch last write; deleting only afterwards keeps
+      // Closing waits for the tab's last write; deleting only afterwards keeps
       // an in-flight save from recreating the file.
       if (this.tabStore.get(id)) await this.tabStore.close(id);
       await this.api.deleteScratch(id);
@@ -150,7 +150,7 @@ export class ScratchStore {
     const baseName = (source?.name ?? 'query.sql').replace(/\.sql$/i, '');
     const takenNames = new Set(this.list().map((scratch) => scratch.name));
     let name = `${baseName} copy.sql`;
-    for (let i = 2; takenNames.has(name); i++) name = `${baseName} copy ${i}.sql`;
+    for (let copyIndex = 2; takenNames.has(name); copyIndex++) name = `${baseName} copy ${copyIndex}.sql`;
     try {
       this.tabStore.openScratch(await this.api.duplicateScratch(id, crypto.randomUUID(), name));
       await this.refresh();
@@ -164,7 +164,7 @@ export class ScratchStore {
     baseName = baseName.replace(/\.sql$/i, '');
     const takenNames = new Set(this.list().map((scratch) => scratch.name));
     let name = `${baseName}.sql`;
-    for (let i = 2; takenNames.has(name); i++) name = `${baseName} ${i}.sql`;
+    for (let copyIndex = 2; takenNames.has(name); copyIndex++) name = `${baseName} ${copyIndex}.sql`;
     return name;
   }
 
@@ -202,7 +202,7 @@ export class ScratchStore {
     }
   }
 
-  /** Pins or unpins a scratch'scratch connection and database. */
+  /** Pins or unpins a scratch's connection, database and folder. */
   public async setLocked(id: string, locked: boolean) {
     try {
       // The backend stores the lock with the scratch: let it see the tab first.
@@ -227,7 +227,7 @@ export class ScratchStore {
     }
   }
 
-  /** Opens a .sql file from disk as a new scratch, linked to the current tab'scratch connection. */
+  /** Opens a .sql file from disk as a new scratch, linked to the current tab's connection. */
   public async importFile() {
     const active = this.tabStore.active();
     try {

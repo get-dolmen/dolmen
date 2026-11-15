@@ -41,13 +41,13 @@ const PATHS: Record<string, string> = {
   selector: 'dm-icon',
   template: `
     <svg [attr.width]="size()" [attr.height]="size()" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-      <path [attr.d]="d()" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+      <path [attr.d]="path()" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
   `,
   styles: `:host { display: inline-flex; flex: none; } svg { display: block; }`,
 })
 export class Icon {
-  readonly name = input.required<string>();
-  readonly size = input(16);
-  readonly d = computed(() => PATHS[this.name()] ?? '');
+  public readonly name = input.required<string>();
+  public readonly size = input(16);
+  public readonly path = computed(() => PATHS[this.name()] ?? '');
 }

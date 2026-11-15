@@ -83,12 +83,12 @@ function widthFor(name: string, rows: Cell[][], i: number): number {
 })
 export class ResultGrid {
   private cmds = inject(Commands);
-  readonly result = input.required<QueryResult>();
+  public readonly result = input.required<QueryResult>();
   /** Shows long text in a tooltip on hover (off inline, where it covers the code). */
-  readonly tooltips = input(true);
-  readonly theme = gridTheme;
+  public readonly tooltips = input(true);
+  public readonly theme = gridTheme;
 
-  readonly defaultColDef: ColDef = {
+  public readonly defaultColDef: ColDef = {
     sortable: true,
     resizable: true,
     minWidth: 60,
@@ -102,14 +102,14 @@ export class ResultGrid {
   private shownId = '';
   private shownRows = 0;
 
-  constructor() {
+  public constructor() {
     effect(() => {
       const r = this.result();
       untracked(() => this.render(r));
     });
   }
 
-  onReady(e: GridReadyEvent) {
+  public onReady(e: GridReadyEvent) {
     this.api = e.api;
     this.shownId = '';
     this.render(this.result());
@@ -140,7 +140,7 @@ export class ResultGrid {
   }
 
   /** ⌘C / Ctrl+C copies the selected rows as TSV, or else the focused cell. */
-  onKey(e: CellKeyDownEvent | FullWidthCellKeyDownEvent) {
+  public onKey(e: CellKeyDownEvent | FullWidthCellKeyDownEvent) {
     const ev = e.event as KeyboardEvent | undefined;
     if (!('column' in e) || !ev || ev.key.toLowerCase() !== 'c' || !(isMac ? ev.metaKey : ev.ctrlKey)) return;
     ev.preventDefault();
@@ -155,7 +155,7 @@ export class ResultGrid {
     }
   }
 
-  selectedRows(): Cell[][] {
+  public selectedRows(): Cell[][] {
     return (this.api?.getSelectedRows() as Cell[][]) ?? [];
   }
 }

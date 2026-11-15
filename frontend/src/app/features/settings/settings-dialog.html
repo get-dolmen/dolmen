@@ -8,14 +8,14 @@
       <div class="field">
         <span class="label">Theme</span>
         <div class="choices" role="radiogroup" aria-label="Theme">
-          @for (t of themes; track t.value) {
-            <button type="button" class="choice" role="radio" [class.on]="ui.theme() === t.value"
-                    [attr.aria-checked]="ui.theme() === t.value" (click)="ui.theme.set(t.value)">
-              <span class="preview" [attr.data-preview]="t.value" aria-hidden="true">
+          @for (themeOption of themeOptions; track themeOption.value) {
+            <button type="button" class="choice" role="radio" [class.on]="uiState.theme() === themeOption.value"
+                    [attr.aria-checked]="uiState.theme() === themeOption.value" (click)="uiState.theme.set(themeOption.value)">
+              <span class="preview" [attr.data-preview]="themeOption.value" aria-hidden="true">
                 <span class="bar"></span><span class="pane"></span>
               </span>
-              <span class="name">{{ t.label }}</span>
-              <span class="hint">{{ t.hint }}</span>
+              <span class="name">{{ themeOption.label }}</span>
+              <span class="hint">{{ themeOption.hint }}</span>
             </button>
           }
         </div>
@@ -24,16 +24,16 @@
       <div class="field">
         <span class="label">Scratch files</span>
         <div class="choices two" role="radiogroup" aria-label="Scratch panel position">
-          <button type="button" class="choice" role="radio" [class.on]="ui.scratchPosition() === 'explorer'"
-                  [attr.aria-checked]="ui.scratchPosition() === 'explorer'" (click)="ui.scratchPosition.set('explorer')">
+          <button type="button" class="choice" role="radio" [class.on]="uiState.scratchPosition() === 'explorer'"
+                  [attr.aria-checked]="uiState.scratchPosition() === 'explorer'" (click)="uiState.scratchPosition.set('explorer')">
             <span class="preview dock" aria-hidden="true">
               <span class="work"><span class="explorer"><span class="scratches"></span></span></span>
             </span>
             <span class="name">Explorer</span>
             <span class="hint">Bottom of the right sidebar</span>
           </button>
-          <button type="button" class="choice" role="radio" [class.on]="ui.scratchPosition() === 'left'"
-                  [attr.aria-checked]="ui.scratchPosition() === 'left'" (click)="ui.scratchPosition.set('left')">
+          <button type="button" class="choice" role="radio" [class.on]="uiState.scratchPosition() === 'left'"
+                  [attr.aria-checked]="uiState.scratchPosition() === 'left'" (click)="uiState.scratchPosition.set('left')">
             <span class="preview dock" aria-hidden="true">
               <span class="work"><span class="left-dock"></span><span class="main-pane"></span><span class="explorer"></span></span>
             </span>
@@ -46,16 +46,16 @@
       <div class="field">
         <span class="label">Query results</span>
         <div class="choices two" role="radiogroup" aria-label="Where query results are shown">
-          <button type="button" class="choice" role="radio" [class.on]="!ui.inlineResults()"
-                  [attr.aria-checked]="!ui.inlineResults()" (click)="ui.inlineResults.set(false)">
+          <button type="button" class="choice" role="radio" [class.on]="!uiState.inlineResults()"
+                  [attr.aria-checked]="!uiState.inlineResults()" (click)="uiState.inlineResults.set(false)">
             <span class="preview dock" aria-hidden="true">
               <span class="work col"><span class="main-pane"></span><span class="results-pane"></span></span>
             </span>
             <span class="name">Bottom panel</span>
             <span class="hint">Results, messages and history under the editor</span>
           </button>
-          <button type="button" class="choice" role="radio" [class.on]="ui.inlineResults()"
-                  [attr.aria-checked]="ui.inlineResults()" (click)="ui.inlineResults.set(true)">
+          <button type="button" class="choice" role="radio" [class.on]="uiState.inlineResults()"
+                  [attr.aria-checked]="uiState.inlineResults()" (click)="uiState.inlineResults.set(true)">
             <span class="preview dock" aria-hidden="true">
               <span class="work col"><span class="code"></span><span class="inline-res"></span><span class="code"></span></span>
             </span>
@@ -104,17 +104,17 @@
           <p class="note warn">Without a master password, the Git repository contains connection passwords in plain text.</p>
         }
 
-        @if (status(); as s) {
-          @if (!s.gitAvailable) {
+        @if (status(); as syncStatus) {
+          @if (!syncStatus.gitAvailable) {
             <p class="note warn">Git is not installed or not on PATH. Install git to sync.</p>
           }
-          @if (s.lastError) {
-            <p class="note err mono">{{ s.lastError }}</p>
+          @if (syncStatus.lastError) {
+            <p class="note err mono">{{ syncStatus.lastError }}</p>
           }
-          @if (s.lastSyncAt) {
+          @if (syncStatus.lastSyncAt) {
             <p class="note ok">
-              Last sync {{ when(s.lastSyncAt) }}
-              @if (s.lastCommit) { · commit <span class="mono">{{ s.lastCommit }}</span> }
+              Last sync {{ relativeTime(syncStatus.lastSyncAt) }}
+              @if (syncStatus.lastCommit) { · commit <span class="mono">{{ syncStatus.lastCommit }}</span> }
             </p>
           }
         }
@@ -129,6 +129,6 @@
   </div>
   <footer>
     <span class="spacer"></span>
-    <button type="button" class="btn primary" (click)="ref.close()">Done</button>
+    <button type="button" class="btn primary" (click)="dialogRef.close()">Done</button>
   </footer>
 </div>

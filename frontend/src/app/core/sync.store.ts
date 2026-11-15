@@ -7,10 +7,10 @@ import type { SyncStatus } from './models';
 export class SyncStore {
   private api = inject(Api);
 
-  readonly status = signal<SyncStatus | null>(null);
-  readonly configured = computed(() => !!this.status()?.enabled);
+  public readonly status = signal<SyncStatus | null>(null);
+  public readonly configured = computed(() => !!this.status()?.enabled);
 
-  async refresh() {
+  public async refresh() {
     try {
       this.status.set(await this.api.syncStatus());
     } catch {
@@ -19,7 +19,7 @@ export class SyncStore {
   }
 
   /** "just now", "5 min ago", or the date; "" when never synced. */
-  lastSyncText(now = Date.now()): string {
+  public lastSyncText(now = Date.now()): string {
     const ms = this.status()?.lastSyncAt;
     if (!ms) return '';
     const s = Math.max(0, Math.round((now - ms) / 1000));

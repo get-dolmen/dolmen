@@ -32,44 +32,44 @@ export function inlineHeight(r: QueryResult): number {
 export class InlineResult {
   private runs = inject(RunStore);
   private cmds = inject(Commands);
-  readonly tabId = input.required<string>();
-  readonly block = input.required<InlineBlock>();
+  public readonly tabId = input.required<string>();
+  public readonly block = input.required<InlineBlock>();
   /** From the tab's latest run: the backend still holds its rows for export. */
-  readonly live = input(false);
-  readonly closed = output<void>();
-  readonly resizeStart = output<PointerEvent>();
-  readonly resetHeight = output<void>();
+  public readonly live = input(false);
+  public readonly closed = output<void>();
+  public readonly resizeStart = output<PointerEvent>();
+  public readonly resetHeight = output<void>();
 
   private grid = viewChild(ResultGrid);
-  readonly fetching = signal(false);
-  readonly menu = signal<{ x: number; y: number; kind: 'copy' | 'export' } | null>(null);
-  readonly formats = COPY_FORMATS;
+  public readonly fetching = signal(false);
+  public readonly menu = signal<{ x: number; y: number; kind: 'copy' | 'export' } | null>(null);
+  public readonly formats = COPY_FORMATS;
 
-  summary(r: QueryResult): string {
+  public summary(r: QueryResult): string {
     if (r.message) return r.message;
     const affected = r.rowsAffected >= 0 ? `${r.rowsAffected.toLocaleString()} row${r.rowsAffected === 1 ? '' : 's'} affected` : 'Done';
     return `${affected} · ${r.durationMs.toLocaleString()} ms`;
   }
 
-  async fetchMore() {
+  public async fetchMore() {
     this.fetching.set(true);
     await this.runs.fetchMore(this.tabId(), this.block().id);
     this.fetching.set(false);
   }
 
-  openMenu(e: MouseEvent, kind: 'copy' | 'export') {
+  public openMenu(e: MouseEvent, kind: 'copy' | 'export') {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     this.menu.set({ ...clampMenu(rect.right - 220, rect.bottom + 4, 220, kind === 'copy' ? 330 : 80), kind });
   }
 
-  copy(what: 'all' | 'selected', format: CopyFormat) {
+  public copy(what: 'all' | 'selected', format: CopyFormat) {
     this.menu.set(null);
     const r = this.block().result;
     const rows = what === 'all' ? r.rows : this.grid()?.selectedRows() ?? [];
     void this.cmds.copy(formatRows(format, r.columns, rows, true));
   }
 
-  export(format: 'csv' | 'json') {
+  public export(format: 'csv' | 'json') {
     this.menu.set(null);
     void this.runs.export(this.tabId(), this.block().id, format);
   }

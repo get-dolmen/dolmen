@@ -22,37 +22,37 @@ const MENU_HEIGHT = 320;
   styleUrl: './topbar.scss',
 })
 export class Topbar {
-  readonly ui = inject(Ui);
-  readonly cmds = inject(Commands);
-  readonly conns = inject(ConnectionStore);
+  public readonly ui = inject(Ui);
+  public readonly cmds = inject(Commands);
+  public readonly conns = inject(ConnectionStore);
   private tabs = inject(TabStore);
-  readonly tx = inject(TxStore);
+  public readonly tx = inject(TxStore);
   private toasts = inject(Toasts);
-  readonly mod = MOD;
-  readonly mac = isMac;
+  public readonly mod = MOD;
+  public readonly mac = isMac;
 
-  readonly conn = computed(() => this.conns.get(this.tabs.active()?.connId));
-  readonly database = computed(() => this.tabs.active()?.database ?? '');
-  readonly locked = computed(() => !!this.tabs.active()?.locked);
-  readonly menu = signal<MenuPos | null>(null);
-  readonly menuOpen = computed(() => this.menu() !== null);
+  public readonly conn = computed(() => this.conns.get(this.tabs.active()?.connId));
+  public readonly database = computed(() => this.tabs.active()?.database ?? '');
+  public readonly locked = computed(() => !!this.tabs.active()?.locked);
+  public readonly menu = signal<MenuPos | null>(null);
+  public readonly menuOpen = computed(() => this.menu() !== null);
 
   /** macOS zooms the window on a title-bar double-click; Wails does not do it by itself. */
-  onDblClick(e: MouseEvent) {
+  public onDblClick(e: MouseEvent) {
     if (!isMac) return;
     const target = e.target as HTMLElement;
     if (target.closest('.nodrag, button, input, textarea, select, a')) return;
     WindowToggleMaximise();
   }
 
-  kind(c: ConnectionView) { return KIND_LABELS[c.kind]; }
+  public kind(c: ConnectionView) { return KIND_LABELS[c.kind]; }
 
-  toggleMenu(e: MouseEvent) {
+  public toggleMenu(e: MouseEvent) {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     this.menu.set(toggleMenuAt(this.menu(), r, MENU_WIDTH, MENU_HEIGHT));
   }
 
-  async choose(c: ConnectionView) {
+  public async choose(c: ConnectionView) {
     this.menu.set(null);
     const t = this.tabs.active();
     if (t?.locked) {

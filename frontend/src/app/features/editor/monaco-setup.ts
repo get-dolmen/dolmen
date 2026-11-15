@@ -6,7 +6,7 @@ import 'monaco-editor/languages/definitions/mysql/register';
 import { KEYWORDS, quoteIdentifier } from '../../core/sql';
 import { isDarkTheme } from '../../core/ui';
 import type { DbColumn, DbKind, DbTable } from '../../core/models';
-import { completionContext, expectsTable, parseTableRefs, statementAround } from './completion';
+import { completionContext, expectsTable, parseTableReferences, statementAround } from './completion';
 
 export { monaco };
 
@@ -19,43 +19,44 @@ export interface CompletionSource {
   columns(schema: string, table: string): Promise<DbColumn[]>;
 }
 
-let initialized = false;
-let sourceFor: (model: monaco.editor.ITextModel) => Promise<CompletionSource | undefined> = async () => undefined;
+let isInitialized = false;
+type CompletionSourceLookup = (model: monaco.editor.ITextModel) => Promise<CompletionSource | undefined>;
+let completionSourceLookup: CompletionSourceLookup = async () => undefined;
 
-export function setCompletionSource(fn: typeof sourceFor) { sourceFor = fn; }
+export function setCompletionSource(lookup: CompletionSourceLookup) { completionSourceLookup = lookup; }
 
-function css(name: string) {
+function cssVariable(name: string) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
 /** (Re)defines the editor themes from the CSS tokens so Monaco matches the app. */
 export function applyTheme() {
-  const dark = isDarkTheme();
+  const isDark = isDarkTheme();
   const colors = {
-    'editor.background': css('--bg-panel'),
-    'editor.foreground': css('--text'),
-    'editorLineNumber.foreground': css('--text-faint'),
-    'editorLineNumber.activeForeground': css('--text-muted'),
-    'editor.lineHighlightBackground': dark ? '#ffffff08' : '#00000006',
-    'editor.selectionBackground': dark ? '#8fb88640' : '#4f7a4a30',
-    'editorCursor.foreground': css('--accent'),
-    'editorWidget.background': css('--bg-raised'),
-    'editorWidget.border': css('--border'),
-    'editorSuggestWidget.background': css('--bg-raised'),
-    'editorSuggestWidget.border': css('--border'),
-    'editorSuggestWidget.selectedBackground': dark ? '#8fb88630' : '#4f7a4a22',
-    'editorGutter.background': css('--bg-panel'),
+    'editor.background': cssVariable('--bg-panel'),
+    'editor.foreground': cssVariable('--text'),
+    'editorLineNumber.foreground': cssVariable('--text-faint'),
+    'editorLineNumber.activeForeground': cssVariable('--text-muted'),
+    'editor.lineHighlightBackground': isDark ? '#ffffff08' : '#00000006',
+    'editor.selectionBackground': isDark ? '#8fb88640' : '#4f7a4a30',
+    'editorCursor.foreground': cssVariable('--accent'),
+    'editorWidget.background': cssVariable('--bg-raised'),
+    'editorWidget.border': cssVariable('--border'),
+    'editorSuggestWidget.background': cssVariable('--bg-raised'),
+    'editorSuggestWidget.border': cssVariable('--border'),
+    'editorSuggestWidget.selectedBackground': isDark ? '#8fb88630' : '#4f7a4a22',
+    'editorGutter.background': cssVariable('--bg-panel'),
   };
   monaco.editor.defineTheme('dolmen', {
-    base: dark ? 'vs-dark' : 'vs',
+    base: isDark ? 'vs-dark' : 'vs',
     inherit: true,
     rules: [
-      { token: 'keyword', foreground: dark ? 'c9a2e0' : '7b3fa0', fontStyle: 'bold' },
-      { token: 'string', foreground: dark ? 'a7c98f' : '3f7a2e' },
-      { token: 'number', foreground: dark ? 'e0b36d' : 'a0621a' },
-      { token: 'comment', foreground: dark ? '75706a' : '9b968a', fontStyle: 'italic' },
-      { token: 'operator', foreground: dark ? 'a29d91' : '6d695f' },
-      { token: 'predefined', foreground: dark ? '7fb4d8' : '2f6d9c' },
+      { token: 'keyword', foreground: isDark ? 'c9a2e0' : '7b3fa0', fontStyle: 'bold' },
+      { token: 'string', foreground: isDark ? 'a7c98f' : '3f7a2e' },
+      { token: 'number', foreground: isDark ? 'e0b36d' : 'a0621a' },
+      { token: 'comment', foreground: isDark ? '75706a' : '9b968a', fontStyle: 'italic' },
+      { token: 'operator', foreground: isDark ? 'a29d91' : '6d695f' },
+      { token: 'predefined', foreground: isDark ? '7fb4d8' : '2f6d9c' },
     ],
     colors,
   });
@@ -63,96 +64,143 @@ export function applyTheme() {
 }
 
 export function initMonaco() {
-  if (initialized) return;
-  initialized = true;
+  if (isInitialized) return;
+  isInitialized = true;
 
-  (self as any).MonacoEnvironment = {
+  (self as never as { MonacoEnvironment: unknown }).MonacoEnvironment = {
     getWorker: () => new Worker(new URL('./monaco.worker', import.meta.url), { type: 'module' }),
   };
 
   applyTheme();
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 
-  for (const lang of ['sql', 'pgsql', 'mysql']) {
-    monaco.languages.registerCompletionItemProvider(lang, {
+  for (const language of ['sql', 'pgsql', 'mysql']) {
+    monaco.languages.registerCompletionItemProvider(language, {
       triggerCharacters: ['.', ' '],
-      provideCompletionItems: (model, position, ctx) => provide(model, position, ctx),
+      provideCompletionItems: (model, position, context) => provideSuggestions(model, position, context),
     });
   }
 }
 
-const Kind = monaco.languages.CompletionItemKind;
+const CompletionKind = monaco.languages.CompletionItemKind;
 
-async function provide(
+async function provideSuggestions(
   model: monaco.editor.ITextModel,
   position: monaco.Position,
   trigger: monaco.languages.CompletionContext,
 ): Promise<monaco.languages.CompletionList> {
-  const src = await sourceFor(model);
-  const word = model.getWordUntilPosition(position);
-  const range = new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
-  const offset = model.getOffsetAt(position);
-  const stmt = statementAround(model.getValue(), offset);
-  const before = stmt.text.slice(0, offset - stmt.start);
-  const ctx = completionContext(before);
+  const source = await completionSourceLookup(model);
+  const typedWord = model.getWordUntilPosition(position);
+  const replaceRange = new monaco.Range(
+    position.lineNumber, typedWord.startColumn, position.lineNumber, typedWord.endColumn,
+  );
+  const cursorOffset = model.getOffsetAt(position);
+  const statement = statementAround(model.getValue(), cursorOffset);
+  const textBeforeCursor = statement.text.slice(0, cursorOffset - statement.start);
+  const context = completionContext(textBeforeCursor);
 
   // A space only triggers suggestions right after FROM/JOIN-like keywords.
-  if (trigger.triggerCharacter === ' ' && !(ctx.word === '' && expectsTable(ctx.keyword))) {
+  if (trigger.triggerCharacter === ' ' && !(context.word === '' && expectsTable(context.keyword))) {
     return { suggestions: [] };
   }
 
-  const out: monaco.languages.CompletionItem[] = [];
-  const quote = (n: string) => (src ? quoteIdentifier(src.kind, n) : n);
-  const add = (label: string, kind: monaco.languages.CompletionItemKind, sort: string, detail?: string, insert?: string) =>
-    out.push({ label, kind, detail, range, insertText: insert ?? label, sortText: sort + label.toLowerCase() });
+  const suggestions: monaco.languages.CompletionItem[] = [];
+  const quoteName = (name: string) => (source ? quoteIdentifier(source.kind, name) : name);
+  const addSuggestion = (
+    label: string,
+    kind: monaco.languages.CompletionItemKind,
+    sortGroup: string,
+    detail?: string,
+    insertText?: string,
+  ) => suggestions.push({
+    label,
+    kind,
+    detail,
+    range: replaceRange,
+    insertText: insertText ?? label,
+    sortText: sortGroup + label.toLowerCase(),
+  });
 
-  if (!src) {
-    if (!ctx.qualifier.length) for (const k of KEYWORDS) add(k, Kind.Keyword, '3');
-    return { suggestions: out };
+  if (!source) {
+    if (!context.qualifier.length) {
+      for (const keyword of KEYWORDS) addSuggestion(keyword, CompletionKind.Keyword, '3');
+    }
+    return { suggestions };
   }
 
-  const refs = parseTableRefs(stmt.text);
-  const eq = (a?: string, b?: string) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
+  const tableReferences = parseTableReferences(statement.text);
+  const sameName = (first?: string, second?: string) =>
+    !!first && !!second && first.toLowerCase() === second.toLowerCase();
 
-  if (ctx.qualifier.length) {
-    const q = ctx.qualifier[ctx.qualifier.length - 1];
+  if (context.qualifier.length) {
+    const qualifierName = context.qualifier[context.qualifier.length - 1];
     // alias. or table. -> columns
-    const ref = refs.find((r) => eq(r.alias, q)) ?? refs.find((r) => eq(r.table, q) && !r.alias);
-    if (ref) {
-      for (const c of await src.columns(ref.schema ?? src.defaultSchema, ref.table)) {
-        add(c.name, Kind.Field, '0', c.type + (c.pk ? ' · PK' : ''), quote(c.name));
+    const referencedTable = tableReferences.find((reference) => sameName(reference.alias, qualifierName))
+      ?? tableReferences.find((reference) => sameName(reference.table, qualifierName) && !reference.alias);
+    if (referencedTable) {
+      const columns = await source.columns(referencedTable.schema ?? source.defaultSchema, referencedTable.table);
+      for (const column of columns) {
+        addSuggestion(
+          column.name, CompletionKind.Field, '0',
+          column.type + (column.pk ? ' · PK' : ''), quoteName(column.name),
+        );
       }
-      return { suggestions: out };
+      return { suggestions };
     }
     // schema. -> tables
-    const schema = src.schemas.find((s) => eq(s, q));
-    if (schema) {
-      for (const t of await src.tables(schema)) add(t.name, t.type === 'view' ? Kind.Interface : Kind.Struct, '0', t.type, quote(t.name));
-      return { suggestions: out };
+    const schemaName = source.schemas.find((schema) => sameName(schema, qualifierName));
+    if (schemaName) {
+      for (const table of await source.tables(schemaName)) {
+        addSuggestion(
+          table.name, table.type === 'view' ? CompletionKind.Interface : CompletionKind.Struct, '0',
+          table.type, quoteName(table.name),
+        );
+      }
+      return { suggestions };
     }
     // table. (not referenced yet) -> columns
-    const tables = await src.tables(src.defaultSchema);
-    const t = tables.find((x) => eq(x.name, q));
-    if (t) for (const c of await src.columns(t.schema, t.name)) add(c.name, Kind.Field, '0', c.type, quote(c.name));
-    return { suggestions: out };
+    const knownTables = await source.tables(source.defaultSchema);
+    const referencedByName = knownTables.find((table) => sameName(table.name, qualifierName));
+    if (referencedByName) {
+      const columns = await source.columns(referencedByName.schema, referencedByName.name);
+      for (const column of columns) {
+        addSuggestion(column.name, CompletionKind.Field, '0', column.type, quoteName(column.name));
+      }
+    }
+    return { suggestions };
   }
 
-  const tableFirst = expectsTable(ctx.keyword);
-  const tables = await src.tables(src.defaultSchema);
-  for (const t of tables) add(t.name, t.type === 'view' ? Kind.Interface : Kind.Struct, tableFirst ? '0' : '2', t.type, quote(t.name));
-  for (const s of src.schemas) if (s !== src.defaultSchema) add(s, Kind.Module, tableFirst ? '1' : '4', 'schema', quote(s));
+  const expectsTableName = expectsTable(context.keyword);
+  for (const table of await source.tables(source.defaultSchema)) {
+    addSuggestion(
+      table.name,
+      table.type === 'view' ? CompletionKind.Interface : CompletionKind.Struct,
+      expectsTableName ? '0' : '2',
+      table.type,
+      quoteName(table.name),
+    );
+  }
+  for (const schema of source.schemas) {
+    if (schema !== source.defaultSchema) {
+      addSuggestion(schema, CompletionKind.Module, expectsTableName ? '1' : '4', 'schema', quoteName(schema));
+    }
+  }
 
-  if (!tableFirst) {
-    const seen = new Set<string>();
-    for (const r of refs) {
-      for (const c of await src.columns(r.schema ?? src.defaultSchema, r.table)) {
-        const key = c.name.toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
-        add(c.name, Kind.Field, '0', `${r.alias ?? r.table} · ${c.type}`, quote(c.name));
+  if (!expectsTableName) {
+    const seenColumnNames = new Set<string>();
+    for (const reference of tableReferences) {
+      const columns = await source.columns(reference.schema ?? source.defaultSchema, reference.table);
+      for (const column of columns) {
+        const columnKey = column.name.toLowerCase();
+        if (seenColumnNames.has(columnKey)) continue;
+        seenColumnNames.add(columnKey);
+        addSuggestion(
+          column.name, CompletionKind.Field, '0',
+          `${reference.alias ?? reference.table} · ${column.type}`, quoteName(column.name),
+        );
       }
     }
   }
-  for (const k of KEYWORDS) add(k, Kind.Keyword, '3');
-  return { suggestions: out };
+  for (const keyword of KEYWORDS) addSuggestion(keyword, CompletionKind.Keyword, '3');
+  return { suggestions };
 }

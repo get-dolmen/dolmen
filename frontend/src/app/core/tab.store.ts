@@ -59,7 +59,11 @@ export class TabStore {
   public get(id: string) { return this.tabs().find((tab) => tab.id === id); }
 
   public create(connId = '', content = '', name?: string, database = ''): EditorTab {
-    return this.insert({ id: crypto.randomUUID(), name: name ?? this.nextName(), connId, database, kind: 'sql', txMode: 'auto', locked: false, content, dirty: !!content });
+    // Like the backend, a new scratch is pinned to its connection and database.
+    return this.insert({
+      id: crypto.randomUUID(), name: name ?? this.nextName(), connId, database, kind: 'sql', txMode: 'auto',
+      locked: !!connId, content, dirty: !!content,
+    });
   }
 
   /** Opens an existing scratch file in a new tab. */

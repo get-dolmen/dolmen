@@ -1,12 +1,12 @@
 <form class="dialog" (ngSubmit)="save()" autocomplete="off">
   <header>
-    <h2>{{ editing ? 'Edit connection' : 'New connection' }}</h2>
+    <h2>{{ isEditing ? 'Edit connection' : 'New connection' }}</h2>
   </header>
   <div class="body">
     <div class="kinds" role="radiogroup" aria-label="Database type">
-      @for (k of kinds; track k) {
-        <button type="button" role="radio" class="kind" [class.on]="form.kind === k" [attr.aria-checked]="form.kind === k"
-                (click)="setKind(k)">{{ labels[k] }}</button>
+      @for (kind of kinds; track kind) {
+        <button type="button" role="radio" class="kind" [class.on]="form.kind === kind" [attr.aria-checked]="form.kind === kind"
+                (click)="setKind(kind)">{{ kindLabels[kind] }}</button>
       }
     </div>
 
@@ -47,7 +47,7 @@
         </label>
         <label>Password
           <input class="input" name="password" type="password" [(ngModel)]="form.password"
-                 [placeholder]="view?.hasPassword ? '•••••• (unchanged)' : ''" />
+                 [placeholder]="connection?.hasPassword ? '•••••• (unchanged)' : ''" />
         </label>
       }
     </div>
@@ -87,7 +87,7 @@
             @if (ssh.method === 'password') {
               <label class="full">SSH password
                 <input class="input" name="sshPassword" type="password" [(ngModel)]="ssh.password"
-                       [placeholder]="view?.hasSSHPassword ? '•••••• (unchanged)' : ''" />
+                       [placeholder]="connection?.hasSSHPassword ? '•••••• (unchanged)' : ''" />
               </label>
             }
             @if (ssh.method === 'key') {
@@ -99,7 +99,7 @@
               </label>
               <label class="full">Key passphrase
                 <input class="input" name="sshPassphrase" type="password" [(ngModel)]="ssh.passphrase"
-                       [placeholder]="view?.hasSSHPassphrase ? '•••••• (unchanged)' : 'none'" />
+                       [placeholder]="connection?.hasSSHPassphrase ? '•••••• (unchanged)' : 'none'" />
               </label>
             }
             @if (ssh.method === 'agent') {
@@ -118,24 +118,24 @@
 
       <div class="colors" role="radiogroup" aria-label="Colour">
         <span class="muted">Colour</span>
-        @for (c of colors; track c) {
-          <button type="button" class="swatch" role="radio" [style.background]="c" [class.on]="form.color === c"
-                  [attr.aria-checked]="form.color === c" [attr.aria-label]="c" (click)="form.color = c"></button>
+        @for (color of colors; track color) {
+          <button type="button" class="swatch" role="radio" [style.background]="color" [class.on]="form.color === color"
+                  [attr.aria-checked]="form.color === color" [attr.aria-label]="color" (click)="form.color = color"></button>
         }
       </div>
     </div>
 
-    @if (status(); as s) {
-      <p class="status" [class.err]="s.error">{{ s.text }}</p>
+    @if (status(); as testStatus) {
+      <p class="status" [class.err]="testStatus.error">{{ testStatus.text }}</p>
     }
   </div>
   <footer>
-    @if (editing) {
+    @if (isEditing) {
       <button type="button" class="btn danger" (click)="remove()">Delete</button>
     }
     <span class="spacer"></span>
     <button type="button" class="btn" (click)="test()" [disabled]="busy()">{{ busy() === 'test' ? 'Testing…' : 'Test' }}</button>
-    <button type="button" class="btn" (click)="ref.close()">Cancel</button>
+    <button type="button" class="btn" (click)="dialogRef.close()">Cancel</button>
     <button type="submit" class="btn primary" [disabled]="busy()">Save &amp; connect</button>
   </footer>
 </form>

@@ -17,16 +17,16 @@ import {
   styleUrl: './connection-dialog.scss',
 })
 export class ConnectionDialog {
-  public readonly ref = inject<DialogRef<ConnectionView | undefined>>(DialogRef);
-  public readonly view = inject<ConnectionView | undefined>(DIALOG_DATA);
+  public readonly dialogRef = inject<DialogRef<ConnectionView | undefined>>(DialogRef);
+  public readonly connection = inject<ConnectionView | undefined>(DIALOG_DATA);
   private api = inject(Api);
-  private store = inject(ConnectionStore);
-  private confirm = inject(Confirm);
+  private connectionStore = inject(ConnectionStore);
+  private confirmDialog = inject(Confirm);
 
   public readonly kinds: DbKind[] = ['postgres', 'mysql', 'oracle', 'sqlite'];
-  public readonly labels = KIND_LABELS;
+  public readonly kindLabels = KIND_LABELS;
   public readonly colors = CONNECTION_COLORS;
-  public readonly editing = !!this.view;
+  public readonly isEditing = !!this.connection;
   public readonly oracleModes = [
     { value: 'service', label: 'Service name' },
     { value: 'sid', label: 'SID' },
@@ -42,8 +42,8 @@ export class ConnectionDialog {
     { value: 'agent', label: 'SSH agent' },
   ];
 
-  public form: ConnectionConfig = this.view
-    ? { ...this.view, password: '' }
+  public form: ConnectionConfig = this.connection
+    ? { ...this.connection, password: '' }
     : { id: '', name: '', kind: 'postgres', host: 'localhost', readOnly: false, color: CONNECTION_COLORS[0] };
 
   /** Oracle service names live in `database`; the mode only changes the options. */
@@ -51,14 +51,14 @@ export class ConnectionDialog {
   public oracleRole = this.form.options?.['DBA PRIVILEGE'] ?? '';
 
   /** Working copy of the tunnel settings, kept even when the tunnel is off. */
-  public ssh: SSHConfig = this.view?.ssh
-    ? { ...this.view.ssh }
+  public ssh: SSHConfig = this.connection?.ssh
+    ? { ...this.connection.ssh }
     : { enabled: false, port: 22, method: 'password' };
 
   public readonly busy = signal<'' | 'test' | 'save'>('');
   public readonly status = signal<{ text: string; error: boolean } | null>(null);
-  private kind = signal(this.form.kind);
-  public readonly defaultPort = computed(() => String(DEFAULT_PORTS[this.kind()] ?? ''));
+  private selectedKind = signal(this.form.kind);
+  public readonly defaultPort = computed(() => String(DEFAULT_PORTS[this.selectedKind()] ?? ''));
 
   public placeholderName() {
     if (this.form.kind === 'sqlite') return this.form.filePath?.split(/[\\/]/).pop() || 'local.db';
@@ -75,11 +75,11 @@ export class ConnectionDialog {
     return this.form.kind === 'postgres' ? 'postgres' : 'optional';
   }
 
-  public setKind(k: DbKind) {
-    this.form.kind = k;
-    this.kind.set(k);
+  public setKind(kind: DbKind) {
+    this.form.kind = kind;
+    this.selectedKind.set(kind);
     this.form.port = undefined;
-    if (k === 'sqlite') this.ssh.enabled = false;
+    if (kind === 'sqlite') this.ssh.enabled = false;
     this.status.set(null);
   }
 
@@ -101,14 +101,14 @@ export class ConnectionDialog {
     if (path) this.ssh.keyPath = path;
   }
 
-  private config(): ConnectionConfig {
-    const f = { ...this.form };
-    if (!f.name?.trim()) f.name = this.placeholderName();
-    f.port = f.port ? Number(f.port) : undefined;
+  private buildConfig(): ConnectionConfig {
+    const config = { ...this.form };
+    if (!config.name?.trim()) config.name = this.placeholderName();
+    config.port = config.port ? Number(config.port) : undefined;
 
-    const options = { ...(f.options ?? {}) };
-    if (f.kind === 'oracle') {
-      if (this.oracleMode === 'sid' && f.database) options['SID'] = f.database;
+    const options = { ...(config.options ?? {}) };
+    if (config.kind === 'oracle') {
+      if (this.oracleMode === 'sid' && config.database) options['SID'] = config.database;
       else delete options['SID'];
       if (this.oracleRole) options['DBA PRIVILEGE'] = this.oracleRole;
       else delete options['DBA PRIVILEGE'];
@@ -116,22 +116,22 @@ export class ConnectionDialog {
       delete options['SID'];
       delete options['DBA PRIVILEGE'];
     }
-    f.options = Object.keys(options).length ? options : undefined;
+    config.options = Object.keys(options).length ? options : undefined;
 
-    f.ssh = this.ssh.enabled
+    config.ssh = this.ssh.enabled
       ? { ...this.ssh, port: this.ssh.port ? Number(this.ssh.port) : 22, method: this.ssh.method || 'password' }
       : undefined;
-    return f;
+    return config;
   }
 
   public async test() {
     this.busy.set('test');
     this.status.set(null);
     try {
-      const version = await this.api.testConnection(this.config());
+      const version = await this.api.testConnection(this.buildConfig());
       this.status.set({ text: `Connection OK: ${version}`, error: false });
-    } catch (e) {
-      this.status.set({ text: errorText(e), error: true });
+    } catch (error) {
+      this.status.set({ text: errorText(error), error: true });
     } finally {
       this.busy.set('');
     }
@@ -140,20 +140,21 @@ export class ConnectionDialog {
   public async save() {
     this.busy.set('save');
     try {
-      const saved = await this.store.save(this.config());
-      this.ref.close(saved);
-    } catch (e) {
-      this.status.set({ text: errorText(e), error: true });
+      const saved = await this.connectionStore.save(this.buildConfig());
+      this.dialogRef.close(saved);
+    } catch (error) {
+      this.status.set({ text: errorText(error), error: true });
     } finally {
       this.busy.set('');
     }
   }
 
   public async remove() {
-    if (!this.view) return;
-    if (!(await this.confirm.ask(`Delete the connection “${this.view.name}”?`,
+    const connection = this.connection;
+    if (!connection) return;
+    if (!(await this.confirmDialog.ask(`Delete the connection “${connection.name}”?`,
       { title: 'Delete connection', confirmLabel: 'Delete', danger: true }))) return;
-    await this.store.remove(this.view.id);
-    this.ref.close(undefined);
+    await this.connectionStore.remove(connection.id);
+    this.dialogRef.close(undefined);
   }
 }

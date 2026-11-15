@@ -36,27 +36,28 @@ export interface UpdateView {
   styleUrl: './statusbar.scss',
 })
 export class Statusbar implements OnDestroy {
-  public readonly toasts = inject(Toasts);
-  public readonly cmds = inject(Commands);
-  public readonly sync = inject(SyncStore);
-  private tabs = inject(TabStore);
-  private conns = inject(ConnectionStore);
-  private schema = inject(SchemaStore);
-  private runs = inject(RunStore);
-  private txs = inject(TxStore);
-  public readonly mod = MOD;
+  public readonly toastService = inject(Toasts);
+  public readonly commandService = inject(Commands);
+  public readonly syncStore = inject(SyncStore);
+  private tabStore = inject(TabStore);
+  private connectionStore = inject(ConnectionStore);
+  private schemaStore = inject(SchemaStore);
+  private runStore = inject(RunStore);
+  private transactionStore = inject(TxStore);
+  public readonly modifierKey = MOD;
   private api = inject(Api);
 
   public readonly info = signal<{ version: string; repo: string; commit: string } | null>(null);
   public readonly updateOpen = signal(false);
   public readonly update = signal<UpdateView>({ state: 'checking' });
   public readonly versionLabel = computed(() => {
-    const v = this.info()?.version ?? '';
-    return !v || v === 'dev' ? 'dev build' : v.startsWith('v') ? v : `v${v}`;
+    const version = this.info()?.version ?? '';
+    if (!version || version === 'dev') return 'dev build';
+    return version.startsWith('v') ? version : `v${version}`;
   });
   public readonly progressLabel = computed(() => {
-    const p = this.update().progress;
-    return p === undefined ? '' : ` ${p}%`;
+    const progress = this.update().progress;
+    return progress === undefined ? '' : ` ${progress}%`;
   });
   public readonly sizeLabel = computed(() => {
     const size = this.update().size ?? 0;
@@ -67,7 +68,7 @@ export class Statusbar implements OnDestroy {
 
   public toggleUpdate() {
     if (this.busy()) return;
-    this.updateOpen.update((o) => !o);
+    this.updateOpen.update((open) => !open);
     if (this.updateOpen()) void this.check();
   }
 
@@ -85,89 +86,102 @@ export class Statusbar implements OnDestroy {
   public async check() {
     this.update.set({ state: 'checking' });
     try {
-      const u = await this.api.checkForUpdate();
-      this.update.set(u.newer
-        ? { state: 'newer', latest: u.latest, url: u.url, notes: u.notes, canInstall: !!u.asset, size: u.asset?.size }
+      const release = await this.api.checkForUpdate();
+      this.update.set(release.newer
+        ? {
+          state: 'newer', latest: release.latest, url: release.url, notes: release.notes,
+          canInstall: !!release.asset, size: release.asset?.size,
+        }
         : { state: 'latest' });
-    } catch (e) {
-      this.update.set({ state: 'error', error: errorText(e) });
+    } catch (error) {
+      this.update.set({ state: 'error', error: errorText(error) });
     }
   }
 
   /** Downloads the release, installs it over the running copy and restarts. */
   public async install() {
-    const u = this.update();
-    if (!u.latest || !u.canInstall) return;
-    this.update.set({ state: 'downloading', latest: u.latest, canInstall: true });
+    const update = this.update();
+    if (!update.latest || !update.canInstall) return;
+    this.update.set({ state: 'downloading', latest: update.latest, canInstall: true });
     try {
-      const done = await this.api.installUpdate(u.latest);
+      const installed = await this.api.installUpdate(update.latest);
       this.update.set({
         state: 'installed',
-        latest: done.version,
-        message: done.message
-          ? `Dolmen ${done.version}: ${done.message}.`
-          : `Dolmen ${done.version} is installed. Restarting…`,
+        latest: installed.version,
+        message: installed.message
+          ? `Dolmen ${installed.version}: ${installed.message}.`
+          : `Dolmen ${installed.version} is installed. Restarting…`,
       });
       // Write any pending scratch edits before the app goes away.
-      await this.tabs.flush().catch(() => {});
+      await this.tabStore.flush().catch(() => {});
       // The backend restarts Dolmen (or quits so the installer can finish).
       await this.api.restartApp();
-    } catch (e) {
-      this.update.set({ state: 'error', error: errorText(e) });
+    } catch (error) {
+      this.update.set({ state: 'error', error: errorText(error) });
     }
   }
 
   public openRelease() {
     const url = this.update().url;
-    if (url) this.api.openReleasePage(url).catch((e) => this.toasts.error(errorText(e)));
+    if (url) this.api.openReleasePage(url).catch((error) => this.toastService.error(errorText(error)));
   }
 
   public ngOnDestroy() {
     this.stopProgress?.();
   }
 
-  public readonly conn = computed(() => this.conns.get(this.tabs.active()?.connId));
-  public readonly kind = computed(() => (this.conn() ? KIND_LABELS[this.conn()!.kind] : ''));
-  public readonly database = computed(() => this.tabs.active()?.database ?? '');
+  public readonly connection = computed(() => this.connectionStore.get(this.tabStore.active()?.connId));
+  public readonly kindLabel = computed(() => {
+    const connection = this.connection();
+    return connection ? KIND_LABELS[connection.kind] : '';
+  });
+  public readonly database = computed(() => this.tabStore.active()?.database ?? '');
   public readonly schemaName = computed(() => {
-    const c = this.conn();
-    return c ? this.schema.get(this.schema.scopeFor(c.id, this.database()))?.defaultSchema ?? '' : '';
+    const connection = this.connection();
+    if (!connection) return '';
+    return this.schemaStore.get(this.schemaStore.scopeFor(connection.id, this.database()))?.defaultSchema ?? '';
   });
 
-  public readonly tx = computed(() => this.txs.get(this.tabs.activeId()));
-  public readonly manual = computed(() => this.tabs.active()?.txMode === 'manual');
+  public readonly transaction = computed(() => this.transactionStore.get(this.tabStore.activeId()));
+  public readonly manualTransaction = computed(() => this.tabStore.active()?.txMode === 'manual');
 
-  private now = signal(Date.now());
+  private currentTime = signal(Date.now());
   public constructor() {
-    this.api.version().then((v) => this.info.set(v)).catch(() => this.info.set({ version: 'dev', repo: '', commit: '' }));
-    this.stopProgress = EventsOn('update:progress', (p: { phase: string; received: number; total: number }) => {
-      const u = this.update();
-      if (u.state !== 'downloading' && u.state !== 'installing') return;
-      if (p.phase === 'download') {
-        const progress = p.total > 0 ? Math.min(100, Math.floor((p.received / p.total) * 100)) : undefined;
-        this.update.set({ ...u, progress });
+    this.api.version()
+      .then((version) => this.info.set(version))
+      .catch(() => this.info.set({ version: 'dev', repo: '', commit: '' }));
+    this.stopProgress = EventsOn('update:progress', (progressEvent: { phase: string; received: number; total: number }) => {
+      const update = this.update();
+      if (update.state !== 'downloading' && update.state !== 'installing') return;
+      if (progressEvent.phase === 'download') {
+        const percent = progressEvent.total > 0
+          ? Math.min(100, Math.floor((progressEvent.received / progressEvent.total) * 100))
+          : undefined;
+        this.update.set({ ...update, progress: percent });
       } else {
-        this.update.set({ ...u, state: 'installing', progress: undefined });
+        this.update.set({ ...update, state: 'installing', progress: undefined });
       }
     });
-    void this.sync.refresh();
+    void this.syncStore.refresh();
     setInterval(() => {
-      if (this.runs.get(this.tabs.activeId()).running || this.tx().open) this.now.set(Date.now());
+      if (this.runStore.get(this.tabStore.activeId()).running || this.transaction().open) this.currentTime.set(Date.now());
     }, 250);
   }
 
-  public readonly txAge = computed(() => {
-    const s = Math.max(0, Math.round((this.now() - this.tx().startedAt) / 1000));
-    return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`;
+  public readonly transactionAge = computed(() => {
+    const seconds = Math.max(0, Math.round((this.currentTime() - this.transaction().startedAt) / 1000));
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}m ${String(seconds % 60).padStart(2, '0')}s`;
   });
 
-  public readonly runText = computed(() => {
-    const run = this.runs.runs()[this.tabs.activeId()];
+  public readonly runStatusText = computed(() => {
+    const run = this.runStore.runs()[this.tabStore.activeId()];
     if (!run) return '';
-    if (run.running) return `Running… ${((this.now() - run.startedAt) / 1000).toFixed(1)} s`;
+    if (run.running) return `Running… ${((this.currentTime() - run.startedAt) / 1000).toFixed(1)} s`;
     if (run.finishedMs === undefined) return '';
-    const r = run.results[run.activeResult];
-    const rows = r ? ` · ${r.rows.length.toLocaleString()}${r.hasMore ? '+' : ''} rows` : '';
+    const result = run.results[run.activeResult];
+    const rows = result ? ` · ${result.rows.length.toLocaleString()}${result.hasMore ? '+' : ''} rows` : '';
     return `Done in ${run.finishedMs.toLocaleString()} ms${rows}`;
   });
 }

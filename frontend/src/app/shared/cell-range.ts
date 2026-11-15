@@ -38,7 +38,7 @@ export class CellRangeSelection<T> {
   private readonly box = document.createElement('div');
   private readonly cleanup: (() => void)[] = [];
 
-  constructor(
+  public constructor(
     private api: GridApi<T>,
     private host: HTMLElement,
     /** Column id of the row-number column: dragging over it selects whole rows. */
@@ -68,16 +68,16 @@ export class CellRangeSelection<T> {
     });
   }
 
-  get active(): boolean { return !!this.anchor && !!this.focus; }
+  public get active(): boolean { return !!this.anchor && !!this.focus; }
 
   /** First and last displayed row index of the selection ([-1, -1] when empty). */
-  rows(): [number, number] {
+  public rows(): [number, number] {
     if (!this.anchor || !this.focus) return [-1, -1];
     return [Math.min(this.anchor.row, this.focus.row), Math.max(this.anchor.row, this.focus.row)];
   }
 
   /** Selected data columns, in display order. */
-  columns(): Column[] {
+  public columns(): Column[] {
     if (!this.anchor || !this.focus) return [];
     const cols = this.dataColumns();
     const a = cols.findIndex((c) => c.getColId() === this.anchor!.col);
@@ -87,32 +87,32 @@ export class CellRangeSelection<T> {
   }
 
   /** True when the selection is a single cell. */
-  isSingleCell(): boolean {
+  public isSingleCell(): boolean {
     const [from, to] = this.rows();
     return this.active && from === to && this.columns().length === 1;
   }
 
   /** Whether a cell is in the selection. */
-  contains(rowIndex: number | null, colId: string): boolean {
+  public contains(rowIndex: number | null, colId: string): boolean {
     const [from, to] = this.rows();
     return rowIndex !== null && rowIndex >= from && rowIndex <= to && this.columns().some((c) => c.getColId() === colId);
   }
 
   /** Row-number cells of the selected rows are highlighted. */
-  marksRow(p: CellClassParams<T>): boolean {
+  public marksRow(p: CellClassParams<T>): boolean {
     const [from, to] = this.rows();
     const i = p.node.rowIndex;
     return p.column.getColId() === this.rowNumberCol && i !== null && i >= from && i <= to;
   }
 
-  clear() {
+  public clear() {
     if (!this.active) return;
     this.anchor = this.focus = undefined;
     this.repaint();
   }
 
   /** Selects every displayed cell. */
-  selectAll() {
+  public selectAll() {
     const cols = this.dataColumns();
     const last = this.api.getDisplayedRowCount() - 1;
     if (!cols.length || last < 0) return;
@@ -121,7 +121,7 @@ export class CellRangeSelection<T> {
     this.repaint();
   }
 
-  destroy() {
+  public destroy() {
     this.stopScroll();
     this.box.remove();
     for (const c of this.cleanup) c();

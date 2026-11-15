@@ -1,6 +1,6 @@
 import { Injectable, effect, signal } from '@angular/core';
 
-const KEY = 'dolmen.ui';
+const STORAGE_KEY = 'dolmen.ui';
 
 export type Theme = 'system' | 'light' | 'dark';
 /** Where the scratch files live: under the explorer (bottom right) or in their own left panel. */
@@ -19,9 +19,9 @@ interface Persisted {
   inlineResults: boolean;
 }
 
-function load(): Partial<Persisted> {
+function loadPersisted(): Partial<Persisted> {
   try {
-    return JSON.parse(localStorage.getItem(KEY) ?? '{}');
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
   } catch {
     return {};
   }
@@ -43,7 +43,7 @@ export function applyThemeAttribute(t: Theme) {
 
 /** Applies the saved theme before Angular bootstraps, so the window never flashes the wrong colours. */
 export function applyStoredTheme() {
-  const t = load().theme;
+  const t = loadPersisted().theme;
   applyThemeAttribute(validTheme(t) ? t : 'system');
 }
 
@@ -62,7 +62,7 @@ export const MOD = isMac ? '⌘' : 'Ctrl+';
 /** Layout state, remembered per machine. */
 @Injectable({ providedIn: 'root' })
 export class Ui {
-  private saved = load();
+  private saved = loadPersisted();
   readonly sidebarOpen = signal(this.saved.sidebarOpen ?? true);
   readonly sidebarWidth = signal(this.saved.sidebarWidth ?? 280);
   /** Editor share of the vertical space, 0..1. */
@@ -97,18 +97,18 @@ export class Ui {
         inlineResults: this.inlineResults(),
       };
       try {
-        localStorage.setItem(KEY, JSON.stringify(p));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
       } catch { /* storage unavailable */ }
     });
   }
 
-  openPalette(query = '') {
+  public openPalette(query = '') {
     this.paletteQuery.set(query);
     this.paletteOpen.set(true);
   }
 
   /** Moves the scratch files between the explorer and a dedicated left panel. */
-  toggleScratchPosition() {
+  public toggleScratchPosition() {
     this.scratchPosition.update((p) => (p === 'left' ? 'explorer' : 'left'));
     // Docking on the left always shows the panel; it can then be collapsed on its own.
     if (this.scratchPosition() === 'left') this.scratchOpen.set(true);

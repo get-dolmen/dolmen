@@ -26,8 +26,8 @@ export interface ConfirmOptions {
   `,
 })
 export class ConfirmDialog {
-  readonly ref = inject<DialogRef<boolean>>(DialogRef);
-  readonly data = inject<ConfirmOptions>(DIALOG_DATA);
+  public readonly ref = inject<DialogRef<boolean>>(DialogRef);
+  public readonly data = inject<ConfirmOptions>(DIALOG_DATA);
 }
 
 @Injectable({ providedIn: 'root' })
@@ -35,7 +35,7 @@ export class Confirm {
   private dialog = inject(Dialog);
 
   /** Opens the dialog and resolves true only when the user confirms. */
-  ask(message: string, options: Omit<ConfirmOptions, 'message'> = {}): Promise<boolean> {
+  public ask(message: string, options: Omit<ConfirmOptions, 'message'> = {}): Promise<boolean> {
     const ref = this.dialog.open<boolean, ConfirmOptions>(ConfirmDialog, {
       data: { ...options, message },
       width: '420px',

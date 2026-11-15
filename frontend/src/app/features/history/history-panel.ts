@@ -17,22 +17,22 @@ import type { HistoryEntry } from '../../core/models';
 })
 export class HistoryPanel {
   private api = inject(Api);
-  private conns = inject(ConnectionStore);
-  private editor = inject(EditorBridge);
-  private toasts = inject(Toasts);
-  private confirm = inject(Confirm);
-  public readonly cmds = inject(Commands);
+  private connectionStore = inject(ConnectionStore);
+  private editorBridge = inject(EditorBridge);
+  private toastService = inject(Toasts);
+  private confirmDialog = inject(Confirm);
+  public readonly commandService = inject(Commands);
 
   public readonly connId = input<string>('');
   /** Bumped by the parent after each run so the list refreshes. */
   public readonly version = input(0);
 
   public readonly search = signal('');
-  public readonly allConns = signal(false);
+  public readonly allConnections = signal(false);
   public readonly entries = signal<HistoryEntry[]>([]);
   public readonly loading = signal(false);
-  private scope = computed(() => (this.allConns() ? '' : this.connId()));
-  private timer?: ReturnType<typeof setTimeout>;
+  private readonly scope = computed(() => (this.allConnections() ? '' : this.connId()));
+  private reloadTimer?: ReturnType<typeof setTimeout>;
 
   public constructor() {
     effect(() => {
@@ -40,8 +40,8 @@ export class HistoryPanel {
       this.search();
       this.version();
       untracked(() => {
-        clearTimeout(this.timer);
-        this.timer = setTimeout(() => this.reload(), 150);
+        clearTimeout(this.reloadTimer);
+        this.reloadTimer = setTimeout(() => this.reload(), 150);
       });
     });
   }
@@ -50,24 +50,24 @@ export class HistoryPanel {
     this.loading.set(true);
     try {
       this.entries.set(await this.api.listHistory(this.scope(), this.search(), 300));
-    } catch (e) {
-      this.toasts.error(errorText(e));
+    } catch (error) {
+      this.toastService.error(errorText(error));
     } finally {
       this.loading.set(false);
     }
   }
 
-  public connName(id: string) { return this.conns.get(id)?.name ?? 'deleted connection'; }
+  public connectionName(connectionId: string) { return this.connectionStore.get(connectionId)?.name ?? 'deleted connection'; }
 
-  public insert(e: HistoryEntry) {
-    this.editor.insert(e.sql);
-    this.editor.focus();
+  public insert(entry: HistoryEntry) {
+    this.editorBridge.insert(entry.sql);
+    this.editorBridge.focus();
   }
 
   public async clear() {
     const scope = this.scope();
-    const what = scope ? `for “${this.connName(scope)}”` : 'for all connections';
-    if (!(await this.confirm.ask(`Clear query history ${what}?`,
+    const target = scope ? `for “${this.connectionName(scope)}”` : 'for all connections';
+    if (!(await this.confirmDialog.ask(`Clear query history ${target}?`,
       { title: 'Clear history', confirmLabel: 'Clear', danger: true }))) return;
     await this.api.clearHistory(scope);
     await this.reload();

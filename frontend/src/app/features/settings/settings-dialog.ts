@@ -18,8 +18,8 @@ import type { SyncConfig } from '../../core/models';
   styleUrl: './settings-dialog.scss',
 })
 export class SettingsDialog {
-  readonly ref = inject(DialogRef);
-  readonly ui = inject(Ui);
+  public readonly ref = inject(DialogRef);
+  public readonly ui = inject(Ui);
   private api = inject(Api);
   private conns = inject(ConnectionStore);
   private scratches = inject(ScratchStore);
@@ -27,29 +27,29 @@ export class SettingsDialog {
   private syncStore = inject(SyncStore);
   private toasts = inject(Toasts);
 
-  readonly themes: { value: Theme; label: string; hint: string }[] = [
+  public readonly themes: { value: Theme; label: string; hint: string }[] = [
     { value: 'system', label: 'System', hint: 'Follow the OS' },
     { value: 'light', label: 'Light', hint: 'Stone and white' },
     { value: 'dark', label: 'Dark', hint: 'Low light' },
   ];
 
-  readonly form: SyncConfig = { enabled: false, remote: '', branch: 'main', encrypted: false };
-  readonly status = this.syncStore.status;
-  readonly password = signal('');
-  readonly busy = signal<'save' | 'sync' | null>(null);
+  public readonly form: SyncConfig = { enabled: false, remote: '', branch: 'main', encrypted: false };
+  public readonly status = this.syncStore.status;
+  public readonly password = signal('');
+  public readonly busy = signal<'save' | 'sync' | null>(null);
 
-  constructor() {
+  public constructor() {
     void this.load();
   }
 
-  async load() {
+  public async load() {
     await this.syncStore.refresh();
     const s = this.syncStore.status();
     if (!s) return;
     Object.assign(this.form, { enabled: s.enabled, remote: s.remote, branch: s.branch, encrypted: s.encrypted });
   }
 
-  async save(): Promise<boolean> {
+  public async save(): Promise<boolean> {
     this.busy.set('save');
     try {
       const c = await this.api.saveSyncConfig({ ...this.form });
@@ -65,7 +65,7 @@ export class SettingsDialog {
     }
   }
 
-  async sync() {
+  public async sync() {
     if (this.form.encrypted && !this.password().trim()) {
       this.toasts.error('Enter the master password to sync.');
       return;
@@ -88,7 +88,7 @@ export class SettingsDialog {
     }
   }
 
-  when(ms: number): string {
+  public when(ms: number): string {
     const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
     if (s < 45) return 'just now';
     if (s < 3600) return `${Math.max(1, Math.round(s / 60))} min ago`;

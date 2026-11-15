@@ -35,6 +35,7 @@ export class Topbar {
   readonly database = computed(() => this.tabs.active()?.database ?? '');
   readonly locked = computed(() => !!this.tabs.active()?.locked);
   readonly menu = signal<{ x: number; y: number } | null>(null);
+  readonly menuOpen = computed(() => this.menu() !== null);
 
   /** macOS zooms the window on a title-bar double-click; Wails does not do it by itself. */
   onDblClick(e: MouseEvent) {
@@ -47,7 +48,7 @@ export class Topbar {
   kind(c: ConnectionView) { return KIND_LABELS[c.kind]; }
 
   toggleMenu(e: MouseEvent) {
-    if (this.menu()) {
+    if (this.menuOpen()) {
       this.menu.set(null);
       return;
     }

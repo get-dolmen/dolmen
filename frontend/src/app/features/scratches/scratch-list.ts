@@ -42,37 +42,7 @@ type Menu =
   selector: 'dm-scratch-list',
   imports: [ClickOutside, Autofocus, Icon],
   templateUrl: './scratch-list.html',
-  styles: `
-    :host { display: flex; flex-direction: column; min-height: 0; border-top: 1px solid var(--border); }
-    .head { display: flex; align-items: center; height: 32px; padding: 0 6px 0 4px; flex: none; }
-    .toggle { display: flex; align-items: center; gap: 5px; height: 26px; padding: 0 6px; border: 0; border-radius: 4px; background: none; cursor: pointer; }
-    .toggle:hover { background: var(--bg-hover); }
-    .chev { width: 12px; flex: none; text-align: center; color: var(--text-faint); transition: transform 0.12s; font-size: 14px; line-height: 1; }
-    .chev.open { transform: rotate(90deg); }
-    .title { font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
-    .count { padding: 0 5px; height: 16px; line-height: 14px; border: 1px solid var(--border); border-radius: 4px; font-size: 10.5px; color: var(--text-faint); }
-    .ib { display: inline-grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--text-muted); cursor: pointer; }
-    .ib:hover { background: var(--bg-hover); color: var(--text); }
-    .list { flex: 1 1 auto; min-height: 0; overflow: auto; padding-bottom: 8px; }
-    .row { display: flex; align-items: center; gap: 6px; height: 24px; padding-right: 10px; cursor: pointer; outline: none; white-space: nowrap; }
-    .row:hover, .row:focus-visible { background: var(--bg-hover); }
-    .row.drop { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
-    .row.file.active { background: var(--accent-soft); }
-    .label { min-width: 0; }
-    .label.strong { font-weight: 600; }
-    .detail { color: var(--text-faint); font-size: var(--fs-xs); min-width: 0; }
-    .n { margin-left: auto; padding-left: 6px; font-size: 10.5px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
-    .dot.none { background: transparent; border: 1px dashed var(--text-faint); }
-    .ficon { flex: none; }
-    .ficon.db { color: var(--accent); }
-    .ficon.tbl { color: var(--text-faint); }
-    .fi { color: var(--text-faint); flex: none; }
-    .row.open .fi { color: var(--accent); }
-    .lock { color: var(--text-muted); flex: none; }
-    .when { margin-left: auto; padding-left: 6px; font-size: var(--fs-xs); color: var(--text-faint); }
-    .rename { flex: 1; min-width: 0; height: 20px; padding: 0 4px; border: 1px solid var(--accent); border-radius: 3px; background: var(--bg-panel); outline: none; font-size: var(--fs); }
-    .empty { margin: 4px 14px 10px; font-size: var(--fs-xs); color: var(--text-faint); }
-  `,
+  styleUrl: './scratch-list.scss',
 })
 export class ScratchList {
   readonly store = inject(ScratchStore);

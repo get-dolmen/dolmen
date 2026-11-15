@@ -44,8 +44,8 @@ export function parseConnectionScope(scope: string): { connId: string; database:
 @Injectable({ providedIn: 'root' })
 export class SchemaStore {
   private api = inject(Api);
-  private toasts = inject(Toasts);
-  private conns = inject(ConnectionStore);
+  private toastService = inject(Toasts);
+  private connectionStore = inject(ConnectionStore);
 
   public readonly schemasByScope = signal<Record<string, ConnectionSchema>>({});
   readonly databases = signal<Record<string, ServerDatabases>>({});
@@ -53,7 +53,7 @@ export class SchemaStore {
   private inflight = new Map<string, Promise<unknown>>();
 
   constructor() {
-    this.conns.onChange((id, connected) => {
+    this.connectionStore.onChange((id, connected) => {
       this.invalidate(id);
       if (connected) void this.loadDatabases(id).then(() => this.loadSchemas(id));
     });
@@ -162,7 +162,7 @@ export class SchemaStore {
     const pending = load()
       .catch((error) => {
         this.inflight.delete(key);
-        this.toasts.error(errorText(error));
+        this.toastService.error(errorText(error));
       })
       .finally(() => this.setLoading(key, false));
     this.inflight.set(key, pending);

@@ -15,7 +15,7 @@ import type { Cell, DbKind, TablePage } from '../../core/models';
 import { Confirm } from '../../shared/confirm';
 import { Icon } from '../../shared/icon';
 import { ClickOutside, clampMenu } from '../../shared/click-outside';
-import { display, gridTheme } from '../results/result-grid';
+import { displayCell, gridTheme } from '../results/result-grid';
 import { COPY_FORMATS, formatRows, type CopyFormat } from '../results/copy';
 import { CellRangeSelection, rangeClassRules } from '../../shared/cell-range';
 import { buildChanges, isChanged, normalizeEdit, previewSQL, rowChanged, type GridRow } from './changes';
@@ -282,7 +282,7 @@ export class TableData implements TableHandle, OnDestroy {
       width: Math.min(360, Math.max(110, Math.max(c.name.length + 6, ...p.rows.slice(0, 50).map((r) => String(r[i] ?? 'NULL').length)) * 7.4 + 24)),
       valueGetter: (v) => v.data?.cells[i],
       valueSetter: (v: ValueSetterParams<GridRow>) => this.setCell(v.data, i, v.newValue),
-      valueFormatter: (v) => (v.value === undefined ? 'DEFAULT' : display(v.value as Cell)),
+      valueFormatter: (v) => (v.value === undefined ? 'DEFAULT' : displayCell(v.value as Cell)),
       editable: (v) => p.editable && c.editable && !!v.data && !this.deleted.has(v.data.id),
       cellClass: (v: CellClassParams<GridRow>) => [
         v.value === null ? 'null' : v.value === undefined ? 'default' : typeof v.value === 'number' ? 'num' : '',

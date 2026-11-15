@@ -37,10 +37,10 @@ export const gridTheme = themeQuartz.withParams({
   columnBorder: true,
 });
 
-const ROWNUM: ColDef = {
+const ROW_NUMBER_COLUMN: ColDef = {
   colId: '__row',
   headerName: '',
-  valueGetter: (p) => (p.node?.rowIndex ?? 0) + 1,
+  valueGetter: (params) => (params.node?.rowIndex ?? 0) + 1,
   width: 56,
   pinned: 'left',
   sortable: false,
@@ -50,23 +50,23 @@ const ROWNUM: ColDef = {
 };
 
 /** A cell never shows more than this: long text would be laid out in full on every scroll. */
-const MAX_SHOWN = 500;
+const MAX_SHOWN_CHARACTERS = 500;
 
 /** Text shown in a grid cell. Copy, export and tooltips read the full value. */
-export function display(v: Cell): string {
-  if (v === null || v === undefined) return 'NULL';
-  const s = typeof v === 'string' ? v : String(v);
-  return s.length > MAX_SHOWN ? s.slice(0, MAX_SHOWN) + '…' : s;
+export function displayCell(value: Cell): string {
+  if (value === null || value === undefined) return 'NULL';
+  const text = typeof value === 'string' ? value : String(value);
+  return text.length > MAX_SHOWN_CHARACTERS ? text.slice(0, MAX_SHOWN_CHARACTERS) + '…' : text;
 }
 
 /** Estimates a column width from the header and a sample of values. */
-function widthFor(name: string, rows: Cell[][], i: number): number {
-  let chars = name.length + 2;
-  for (let r = 0; r < Math.min(rows.length, 60); r++) {
-    const v = rows[r][i];
-    chars = Math.max(chars, v === null ? 4 : String(v).length);
+function estimateColumnWidth(name: string, rows: Cell[][], columnIndex: number): number {
+  let characters = name.length + 2;
+  for (let rowIndex = 0; rowIndex < Math.min(rows.length, 60); rowIndex++) {
+    const value = rows[rowIndex][columnIndex];
+    characters = Math.max(characters, value === null ? 4 : String(value).length);
   }
-  return Math.min(420, Math.max(70, chars * 7.4 + 24));
+  return Math.min(420, Math.max(70, characters * 7.4 + 24));
 }
 
 @Component({
@@ -82,7 +82,7 @@ function widthFor(name: string, rows: Cell[][], i: number): number {
   `,
 })
 export class ResultGrid {
-  private cmds = inject(Commands);
+  private commandService = inject(Commands);
   public readonly result = input.required<QueryResult>();
   /** Shows long text in a tooltip on hover (off inline, where it covers the code). */
   public readonly tooltips = input(true);
@@ -93,65 +93,68 @@ export class ResultGrid {
     resizable: true,
     minWidth: 60,
     suppressHeaderMenuButton: true,
-    valueFormatter: (p) => display(p.value),
-    cellClass: (p) => (p.value === null ? 'null' : typeof p.value === 'number' ? 'num' : ''),
-    tooltipValueGetter: (p) => (this.tooltips() && typeof p.value === 'string' && p.value.length > 60 ? p.value.slice(0, 2000) : undefined),
+    valueFormatter: (params) => displayCell(params.value),
+    cellClass: (params) => (params.value === null ? 'null' : typeof params.value === 'number' ? 'num' : ''),
+    tooltipValueGetter: (params) => (this.tooltips() && typeof params.value === 'string' && params.value.length > 60
+      ? params.value.slice(0, 2000)
+      : undefined),
   };
 
   private api?: GridApi;
-  private shownId = '';
-  private shownRows = 0;
+  private shownResultId = '';
+  private shownRowCount = 0;
 
   public constructor() {
     effect(() => {
-      const r = this.result();
-      untracked(() => this.render(r));
+      const result = this.result();
+      untracked(() => this.renderResult(result));
     });
   }
 
-  public onReady(e: GridReadyEvent) {
-    this.api = e.api;
-    this.shownId = '';
-    this.render(this.result());
+  public onGridReady(event: GridReadyEvent) {
+    this.api = event.api;
+    this.shownResultId = '';
+    this.renderResult(this.result());
   }
 
-  private render(r: QueryResult) {
+  private renderResult(result: QueryResult) {
     const api = this.api;
     if (!api) return;
-    if (r.id === this.shownId) {
+    if (result.id === this.shownResultId) {
       // Same result with more rows (Fetch more): append without resetting scroll.
-      if (r.rows.length > this.shownRows) {
-        api.applyTransaction({ add: r.rows.slice(this.shownRows) });
-        this.shownRows = r.rows.length;
+      if (result.rows.length > this.shownRowCount) {
+        api.applyTransaction({ add: result.rows.slice(this.shownRowCount) });
+        this.shownRowCount = result.rows.length;
       }
       return;
     }
-    const cols: ColDef[] = r.columns.map((c, i) => ({
-      colId: `c${i}`,
-      headerName: c.name,
-      headerTooltip: c.type ? `${c.name} · ${c.type}` : c.name,
-      valueGetter: (p) => (p.data as Cell[] | undefined)?.[i] ?? null,
-      width: widthFor(c.name, r.rows, i),
+    const columns: ColDef[] = result.columns.map((column, columnIndex) => ({
+      colId: `c${columnIndex}`,
+      headerName: column.name,
+      headerTooltip: column.type ? `${column.name} · ${column.type}` : column.name,
+      valueGetter: (params) => (params.data as Cell[] | undefined)?.[columnIndex] ?? null,
+      width: estimateColumnWidth(column.name, result.rows, columnIndex),
     }));
-    api.setGridOption('columnDefs', [ROWNUM, ...cols]);
-    api.setGridOption('rowData', r.rows);
-    this.shownId = r.id;
-    this.shownRows = r.rows.length;
+    api.setGridOption('columnDefs', [ROW_NUMBER_COLUMN, ...columns]);
+    api.setGridOption('rowData', result.rows);
+    this.shownResultId = result.id;
+    this.shownRowCount = result.rows.length;
   }
 
   /** ⌘C / Ctrl+C copies the selected rows as TSV, or else the focused cell. */
-  public onKey(e: CellKeyDownEvent | FullWidthCellKeyDownEvent) {
-    const ev = e.event as KeyboardEvent | undefined;
-    if (!('column' in e) || !ev || ev.key.toLowerCase() !== 'c' || !(isMac ? ev.metaKey : ev.ctrlKey)) return;
-    ev.preventDefault();
-    const selected = this.api?.getSelectedRows() as Cell[][] | undefined;
-    if (selected && selected.length > 1) {
-      void this.cmds.copy(rowsToTSV(this.result().columns, selected, true));
-    } else if (e.column.getColId() !== '__row') {
-      const v = e.value as Cell;
-      void this.cmds.copy(v === null ? '' : String(v));
-    } else if (e.data) {
-      void this.cmds.copy(rowsToTSV(this.result().columns, [e.data as Cell[]], false));
+  public onCellKeyDown(event: CellKeyDownEvent | FullWidthCellKeyDownEvent) {
+    const keyboardEvent = event.event as KeyboardEvent | undefined;
+    if (!('column' in event) || !keyboardEvent) return;
+    if (keyboardEvent.key.toLowerCase() !== 'c' || !(isMac ? keyboardEvent.metaKey : keyboardEvent.ctrlKey)) return;
+    keyboardEvent.preventDefault();
+    const selectedRows = this.api?.getSelectedRows() as Cell[][] | undefined;
+    if (selectedRows && selectedRows.length > 1) {
+      void this.commandService.copy(rowsToTSV(this.result().columns, selectedRows, true));
+    } else if (event.column.getColId() !== '__row') {
+      const value = event.value as Cell;
+      void this.commandService.copy(value === null ? '' : String(value));
+    } else if (event.data) {
+      void this.commandService.copy(rowsToTSV(this.result().columns, [event.data as Cell[]], false));
     }
   }
 

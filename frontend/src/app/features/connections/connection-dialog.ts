@@ -14,29 +14,7 @@ import {
   selector: 'dm-connection-dialog',
   imports: [FormsModule, Select],
   templateUrl: './connection-dialog.html',
-  styles: `
-    .kinds { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 14px; }
-    .kind { height: 34px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--bg-panel); cursor: pointer; font-weight: 500; }
-    .kind:hover { background: var(--bg-hover); }
-    .kind.on { border-color: var(--accent); background: var(--accent-soft); color: var(--text); box-shadow: inset 0 0 0 1px var(--accent); }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
-    .grid .host { grid-column: 1; } .grid .port { grid-column: 2; }
-    .full { grid-column: 1 / -1; }
-    label, .lbl { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-sm); color: var(--text-muted); }
-    .row { display: flex; gap: 6px; }
-    .opts { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
-    .ssh { padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-panel); }
-    .hint { margin: 0; font-size: var(--fs-xs); color: var(--text-faint); }
-    .check { flex-direction: row; align-items: flex-start; gap: 8px; color: var(--text); cursor: pointer; }
-    .check input { margin-top: 3px; accent-color: var(--accent); }
-    .check span { display: flex; flex-direction: column; gap: 1px; }
-    .colors { display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); }
-    .colors .muted { margin-right: 4px; }
-    .swatch { width: 18px; height: 18px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
-    .swatch.on { box-shadow: 0 0 0 2px var(--bg-raised), 0 0 0 4px var(--text-muted); }
-    .status { margin: 14px 0 2px; padding: 8px 10px; border-radius: var(--radius); background: var(--accent-soft); font-size: var(--fs-sm); user-select: text; word-break: break-word; }
-    .status.err { background: var(--danger-soft); color: var(--danger); }
-  `,
+  styleUrl: './connection-dialog.scss',
 })
 export class ConnectionDialog {
   readonly ref = inject<DialogRef<ConnectionView | undefined>>(DialogRef);

@@ -45,23 +45,23 @@ type Menu =
   styleUrl: './scratch-list.scss',
 })
 export class ScratchList {
-  readonly store = inject(ScratchStore);
-  readonly tabs = inject(TabStore);
-  readonly cmds = inject(Commands);
-  readonly ui = inject(Ui);
+  public readonly store = inject(ScratchStore);
+  public readonly tabs = inject(TabStore);
+  public readonly cmds = inject(Commands);
+  public readonly ui = inject(Ui);
   private conns = inject(ConnectionStore);
   private schema = inject(SchemaStore);
 
-  readonly filter = input('');
-  readonly collapsed = signal(localStorage.getItem(COLLAPSED_KEY) === '1');
+  public readonly filter = input('');
+  public readonly collapsed = signal(localStorage.getItem(COLLAPSED_KEY) === '1');
   /** Collapsed folder keys (folders start expanded). */
-  readonly folded = signal<ReadonlySet<string>>(loadSet(FOLDERS_KEY));
-  readonly editing = signal('');
-  readonly dropKey = signal('');
-  readonly menu = signal<Menu | null>(null);
-  readonly ago = ago;
+  public readonly folded = signal<ReadonlySet<string>>(loadSet(FOLDERS_KEY));
+  public readonly editing = signal('');
+  public readonly dropKey = signal('');
+  public readonly menu = signal<Menu | null>(null);
+  public readonly ago = ago;
 
-  readonly tree = computed(() => {
+  public readonly tree = computed(() => {
     const dbs = this.schema.databases();
     return buildScratchTree(this.store.list(), {
       connections: this.conns.connections(),
@@ -69,16 +69,16 @@ export class ScratchList {
     });
   });
 
-  readonly rows = computed(() => flattenTree(this.tree(), this.folded(), this.filter()));
+  public readonly rows = computed(() => flattenTree(this.tree(), this.folded(), this.filter()));
 
-  constructor() { void this.store.refresh(); }
+  public constructor() { void this.store.refresh(); }
 
-  toggle() {
+  public toggle() {
     this.collapsed.update((v) => !v);
     try { localStorage.setItem(COLLAPSED_KEY, this.collapsed() ? '1' : '0'); } catch { /* storage unavailable */ }
   }
 
-  toggleFolder(key: string) {
+  public toggleFolder(key: string) {
     const s = new Set(this.folded());
     if (s.has(key)) s.delete(key); else s.add(key);
     this.setFolded(s);
@@ -89,27 +89,27 @@ export class ScratchList {
     try { localStorage.setItem(FOLDERS_KEY, JSON.stringify([...s])); } catch { /* storage unavailable */ }
   }
 
-  folderTitle(f: FolderNode) {
+  public folderTitle(f: FolderNode) {
     const what = { conn: 'Connection', db: 'Database', table: 'Table', none: 'Scratches whose connection was deleted' }[f.level];
     return f.level === 'none' ? what : `${what} ${f.detail ? f.detail + '.' : ''}${f.label}: drop a scratch here to file it`;
   }
 
   // ---- drag & drop: dropping a scratch on a folder files it there ----
 
-  onDragStart(e: DragEvent, s: ScratchInfo) {
+  public onDragStart(e: DragEvent, s: ScratchInfo) {
     e.dataTransfer?.setData(DRAG_TYPE, s.id);
     e.dataTransfer?.setData('text/plain', s.name);
     if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
   }
 
-  onDragOver(e: DragEvent, f: FolderNode) {
+  public onDragOver(e: DragEvent, f: FolderNode) {
     if (f.level === 'none' || !e.dataTransfer?.types.includes(DRAG_TYPE)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     this.dropKey.set(f.key);
   }
 
-  onDrop(e: DragEvent, f: FolderNode) {
+  public onDrop(e: DragEvent, f: FolderNode) {
     e.preventDefault();
     this.dropKey.set('');
     const id = e.dataTransfer?.getData(DRAG_TYPE);
@@ -123,17 +123,17 @@ export class ScratchList {
 
   // ---- menus ----
 
-  openFileMenu(e: MouseEvent, s: ScratchInfo) {
+  public openFileMenu(e: MouseEvent, s: ScratchInfo) {
     e.preventDefault();
     this.menu.set({ ...clampMenu(e.clientX, e.clientY, 220, 200), kind: 'file', s });
   }
 
-  openFolderMenu(e: MouseEvent, f: FolderNode) {
+  public openFolderMenu(e: MouseEvent, f: FolderNode) {
     e.preventDefault();
     this.menu.set({ ...clampMenu(e.clientX, e.clientY, 200, 120), kind: 'folder', f });
   }
 
-  act(action: string) {
+  public act(action: string) {
     const m = this.menu();
     this.menu.set(null);
     if (!m) return;
@@ -169,7 +169,7 @@ export class ScratchList {
     return keys;
   }
 
-  rename(s: ScratchInfo, name: string) {
+  public rename(s: ScratchInfo, name: string) {
     if (this.editing() !== s.id) return;
     this.editing.set('');
     if (name.trim() && name.trim() !== s.name) void this.store.rename(s.id, name);

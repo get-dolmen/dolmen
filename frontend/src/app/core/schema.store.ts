@@ -4,7 +4,7 @@ import { ConnectionStore } from './connection.store';
 import { Toasts } from './toast';
 import type { DbColumn, DbTable } from './models';
 
-export interface ConnSchema {
+export interface ConnectionSchema {
   loaded: boolean;
   schemas: string[];
   defaultSchema: string;
@@ -47,7 +47,7 @@ export class SchemaStore {
   private toasts = inject(Toasts);
   private conns = inject(ConnectionStore);
 
-  public readonly data = signal<Record<string, ConnSchema>>({});
+  public readonly schemasByScope = signal<Record<string, ConnectionSchema>>({});
   readonly databases = signal<Record<string, ServerDatabases>>({});
   public readonly loading = signal<ReadonlySet<string>>(new Set());
   private inflight = new Map<string, Promise<unknown>>();
@@ -59,7 +59,7 @@ export class SchemaStore {
     });
   }
 
-  public get(scope: string): ConnSchema | undefined { return this.data()[scope]; }
+  public get(scope: string): ConnectionSchema | undefined { return this.schemasByScope()[scope]; }
 
   /** The scope for a tab or tree node; the connection's own database maps to the plain connection scope. */
   public scopeFor(connectionId: string, database = ''): string {
@@ -69,12 +69,14 @@ export class SchemaStore {
 
   /** Forgets everything cached for a connection, including its other databases. */
   public invalidate(connId: string) {
-    const owns = (k: string) => k === connId || k.startsWith(connId + '@') || k.startsWith(connId + '|');
-    this.data.set(Object.fromEntries(Object.entries(this.data()).filter(([k]) => !owns(k))));
-    const dbs = { ...this.databases() };
-    delete dbs[connId];
-    this.databases.set(dbs);
-    for (const k of [...this.inflight.keys()]) if (owns(k)) this.inflight.delete(k);
+    const belongsToConnection = (key: string) =>
+      key === connId || key.startsWith(connId + '@') || key.startsWith(connId + '|');
+    this.schemasByScope.set(Object.fromEntries(
+      Object.entries(this.schemasByScope()).filter(([key]) => !belongsToConnection(key))));
+    const databases = { ...this.databases() };
+    delete databases[connId];
+    this.databases.set(databases);
+    for (const key of [...this.inflight.keys()]) if (belongsToConnection(key)) this.inflight.delete(key);
   }
 
   public async refresh(connId: string) {
@@ -85,18 +87,18 @@ export class SchemaStore {
 
   /** Reloads one database (scope) of a connection, keeping the others cached. */
   public async refreshScope(scope: string) {
-    const data = { ...this.data() };
-    delete data[scope];
-    this.data.set(data);
-    for (const k of [...this.inflight.keys()]) if (k.startsWith(scope + '|')) this.inflight.delete(k);
+    const cache = { ...this.schemasByScope() };
+    delete cache[scope];
+    this.schemasByScope.set(cache);
+    for (const key of [...this.inflight.keys()]) if (key.startsWith(scope + '|')) this.inflight.delete(key);
     await this.loadSchemas(scope);
   }
 
   public loadDatabases(connId: string): Promise<unknown> {
     if (this.databases()[connId]) return Promise.resolve();
     return this.once(`${connId}|databases`, async () => {
-      const d = await this.api.listDatabases(connId);
-      this.databases.set({ ...this.databases(), [connId]: d });
+      const databases = await this.api.listDatabases(connId);
+      this.databases.set({ ...this.databases(), [connId]: databases });
     });
   }
 
@@ -104,9 +106,9 @@ export class SchemaStore {
     if (this.get(scope)?.loaded) return Promise.resolve();
     const { connId, database } = parseConnectionScope(scope);
     return this.once(`${scope}|schemas`, async () => {
-      const s = await this.api.listSchemas(connId, database);
-      const schemas = s.schemas.length ? s.schemas : s.default ? [s.default] : [];
-      this.patch(scope, { loaded: true, schemas, defaultSchema: s.default || schemas[0] || '' });
+      const response = await this.api.listSchemas(connId, database);
+      const schemas = response.schemas.length ? response.schemas : response.default ? [response.default] : [];
+      this.patch(scope, { loaded: true, schemas, defaultSchema: response.default || schemas[0] || '' });
     });
   }
 
@@ -114,8 +116,8 @@ export class SchemaStore {
     if (this.get(scope)?.tables[schema]) return Promise.resolve();
     const { connId, database } = parseConnectionScope(scope);
     return this.once(`${scope}|tables|${schema}`, async () => {
-      const t = await this.api.listTables(connId, database, schema);
-      this.update(scope, (c) => ({ ...c, tables: { ...c.tables, [schema]: t } }));
+      const tables = await this.api.listTables(connId, database, schema);
+      this.update(scope, (cached) => ({ ...cached, tables: { ...cached.tables, [schema]: tables } }));
     });
   }
 
@@ -123,8 +125,8 @@ export class SchemaStore {
     if (this.get(scope)?.columns[`${schema}.${table}`]) return Promise.resolve();
     const { connId, database } = parseConnectionScope(scope);
     return this.once(`${scope}|cols|${schema}.${table}`, async () => {
-      const cols = await this.api.listColumns(connId, database, schema, table);
-      this.update(scope, (c) => ({ ...c, columns: { ...c.columns, [`${schema}.${table}`]: cols } }));
+      const columns = await this.api.listColumns(connId, database, schema, table);
+      this.update(scope, (cached) => ({ ...cached, columns: { ...cached.columns, [`${schema}.${table}`]: columns } }));
     });
   }
 
@@ -133,13 +135,13 @@ export class SchemaStore {
     if (this.get(scope)?.fullColumns[schema]) return Promise.resolve();
     const { connId, database } = parseConnectionScope(scope);
     return this.once(`${scope}|allcols|${schema}`, async () => {
-      const cols = await this.api.listColumns(connId, database, schema, '');
-      const grouped: Record<string, DbColumn[]> = {};
-      for (const col of cols) (grouped[`${schema}.${col.table}`] ??= []).push(col);
-      this.update(scope, (c) => ({
-        ...c,
-        columns: { ...c.columns, ...grouped },
-        fullColumns: { ...c.fullColumns, [schema]: true },
+      const columns = await this.api.listColumns(connId, database, schema, '');
+      const groupedColumns: Record<string, DbColumn[]> = {};
+      for (const column of columns) (groupedColumns[`${schema}.${column.table}`] ??= []).push(column);
+      this.update(scope, (cached) => ({
+        ...cached,
+        columns: { ...cached.columns, ...groupedColumns },
+        fullColumns: { ...cached.fullColumns, [schema]: true },
       }));
     });
   }
@@ -147,38 +149,39 @@ export class SchemaStore {
   /** Loads tables of every schema (capped) for the search palette. */
   public async loadAllTables(scope: string, maxSchemas = 60) {
     await this.loadSchemas(scope);
-    const c = this.get(scope);
-    if (!c) return;
-    const ordered = [c.defaultSchema, ...c.schemas.filter((s) => s !== c.defaultSchema)].filter(Boolean);
-    await Promise.allSettled(ordered.slice(0, maxSchemas).map((s) => this.loadTables(scope, s)));
+    const schema = this.get(scope);
+    if (!schema) return;
+    const ordered = [schema.defaultSchema, ...schema.schemas.filter((name) => name !== schema.defaultSchema)].filter(Boolean);
+    await Promise.allSettled(ordered.slice(0, maxSchemas).map((name) => this.loadTables(scope, name)));
   }
 
-  private once(key: string, fn: () => Promise<void>): Promise<unknown> {
+  private once(key: string, load: () => Promise<void>): Promise<unknown> {
     const existing = this.inflight.get(key);
     if (existing) return existing;
     this.setLoading(key, true);
-    const p = fn()
-      .catch((e) => {
+    const pending = load()
+      .catch((error) => {
         this.inflight.delete(key);
-        this.toasts.error(errorText(e));
+        this.toasts.error(errorText(error));
       })
       .finally(() => this.setLoading(key, false));
-    this.inflight.set(key, p);
-    return p;
+    this.inflight.set(key, pending);
+    return pending;
   }
 
-  private patch(scope: string, p: Partial<ConnSchema>) {
-    this.update(scope, (c) => ({ ...c, ...p }));
+  private patch(scope: string, changes: Partial<ConnectionSchema>) {
+    this.update(scope, (cached) => ({ ...cached, ...changes }));
   }
 
-  private update(scope: string, fn: (c: ConnSchema) => ConnSchema) {
-    const cur = this.data()[scope] ?? { loaded: false, schemas: [], defaultSchema: '', tables: {}, columns: {}, fullColumns: {} };
-    this.data.set({ ...this.data(), [scope]: fn(cur) });
+  private update(scope: string, transform: (cached: ConnectionSchema) => ConnectionSchema) {
+    const current = this.schemasByScope()[scope]
+      ?? { loaded: false, schemas: [], defaultSchema: '', tables: {}, columns: {}, fullColumns: {} };
+    this.schemasByScope.set({ ...this.schemasByScope(), [scope]: transform(current) });
   }
 
-  private setLoading(key: string, on: boolean) {
-    const s = new Set(this.loading());
-    if (on) s.add(key); else s.delete(key);
-    this.loading.set(s);
+  private setLoading(key: string, active: boolean) {
+    const loading = new Set(this.loading());
+    if (active) loading.add(key); else loading.delete(key);
+    this.loading.set(loading);
   }
 }

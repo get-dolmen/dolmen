@@ -56,7 +56,7 @@ export class Palette {
     afterNextRender(() => this.input().nativeElement.focus());
     // Each connection's own database, plus any other database already browsed in the explorer.
     const connected = new Set(this.conns.connected().map((c) => c.id));
-    const scopes = new Set([...connected, ...Object.keys(this.schema.data()).filter((s) => connected.has(parseConnectionScope(s).connId))]);
+    const scopes = new Set([...connected, ...Object.keys(this.schema.schemasByScope()).filter((s) => connected.has(parseConnectionScope(s).connId))]);
     for (const s of scopes) void this.schema.loadAllTables(s);
   }
 
@@ -83,7 +83,7 @@ export class Palette {
       });
     }
     // Tables of every loaded scope: each connection and, for Postgres, each browsed database.
-    for (const [scope, cs] of Object.entries(this.schema.data())) {
+    for (const [scope, cs] of Object.entries(this.schema.schemasByScope())) {
       const { connId, database } = parseConnectionScope(scope);
       const c = this.conns.get(connId);
       if (!c?.connected) continue;

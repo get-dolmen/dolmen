@@ -2,7 +2,7 @@ import { Component, ElementRef, computed, effect, inject, signal, untracked } fr
 import { FormsModule } from '@angular/forms';
 import { Commands } from '../../core/commands';
 import { ConnectionStore } from '../../core/connection.store';
-import { SchemaStore, connectionScope, type ConnSchema } from '../../core/schema.store';
+import { SchemaStore, connectionScope, type ConnectionSchema } from '../../core/schema.store';
 import { TabStore } from '../../core/tab.store';
 import { Toasts } from '../../core/toast';
 import { Ui } from '../../core/ui';
@@ -105,7 +105,7 @@ export class SchemaSidebar {
 
   readonly rows = computed<Row[]>(() => {
     const exp = this.expanded();
-    const data = this.schema.data();
+    const data = this.schema.schemasByScope();
     const dbs = this.schema.databases();
     const loading = this.schema.loading();
     const f = this.filter().trim().toLowerCase();
@@ -133,7 +133,7 @@ export class SchemaSidebar {
     for (const list of connsByFolder.values()) list.sort(byFolder);
 
     /** Appends the schemas → tables → columns of one scope. Returns false when the filter hides it all. */
-    const addSchemas = (place: Place, cs: ConnSchema | undefined, depth: number): boolean => {
+    const addSchemas = (place: Place, cs: ConnectionSchema | undefined, depth: number): boolean => {
       if (!cs) return !f;
       let any = false;
       for (const s of cs.schemas) {

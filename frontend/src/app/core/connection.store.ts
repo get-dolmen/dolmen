@@ -12,20 +12,20 @@ export class ConnectionStore {
   public readonly folders = signal<ConnectionFolder[]>([]);
   /** IDs currently connecting. */
   public readonly pending = signal<ReadonlySet<string>>(new Set());
-  public readonly byId = computed(() => new Map(this.connections().map((c) => [c.id, c])));
-  public readonly connected = computed(() => this.connections().filter((c) => c.connected));
+  public readonly byId = computed(() => new Map(this.connections().map((connection) => [connection.id, connection])));
+  public readonly connected = computed(() => this.connections().filter((connection) => connection.connected));
 
   /** Called after a connection is opened or closed, so schema caches can reset. */
   private listeners: ((id: string, connected: boolean) => void)[] = [];
-  public onChange(fn: (id: string, connected: boolean) => void) { this.listeners.push(fn); }
+  public onChange(listener: (id: string, connected: boolean) => void) { this.listeners.push(listener); }
 
   public async refresh() {
     try {
       const [connections, folders] = await Promise.all([this.api.listConnections(), this.api.listFolders()]);
       this.connections.set(connections);
       this.folders.set(folders);
-    } catch (e) {
-      this.toasts.error(errorText(e));
+    } catch (error) {
+      this.toasts.error(errorText(error));
     }
   }
 
@@ -34,24 +34,24 @@ export class ConnectionStore {
   /** Creates a folder (optionally nested) and returns it. */
   public async createFolder(name: string, parentId = ''): Promise<ConnectionFolder | undefined> {
     try {
-      const f = await this.api.saveFolder({ id: '', name, parentId });
-      this.folders.update((fs) => [...fs, f]);
-      return f;
-    } catch (e) {
-      this.toasts.error(errorText(e));
+      const folder = await this.api.saveFolder({ id: '', name, parentId });
+      this.folders.update((folders) => [...folders, folder]);
+      return folder;
+    } catch (error) {
+      this.toasts.error(errorText(error));
       return undefined;
     }
   }
 
   public async renameFolder(id: string, name: string): Promise<boolean> {
-    const cur = this.folders().find((f) => f.id === id);
-    if (!cur || !name.trim()) return false;
+    const current = this.folders().find((folder) => folder.id === id);
+    if (!current || !name.trim()) return false;
     try {
-      const saved = await this.api.saveFolder({ ...cur, name: name.trim() });
-      this.folders.update((fs) => fs.map((f) => (f.id === id ? saved : f)));
+      const saved = await this.api.saveFolder({ ...current, name: name.trim() });
+      this.folders.update((folders) => folders.map((folder) => (folder.id === id ? saved : folder)));
       return true;
-    } catch (e) {
-      this.toasts.error(errorText(e));
+    } catch (error) {
+      this.toasts.error(errorText(error));
       return false;
     }
   }
@@ -60,36 +60,37 @@ export class ConnectionStore {
     try {
       await this.api.deleteFolder(id);
       await this.refresh();
-    } catch (e) {
-      this.toasts.error(errorText(e));
+    } catch (error) {
+      this.toasts.error(errorText(error));
     }
   }
 
-  public async moveToFolder(connId: string, folderId: string) {
-    const cur = this.connections().find((c) => c.id === connId);
-    if (!cur || (cur.folderId ?? '') === folderId) return;
+  public async moveToFolder(connectionId: string, folderId: string) {
+    const current = this.connections().find((connection) => connection.id === connectionId);
+    if (!current || (current.folderId ?? '') === folderId) return;
     try {
-      await this.api.moveConnectionToFolder(connId, folderId);
-      this.connections.update((cs) => cs.map((c) => (c.id === connId ? { ...c, folderId: folderId || undefined } : c)));
-    } catch (e) {
-      this.toasts.error(errorText(e));
+      await this.api.moveConnectionToFolder(connectionId, folderId);
+      this.connections.update((connections) => connections.map((connection) =>
+        (connection.id === connectionId ? { ...connection, folderId: folderId || undefined } : connection)));
+    } catch (error) {
+      this.toasts.error(errorText(error));
     }
   }
 
   /** Nests a folder inside another one ("" moves it back to the root). */
   public async moveFolder(id: string, parentId: string) {
-    const cur = this.folders().find((f) => f.id === id);
-    if (!cur || (cur.parentId ?? '') === parentId) return;
+    const current = this.folders().find((folder) => folder.id === id);
+    if (!current || (current.parentId ?? '') === parentId) return;
     try {
-      const saved = await this.api.saveFolder({ ...cur, parentId: parentId || undefined });
-      this.folders.update((fs) => fs.map((f) => (f.id === id ? saved : f)));
-    } catch (e) {
-      this.toasts.error(errorText(e));
+      const saved = await this.api.saveFolder({ ...current, parentId: parentId || undefined });
+      this.folders.update((folders) => folders.map((folder) => (folder.id === id ? saved : folder)));
+    } catch (error) {
+      this.toasts.error(errorText(error));
     }
   }
 
-  public async save(cfg: ConnectionConfig): Promise<ConnectionView> {
-    const saved = await this.api.saveConnection(cfg);
+  public async save(config: ConnectionConfig): Promise<ConnectionView> {
+    const saved = await this.api.saveConnection(config);
     await this.refresh();
     this.emit(saved.id, saved.connected);
     return saved;
@@ -103,9 +104,9 @@ export class ConnectionStore {
 
   /** Opens the connection if needed. Returns false (after a toast) on failure. */
   public async ensureConnected(id: string): Promise<boolean> {
-    const c = this.get(id);
-    if (!c) return false;
-    if (c.connected) return true;
+    const connection = this.get(id);
+    if (!connection) return false;
+    if (connection.connected) return true;
     return this.connect(id);
   }
 
@@ -117,8 +118,8 @@ export class ConnectionStore {
       this.patch(id, { connected: true });
       this.emit(id, true);
       return true;
-    } catch (e) {
-      this.toasts.error(`${this.get(id)?.name ?? 'Connection'}: ${errorText(e)}`);
+    } catch (error) {
+      this.toasts.error(`${this.get(id)?.name ?? 'Connection'}: ${errorText(error)}`);
       return false;
     } finally {
       this.setPending(id, false);
@@ -131,17 +132,18 @@ export class ConnectionStore {
     this.emit(id, false);
   }
 
-  private patch(id: string, p: Partial<ConnectionView>) {
-    this.connections.update((cs) => cs.map((c) => (c.id === id ? { ...c, ...p } : c)));
+  private patch(id: string, changes: Partial<ConnectionView>) {
+    this.connections.update((connections) => connections.map((connection) =>
+      (connection.id === id ? { ...connection, ...changes } : connection)));
   }
 
-  private setPending(id: string, on: boolean) {
-    const s = new Set(this.pending());
-    if (on) s.add(id); else s.delete(id);
-    this.pending.set(s);
+  private setPending(id: string, connecting: boolean) {
+    const pending = new Set(this.pending());
+    if (connecting) pending.add(id); else pending.delete(id);
+    this.pending.set(pending);
   }
 
   private emit(id: string, connected: boolean) {
-    for (const l of this.listeners) l(id, connected);
+    for (const listener of this.listeners) listener(id, connected);
   }
 }

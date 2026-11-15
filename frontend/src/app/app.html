@@ -1,44 +1,44 @@
 <dm-topbar />
 <div class="main">
-  @if (ui.scratchPosition() === 'left' && ui.scratchOpen()) {
-    <dm-scratch-list class="scratch-left" [style.width.px]="ui.scratchWidth()" />
+  @if (uiState.scratchPosition() === 'left' && uiState.scratchOpen()) {
+    <dm-scratch-list class="scratch-left" [style.width.px]="uiState.scratchWidth()" />
     <div class="split v" role="separator" aria-orientation="vertical" aria-label="Resize scratches"
-         (pointerdown)="dragScratches($event)" (dblclick)="ui.scratchWidth.set(260)"></div>
+         (pointerdown)="dragScratches($event)" (dblclick)="uiState.scratchWidth.set(260)"></div>
   }
   <section class="work" [class.ro]="readOnly()">
     <dm-tab-bar />
     <!-- SQL tabs share one editor; it stays mounted (hidden) while a data tab is active. -->
-    <div class="sql" #work [hidden]="!tabs.active() || tabs.active()?.kind === 'table'">
+    <div class="sql" #work [hidden]="!tabStore.active() || tabStore.active()?.kind === 'table'">
       <!-- Inline mode shows results inside the editor, so it takes the whole height. -->
-      <dm-sql-editor class="editor" [class.full]="ui.inlineResults()" [style.flex-basis.%]="ui.inlineResults() ? 100 : ui.editorRatio() * 100" />
-      @if (!ui.inlineResults()) {
+      <dm-sql-editor class="editor" [class.full]="uiState.inlineResults()" [style.flex-basis.%]="uiState.inlineResults() ? 100 : uiState.editorRatio() * 100" />
+      @if (!uiState.inlineResults()) {
         <div class="split h" role="separator" aria-orientation="horizontal" aria-label="Resize editor and results"
-             (pointerdown)="dragRows($event)" (dblclick)="ui.editorRatio.set(0.55)"></div>
-        @if (tabs.active(); as t) {
-          @if (t.kind === 'sql') {
-            <dm-results-panel class="results" [tabId]="t.id" [connId]="t.connId" />
+             (pointerdown)="dragRows($event)" (dblclick)="uiState.editorRatio.set(0.55)"></div>
+        @if (tabStore.active(); as tab) {
+          @if (tab.kind === 'sql') {
+            <dm-results-panel class="results" [tabId]="tab.id" [connId]="tab.connId" />
           }
         }
       }
     </div>
-    @if (!tabs.active()) {
+    @if (!tabStore.active()) {
       <div class="welcome">
         <p>No tab open.</p>
-        <button class="btn primary" (click)="cmds.newTab()">New tab</button>
+        <button class="btn primary" (click)="commandService.newTab()">New tab</button>
       </div>
     }
     <!-- One data editor per table tab, kept alive so pending edits survive tab switches. -->
-    @for (t of tableTabs(); track t.id) {
-      <dm-table-data class="data" [tab]="t" [hidden]="t.id !== tabs.activeId()" />
+    @for (tableTab of tableTabs(); track tableTab.id) {
+      <dm-table-data class="data" [tab]="tableTab" [hidden]="tableTab.id !== tabStore.activeId()" />
     }
   </section>
-  @if (ui.sidebarOpen()) {
+  @if (uiState.sidebarOpen()) {
     <div class="split v" role="separator" aria-orientation="vertical" aria-label="Resize explorer"
-         (pointerdown)="dragSidebar($event)" (dblclick)="ui.sidebarWidth.set(280)"></div>
-    <dm-schema-sidebar class="sidebar" [style.width.px]="ui.sidebarWidth()" />
+         (pointerdown)="dragSidebar($event)" (dblclick)="uiState.sidebarWidth.set(280)"></div>
+    <dm-schema-sidebar class="sidebar" [style.width.px]="uiState.sidebarWidth()" />
   }
 </div>
 <dm-statusbar />
-@if (ui.paletteOpen()) {
+@if (uiState.paletteOpen()) {
   <dm-palette />
 }

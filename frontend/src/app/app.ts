@@ -21,59 +21,61 @@ import { Topbar } from './features/topbar/topbar';
   styleUrl: './app.scss',
 })
 export class App {
-  public readonly ui = inject(Ui);
-  public readonly tabs = inject(TabStore);
-  public readonly cmds = inject(Commands);
-  private conns = inject(ConnectionStore);
-  private work = viewChild.required<ElementRef<HTMLElement>>('work');
+  public readonly uiState = inject(Ui);
+  public readonly tabStore = inject(TabStore);
+  public readonly commandService = inject(Commands);
+  private connectionStore = inject(ConnectionStore);
+  private workArea = viewChild.required<ElementRef<HTMLElement>>('work');
 
-  public readonly tableTabs = computed(() => this.tabs.tabs().filter((t) => t.kind === 'table'));
-  public readonly readOnly = computed(() => !!this.conns.get(this.tabs.active()?.connId)?.readOnly);
+  public readonly tableTabs = computed(() => this.tabStore.tabs().filter((tab) => tab.kind === 'table'));
+  public readonly readOnly = computed(() => !!this.connectionStore.get(this.tabStore.active()?.connId)?.readOnly);
 
   public constructor() {
     inject(Hotkeys).install();
-    void this.init();
+    void this.initialize();
   }
 
-  private async init() {
-    await this.conns.refresh();
+  private async initialize() {
+    await this.connectionStore.refresh();
     // Nothing connects at startup: connections open on first use (explorer, switcher or run).
     // No tab is created either: the app opens empty until the user asks for one.
-    await this.tabs.load();
+    await this.tabStore.load();
   }
 
-  public dragRows(e: PointerEvent) {
-    const box = this.work().nativeElement.getBoundingClientRect();
-    const top = box.top;
-    const height = box.bottom - top;
-    this.drag(e, 'row-resize', (ev) => {
-      this.ui.editorRatio.set(Math.min(0.85, Math.max(0.15, (ev.clientY - top) / height)));
+  public dragRows(event: PointerEvent) {
+    const bounds = this.workArea().nativeElement.getBoundingClientRect();
+    const top = bounds.top;
+    const height = bounds.bottom - top;
+    this.drag(event, 'row-resize', (moveEvent) => {
+      this.uiState.editorRatio.set(Math.min(0.85, Math.max(0.15, (moveEvent.clientY - top) / height)));
     });
   }
 
-  public dragSidebar(e: PointerEvent) {
-    this.drag(e, 'col-resize', (ev) => {
-      this.ui.sidebarWidth.set(Math.round(Math.min(window.innerWidth * 0.6, Math.max(180, window.innerWidth - ev.clientX))));
+  public dragSidebar(event: PointerEvent) {
+    this.drag(event, 'col-resize', (moveEvent) => {
+      const width = Math.min(window.innerWidth * 0.6, Math.max(180, window.innerWidth - moveEvent.clientX));
+      this.uiState.sidebarWidth.set(Math.round(width));
     });
   }
 
-  public dragScratches(e: PointerEvent) {
-    this.drag(e, 'col-resize', (ev) => {
-      this.ui.scratchWidth.set(Math.round(Math.min(window.innerWidth * 0.5, Math.max(180, ev.clientX))));
+  public dragScratches(event: PointerEvent) {
+    this.drag(event, 'col-resize', (moveEvent) => {
+      const width = Math.min(window.innerWidth * 0.5, Math.max(180, moveEvent.clientX));
+      this.uiState.scratchWidth.set(Math.round(width));
     });
   }
 
-  private drag(e: PointerEvent, cursor: string, move: (ev: PointerEvent) => void) {
-    e.preventDefault();
-    const target = e.target as HTMLElement;
-    target.setPointerCapture(e.pointerId);
+  private drag(event: PointerEvent, cursor: string, onMove: (moveEvent: PointerEvent) => void) {
+    event.preventDefault();
+    const target = event.target as HTMLElement;
+    target.setPointerCapture(event.pointerId);
     document.body.style.cursor = cursor;
-    const up = () => {
-      target.removeEventListener('pointermove', move);
-      target.removeEventListener('pointerup', up);
+    const onPointerUp = () => {
+      target.removeEventListener('pointermove', onMove);
+      target.removeEventListener('pointerup', onPointerUp);
       document.body.style.cursor = '';
     };
-    target.addEventListener('pointermove', move);
-    target.addEventListener('pointerup', up);
+    target.addEventListener('pointermove', onMove);
+    target.addEventListener('pointerup', onPointerUp);
   }
 }

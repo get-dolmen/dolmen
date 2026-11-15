@@ -9,63 +9,85 @@ export interface GridRow {
 }
 
 /** Keeps the original value when an edit only changes its text form ("36" for 36). */
-export function normalizeEdit(row: GridRow, i: number, value: Cell | undefined): Cell | undefined {
+export function normalizeEdit(row: GridRow, columnIndex: number, value: Cell | undefined): Cell | undefined {
   if (row.isNew || value === null || value === undefined) return value;
-  const o = row.orig[i];
-  return o !== null && String(o) === String(value) ? o : value;
+  const original = row.orig[columnIndex];
+  return original !== null && String(original) === String(value) ? original : value;
 }
 
-export function isChanged(row: GridRow, i: number): boolean {
-  return !row.isNew && !Object.is(row.cells[i], row.orig[i]);
+export function isChanged(row: GridRow, columnIndex: number): boolean {
+  return !row.isNew && !Object.is(row.cells[columnIndex], row.orig[columnIndex]);
 }
 
 export function rowChanged(row: GridRow): boolean {
-  return row.cells.some((_, i) => isChanged(row, i));
+  return row.cells.some((_, columnIndex) => isChanged(row, columnIndex));
+}
+
+/** The primary key of a row, as a column → value object. */
+function primaryKey(columns: TableColumn[], row: GridRow): Record<string, Cell> {
+  return Object.fromEntries(columns.flatMap((column, columnIndex) => (
+    column.pk ? [[column.name, row.orig[columnIndex]]] : []
+  )));
 }
 
 /** Turns the grid state into the change list sent to the backend. */
-export function buildChanges(columns: TableColumn[], rows: GridRow[], deleted: ReadonlySet<string>): TableChange[] {
-  const key = (r: GridRow) => Object.fromEntries(columns.flatMap((c, i) => (c.pk ? [[c.name, r.orig[i]]] : [])));
-  const out: TableChange[] = [];
-  for (const r of rows) {
-    if (r.isNew) {
-      if (deleted.has(r.id)) continue;
+export function buildChanges(
+  columns: TableColumn[],
+  rows: GridRow[],
+  deletedRowIds: ReadonlySet<string>,
+): TableChange[] {
+  const changes: TableChange[] = [];
+  for (const row of rows) {
+    if (row.isNew) {
+      if (deletedRowIds.has(row.id)) continue;
       const values: Record<string, Cell> = {};
-      r.cells.forEach((v, i) => { if (v !== undefined) values[columns[i].name] = v; });
-      out.push({ op: 'insert', values });
-    } else if (deleted.has(r.id)) {
-      out.push({ op: 'delete', key: key(r) });
-    } else if (rowChanged(r)) {
+      row.cells.forEach((cell, columnIndex) => {
+        if (cell !== undefined) values[columns[columnIndex].name] = cell;
+      });
+      changes.push({ op: 'insert', values });
+    } else if (deletedRowIds.has(row.id)) {
+      changes.push({ op: 'delete', key: primaryKey(columns, row) });
+    } else if (rowChanged(row)) {
       const values: Record<string, Cell> = {};
-      r.cells.forEach((v, i) => { if (isChanged(r, i)) values[columns[i].name] = v ?? null; });
-      out.push({ op: 'update', key: key(r), values });
+      row.cells.forEach((cell, columnIndex) => {
+        if (isChanged(row, columnIndex)) values[columns[columnIndex].name] = cell ?? null;
+      });
+      changes.push({ op: 'update', key: primaryKey(columns, row), values });
     }
   }
-  return out;
+  return changes;
 }
 
 /** SQL literal for previews only (execution always uses bound parameters). */
-function literal(v: Cell): string {
-  if (v === null) return 'NULL';
-  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
-  return `'${v.replace(/'/g, "''")}'`;
+function literal(value: Cell): string {
+  if (value === null) return 'NULL';
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return `'${value.replace(/'/g, "''")}'`;
 }
 
 /** Human-readable statements for the pending changes, shown before Apply. */
-export function previewSQL(changes: TableChange[], target: string, quote: (name: string) => string): string[] {
-  const where = (key: Record<string, Cell> = {}) =>
-    Object.entries(key).map(([k, v]) => `${quote(k)} = ${literal(v)}`).join(' AND ');
-  return changes.map((c) => {
-    const vals = Object.entries(c.values ?? {});
-    switch (c.op) {
+export function previewSQL(
+  changes: TableChange[],
+  target: string,
+  quoteIdentifier: (name: string) => string,
+): string[] {
+  const whereClause = (key: Record<string, Cell> = {}) => Object.entries(key)
+    .map(([columnName, value]) => `${quoteIdentifier(columnName)} = ${literal(value)}`)
+    .join(' AND ');
+  return changes.map((change) => {
+    const values = Object.entries(change.values ?? {});
+    switch (change.op) {
       case 'insert':
-        return vals.length
-          ? `INSERT INTO ${target} (${vals.map(([k]) => quote(k)).join(', ')})\nVALUES (${vals.map(([, v]) => literal(v)).join(', ')});`
+        return values.length
+          ? `INSERT INTO ${target} (${values.map(([columnName]) => quoteIdentifier(columnName)).join(', ')})\n`
+            + `VALUES (${values.map(([, value]) => literal(value)).join(', ')});`
           : `INSERT INTO ${target} DEFAULT VALUES;`;
       case 'update':
-        return `UPDATE ${target}\nSET ${vals.map(([k, v]) => `${quote(k)} = ${literal(v)}`).join(', ')}\nWHERE ${where(c.key)};`;
+        return `UPDATE ${target}\n`
+          + `SET ${values.map(([columnName, value]) => `${quoteIdentifier(columnName)} = ${literal(value)}`).join(', ')}\n`
+          + `WHERE ${whereClause(change.key)};`;
       case 'delete':
-        return `DELETE FROM ${target}\nWHERE ${where(c.key)};`;
+        return `DELETE FROM ${target}\nWHERE ${whereClause(change.key)};`;
     }
   });
 }

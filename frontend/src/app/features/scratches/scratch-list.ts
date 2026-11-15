@@ -70,11 +70,16 @@ export class ScratchList {
   });
 
   public readonly rows = computed(() => flattenTree(this.tree(), this.folded(), this.filter()));
+  /** Docked on the left, the panel itself is collapsed from the top bar. */
+  public readonly isDockedLeft = computed(() => this.ui.scratchPosition() === 'left');
+  public readonly showsList = computed(() => this.isDockedLeft() || !this.collapsed());
 
   public constructor() { void this.store.refresh(); }
 
   public toggle() {
-    this.collapsed.update((v) => !v);
+    // In the left dock the whole panel collapses, so there is no header left to click.
+    if (this.isDockedLeft()) return this.ui.scratchOpen.set(false);
+    this.collapsed.update((value) => !value);
     try { localStorage.setItem(COLLAPSED_KEY, this.collapsed() ? '1' : '0'); } catch { /* storage unavailable */ }
   }
 

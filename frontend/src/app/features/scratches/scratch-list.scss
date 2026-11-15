@@ -1,7 +1,7 @@
 :host { display: flex; flex-direction: column; min-height: 0; border-top: 1px solid var(--border); }
 .head { display: flex; align-items: center; height: 32px; padding: 0 6px 0 4px; flex: none; }
 .toggle { display: flex; align-items: center; gap: 5px; height: 26px; padding: 0 6px; border: 0; border-radius: 4px; background: none; cursor: pointer; }
-.toggle:hover { background: var(--bg-hover); }
+.toggle:not(.docked):hover { background: var(--bg-hover); }
 .chev { width: 12px; flex: none; text-align: center; color: var(--text-faint); transition: transform 0.12s; font-size: 14px; line-height: 1; }
 .chev.open { transform: rotate(90deg); }
 .title { font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }

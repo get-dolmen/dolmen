@@ -20,31 +20,33 @@ export interface ColumnHeaderParams {
   styleUrl: './column-header.scss',
 })
 export class ColumnHeader implements IHeaderAngularComp {
-  public readonly col = signal<TableColumn | null>(null);
-  public readonly sort = signal<'asc' | 'desc' | null>(null);
-  private params?: IHeaderParams & ColumnHeaderParams;
+  public readonly column = signal<TableColumn | null>(null);
+  public readonly sortDirection = signal<'asc' | 'desc' | null>(null);
+  private headerParams?: IHeaderParams & ColumnHeaderParams;
 
-  public agInit(p: IHeaderParams & ColumnHeaderParams) { this.set(p); }
-  public refresh(p: IHeaderParams & ColumnHeaderParams) { this.set(p); return true; }
+  public agInit(params: IHeaderParams & ColumnHeaderParams) { this.applyParams(params); }
+  public refresh(params: IHeaderParams & ColumnHeaderParams) { this.applyParams(params); return true; }
 
-  private set(p: IHeaderParams & ColumnHeaderParams) {
-    this.params = p;
-    this.col.set(p.column);
-    this.sort.set(p.sort());
+  private applyParams(params: IHeaderParams & ColumnHeaderParams) {
+    this.headerParams = params;
+    this.column.set(params.column);
+    this.sortDirection.set(params.sort());
   }
 
   public sortTitle() {
-    const s = this.sort();
-    return s === 'asc' ? 'Sorted ascending: click for descending' : s === 'desc' ? 'Sorted descending: click to clear' : 'Sort ascending';
+    const direction = this.sortDirection();
+    if (direction === 'asc') return 'Sorted ascending: click for descending';
+    if (direction === 'desc') return 'Sorted descending: click to clear';
+    return 'Sort ascending';
   }
 
-  public toggleSort(e: Event) {
-    e.stopPropagation();
-    this.params?.onSort();
+  public toggleSort(event: Event) {
+    event.stopPropagation();
+    this.headerParams?.onSort();
   }
 
-  public filter(e: Event) {
-    e.stopPropagation();
-    this.params?.onFilter();
+  public filter(event: Event) {
+    event.stopPropagation();
+    this.headerParams?.onFilter();
   }
 }

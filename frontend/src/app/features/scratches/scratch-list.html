@@ -41,7 +41,7 @@
              [class.open]="store.openIds().has(s.id)" [class.active]="s.id === tabs.activeId()"
              (click)="editing() !== s.id && store.open(s.id)" (keydown.enter)="store.open(s.id)" (keydown.f2)="editing.set(s.id)"
              (contextmenu)="openFileMenu($event, s)" (dragstart)="onDragStart($event, s)" (dragend)="dropKey.set('')"
-             [title]="(s.preview || s.name) + (s.locked ? '\\nLocked to its connection and database' : '\\nDrag onto a folder to move it')">
+             [title]="(s.preview || s.name) + (s.locked ? '\\nLocked to its connection, database and folder' : '\\nDrag onto a folder to move it')">
           <dm-icon name="file" [size]="14" class="fi" />
           @if (editing() === s.id) {
             <input class="rename" dmAutofocus [value]="s.name" (click)="$event.stopPropagation()"
@@ -65,7 +65,7 @@
     @if (m.kind === 'file') {
       <button class="menu-item" (click)="act('open')">Open</button>
       <button class="menu-item" (click)="act('rename')">Rename<span class="hint">F2</span></button>
-      <button class="menu-item" (click)="act(m.s.locked ? 'unlock' : 'lock')">{{ m.s.locked ? 'Unlock database' : 'Lock to its database' }}</button>
+      <button class="menu-item" (click)="act(m.s.locked ? 'unlock' : 'lock')">{{ m.s.locked ? 'Unlock folder' : 'Lock to its folder' }}</button>
       <button class="menu-item" (click)="act('duplicate')">Duplicate</button>
       <button class="menu-item" (click)="act('export')">Save as file…</button>
       @if (m.s.table) {

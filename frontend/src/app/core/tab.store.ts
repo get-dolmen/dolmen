@@ -152,7 +152,7 @@ export class TabStore {
     const tab = this.get(id);
     if (!tab) return;
     if (tab.locked) {
-      this.toasts.error(`${tab.name} is locked to its connection and database. Unlock it first.`);
+      this.toasts.error(`${tab.name} is locked to its folder. Unlock it first.`);
       return;
     }
     if (tab.connId === connectionId && tab.database === database) return;

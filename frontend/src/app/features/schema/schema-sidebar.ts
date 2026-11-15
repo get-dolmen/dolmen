@@ -443,7 +443,7 @@ export class SchemaSidebar {
     const t = this.tabs.active();
     if (!t) return;
     if (t.locked) {
-      this.toasts.error(`${t.name} is locked to its connection and database. Unlock it first.`);
+      this.toasts.error(`${t.name} is locked to its folder. Unlock it first.`);
       return;
     }
     if (!(await this.tx.confirmLeave(t.id))) return;

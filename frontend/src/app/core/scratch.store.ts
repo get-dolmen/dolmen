@@ -186,7 +186,7 @@ export class ScratchStore {
   public async moveTo(id: string, target: { connId: string; database: string; schema: string; table: string }) {
     const locked = this.tabs.get(id)?.locked ?? this.persisted().find((scratch) => scratch.id === id)?.locked;
     if (locked) {
-      this.toasts.error('This scratch is locked to its connection and database. Unlock it first.');
+      this.toasts.error('This scratch is locked to its folder. Unlock it first.');
       return;
     }
     const tab = this.tabs.get(id);

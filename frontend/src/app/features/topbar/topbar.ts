@@ -56,7 +56,7 @@ export class Topbar {
     this.menu.set(null);
     const tab = this.tabStore.active();
     if (tab?.locked) {
-      this.toastService.error(`${tab.name} is locked to its connection and database. Unlock it first.`);
+      this.toastService.error(`${tab.name} is locked to its folder. Unlock it first.`);
       return;
     }
     if (tab && tab.connId !== connection.id && !(await this.transactionStore.confirmLeave(tab.id))) return;

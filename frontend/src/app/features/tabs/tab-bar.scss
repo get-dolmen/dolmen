@@ -23,8 +23,8 @@
 .btn.icon.on { color: var(--accent); }
 .dbtarget { display: inline-flex; align-items: center; gap: 3px; height: 24px; max-width: 170px; padding: 0 7px; border: 1px solid var(--border);
             border-radius: var(--radius); background: none; color: var(--text-muted); font-size: var(--fs-sm); cursor: pointer; }
-.dbtarget:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
-.dbtarget:disabled { opacity: 0.6; cursor: default; }
+.dbtarget:hover:not(.locked) { background: var(--bg-hover); color: var(--text); }
+.dbtarget.locked { opacity: 0.6; cursor: default; }
 .dbname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dbmenu { width: 240px; }
 .txmode { height: 24px; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--radius); background: none; color: var(--text-muted);

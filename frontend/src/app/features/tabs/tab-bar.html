@@ -88,7 +88,7 @@
     @if (tab.kind === 'sql') {
       <span class="spacer"></span>
       @if (showDatabasePicker()) {
-        <button class="dbtarget" [disabled]="tab.locked" (click)="openDatabaseMenu($event)"
+        <button class="dbtarget" [class.locked]="tab.locked" (click)="openDatabaseMenu($event)"
                 [title]="tab.locked ? 'Locked to ' + databaseLabel() + '. Unlock the scratch to switch database.' : 'Database used by this scratch'">
           <span class="dbname">{{ databaseLabel() }}</span><span class="caret">▾</span>
         </button>

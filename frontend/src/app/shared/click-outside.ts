@@ -10,9 +10,9 @@ import { Directive, ElementRef, inject, output } from '@angular/core';
 })
 export class ClickOutside {
   private el = inject<ElementRef<HTMLElement>>(ElementRef);
-  readonly dmClickOutside = output<void>();
+  public readonly dmClickOutside = output<void>();
 
-  onDown(e: MouseEvent) {
+  public onDown(e: MouseEvent) {
     if (!this.el.nativeElement.contains(e.target as Node)) this.dmClickOutside.emit();
   }
 }

@@ -21,16 +21,16 @@ import { Topbar } from './features/topbar/topbar';
   styleUrl: './app.scss',
 })
 export class App {
-  readonly ui = inject(Ui);
-  readonly tabs = inject(TabStore);
-  readonly cmds = inject(Commands);
+  public readonly ui = inject(Ui);
+  public readonly tabs = inject(TabStore);
+  public readonly cmds = inject(Commands);
   private conns = inject(ConnectionStore);
   private work = viewChild.required<ElementRef<HTMLElement>>('work');
 
-  readonly tableTabs = computed(() => this.tabs.tabs().filter((t) => t.kind === 'table'));
-  readonly readOnly = computed(() => !!this.conns.get(this.tabs.active()?.connId)?.readOnly);
+  public readonly tableTabs = computed(() => this.tabs.tabs().filter((t) => t.kind === 'table'));
+  public readonly readOnly = computed(() => !!this.conns.get(this.tabs.active()?.connId)?.readOnly);
 
-  constructor() {
+  public constructor() {
     inject(Hotkeys).install();
     void this.init();
   }
@@ -42,7 +42,7 @@ export class App {
     await this.tabs.load();
   }
 
-  dragRows(e: PointerEvent) {
+  public dragRows(e: PointerEvent) {
     const box = this.work().nativeElement.getBoundingClientRect();
     const top = box.top;
     const height = box.bottom - top;
@@ -51,13 +51,13 @@ export class App {
     });
   }
 
-  dragSidebar(e: PointerEvent) {
+  public dragSidebar(e: PointerEvent) {
     this.drag(e, 'col-resize', (ev) => {
       this.ui.sidebarWidth.set(Math.round(Math.min(window.innerWidth * 0.6, Math.max(180, window.innerWidth - ev.clientX))));
     });
   }
 
-  dragScratches(e: PointerEvent) {
+  public dragScratches(e: PointerEvent) {
     this.drag(e, 'col-resize', (ev) => {
       this.ui.scratchWidth.set(Math.round(Math.min(window.innerWidth * 0.5, Math.max(180, ev.clientX))));
     });

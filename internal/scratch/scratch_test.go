@@ -93,6 +93,10 @@ func TestTableLink(t *testing.T) {
 	if i := s.List()[0]; i.Schema != "public" || i.Table != "users" {
 		t.Fatalf("created link: %+v", i)
 	}
+	// New scratches start locked: unlock this one to test link changes.
+	if err := s.SetLock("a", false); err != nil {
+		t.Fatal(err)
+	}
 	// Re-saving the open tab with the same connection keeps the table link.
 	s.SaveLayout(Workspace{Tabs: []Tab{{ID: "a", Name: "users.sql", ConnID: "c1", Database: "db1"}}})
 	if i := s.List()[0]; i.Table != "users" {
@@ -119,11 +123,9 @@ func TestLockPinsLink(t *testing.T) {
 	if _, err := s.Create("a", "a.sql", "c1", "db1", "", "", "select 1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SetLock("a", true); err != nil {
-		t.Fatal(err)
-	}
+	// A new scratch is locked to the link it was created with.
 	if i := s.List()[0]; !i.Locked {
-		t.Fatalf("not locked: %+v", i)
+		t.Fatalf("new scratch is not locked: %+v", i)
 	}
 	if err := s.Link("a", "c2", "db2", "", ""); err == nil {
 		t.Fatal("locked scratch accepted a new link")

@@ -37,8 +37,8 @@ type Tab struct {
 	TableType string `json:"tableType,omitempty"`
 	// TxMode is "manual" when the tab keeps transactions open; "" = auto-commit.
 	TxMode string `json:"txMode,omitempty"`
-	// Locked pins the scratch to its connection and database, so it cannot be
-	// moved to another folder or database by accident.
+	// Locked pins the scratch to its connection, database and folder, so it
+	// cannot be moved or retargeted by accident. New scratches start locked.
 	Locked  bool   `json:"locked,omitempty"`
 	Content string `json:"content,omitempty"` // not stored in the manifest
 }
@@ -230,7 +230,9 @@ func (s *Store) SaveLayout(ws Workspace) error {
 		if t.Kind != "table" {
 			m := s.index[t.ID]
 			if m == nil {
-				m = &meta{CreatedAt: now(), UpdatedAt: now()}
+				// A new scratch is pinned to the link it was created with; only a
+				// scratch with no connection at all stays free to move.
+				m = &meta{ConnID: t.ConnID, Database: t.Database, Locked: t.ConnID != "", CreatedAt: now(), UpdatedAt: now()}
 				s.index[t.ID] = m
 				if !exists(p) {
 					atomicWrite(p, nil)
@@ -338,7 +340,8 @@ func (s *Store) Get(id string) (Tab, error) {
 }
 
 // Create adds a scratch file and returns it. Schema and table optionally file
-// it under a table.
+// it under a table. New scratches are locked to their link unless they have no
+// connection yet.
 func (s *Store) Create(id, name, connID, database, schema, table, content string) (Tab, error) {
 	p, err := s.filePath(id)
 	if err != nil {
@@ -353,8 +356,9 @@ func (s *Store) Create(id, name, connID, database, schema, table, content string
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.index[id] = &meta{Name: name, ConnID: connID, Database: database, Schema: schema, Table: table, CreatedAt: now(), UpdatedAt: now()}
-	return Tab{ID: id, Name: name, ConnID: connID, Database: database, Kind: "sql", Content: content}, s.writeIndex()
+	locked := connID != ""
+	s.index[id] = &meta{Name: name, ConnID: connID, Database: database, Schema: schema, Table: table, Locked: locked, CreatedAt: now(), UpdatedAt: now()}
+	return Tab{ID: id, Name: name, ConnID: connID, Database: database, Kind: "sql", Locked: locked, Content: content}, s.writeIndex()
 }
 
 // Link files a scratch under a connection, database and optionally a table.
@@ -377,7 +381,7 @@ func (s *Store) Link(id, connID, database, schema, table string) error {
 	return s.writeIndex()
 }
 
-// SetLock pins or unpins a scratch's connection and database link.
+// SetLock pins or unpins a scratch's connection, database and folder link.
 func (s *Store) SetLock(id string, locked bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

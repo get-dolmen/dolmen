@@ -14,66 +14,7 @@ import { WindowToggleMaximise } from '../../../../wailsjs/runtime';
   selector: 'dm-topbar',
   imports: [ClickOutside, Icon],
   host: { '[class.mac]': 'mac', '(dblclick)': 'onDblClick($event)' },
-  template: `
-    <div class="left">
-    <button class="conn nodrag" (click)="openMenu($event)" title="Connection used by this tab">
-      @if (conn(); as c) {
-        <span class="dot" [style.background]="c.color" [class.off]="!c.connected"></span>
-        <span class="ellipsis">{{ c.name }}</span>
-        @if (database(); as db) { <span class="db ellipsis">/ {{ db }}</span> }
-        @if (c.readOnly) { <span class="badge ro">🔒 RO</span> }
-        @if (locked()) { <dm-icon name="lock" [size]="12" class="lock" /> }
-      } @else {
-        <span class="faint">No connection</span>
-      }
-      <span class="caret">▾</span>
-    </button>
-    </div>
-
-    <button class="search nodrag" (click)="ui.openPalette()">
-      <span class="glass" aria-hidden="true">⌕</span>
-      <span class="ph">Search tables, tabs, commands…</span>
-      <span class="kbd">{{ mod }}P</span>
-    </button>
-
-    <div class="actions nodrag">
-      @if (ui.scratchPosition() === 'left') {
-        <button class="btn ghost icon" (click)="ui.scratchOpen.set(!ui.scratchOpen())" [class.on]="ui.scratchOpen()"
-                [title]="ui.scratchOpen() ? 'Hide the scratches panel' : 'Show the scratches panel'"
-                [attr.aria-label]="ui.scratchOpen() ? 'Hide scratches' : 'Show scratches'">
-          <dm-icon name="panelLeft" [size]="16" />
-        </button>
-      }
-      <button class="btn ghost icon" (click)="ui.sidebarOpen.set(!ui.sidebarOpen())" [class.on]="ui.sidebarOpen()"
-              [title]="'Toggle explorer (' + mod + 'B)'" aria-label="Toggle explorer">
-        <dm-icon name="panelRight" [size]="16" />
-      </button>
-      <button class="btn ghost icon" (click)="cmds.openSettings()" [title]="'Settings (' + mod + ',)'" aria-label="Settings">
-        <dm-icon name="settings" [size]="16" />
-      </button>
-    </div>
-
-    @if (menu(); as m) {
-      <div class="menu" [style.left.px]="m.x" [style.top.px]="m.y" (dmClickOutside)="menu.set(null)">
-        <div class="menu-label">Use in this tab</div>
-        @for (c of conns.connections(); track c.id) {
-          <button class="menu-item" [class.active]="c.id === conn()?.id" (click)="choose(c)">
-            <span class="dot" [style.background]="c.color" [style.opacity]="c.connected ? 1 : 0.35"></span>
-            <span class="ellipsis">{{ c.name }}</span>
-            @if (c.readOnly) { <span class="badge ro">RO</span> }
-            <span class="hint">{{ kind(c) }}</span>
-          </button>
-        } @empty {
-          <div class="menu-label">No saved connections</div>
-        }
-        <div class="menu-sep"></div>
-        <button class="menu-item" (click)="menu.set(null); cmds.newConnection()">New connection…</button>
-        @if (conn(); as c) {
-          <button class="menu-item" (click)="menu.set(null); cmds.editConnection(c)">Edit “{{ c.name }}”…</button>
-        }
-      </div>
-    }
-  `,
+  templateUrl: './topbar.html',
   styles: `
     /* Three columns with equal sides keep the search bar centred in the window. */
     :host { display: grid; grid-template-columns: minmax(max-content, 1fr) minmax(180px, 440px) minmax(max-content, 1fr); align-items: center; gap: 12px; height: 44px; padding: 0 10px; background: var(--bg); border-bottom: 1px solid var(--border);

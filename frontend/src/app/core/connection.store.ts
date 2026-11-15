@@ -6,7 +6,7 @@ import type { ConnectionConfig, ConnectionFolder, ConnectionView } from './model
 @Injectable({ providedIn: 'root' })
 export class ConnectionStore {
   private api = inject(Api);
-  private toasts = inject(Toasts);
+  private toastService = inject(Toasts);
 
   public readonly connections = signal<ConnectionView[]>([]);
   public readonly folders = signal<ConnectionFolder[]>([]);
@@ -25,7 +25,7 @@ export class ConnectionStore {
       this.connections.set(connections);
       this.folders.set(folders);
     } catch (error) {
-      this.toasts.error(errorText(error));
+      this.toastService.error(errorText(error));
     }
   }
 
@@ -38,7 +38,7 @@ export class ConnectionStore {
       this.folders.update((folders) => [...folders, folder]);
       return folder;
     } catch (error) {
-      this.toasts.error(errorText(error));
+      this.toastService.error(errorText(error));
       return undefined;
     }
   }
@@ -51,7 +51,7 @@ export class ConnectionStore {
       this.folders.update((folders) => folders.map((folder) => (folder.id === id ? saved : folder)));
       return true;
     } catch (error) {
-      this.toasts.error(errorText(error));
+      this.toastService.error(errorText(error));
       return false;
     }
   }
@@ -61,7 +61,7 @@ export class ConnectionStore {
       await this.api.deleteFolder(id);
       await this.refresh();
     } catch (error) {
-      this.toasts.error(errorText(error));
+      this.toastService.error(errorText(error));
     }
   }
 
@@ -73,7 +73,7 @@ export class ConnectionStore {
       this.connections.update((connections) => connections.map((connection) =>
         (connection.id === connectionId ? { ...connection, folderId: folderId || undefined } : connection)));
     } catch (error) {
-      this.toasts.error(errorText(error));
+      this.toastService.error(errorText(error));
     }
   }
 
@@ -85,7 +85,7 @@ export class ConnectionStore {
       const saved = await this.api.saveFolder({ ...current, parentId: parentId || undefined });
       this.folders.update((folders) => folders.map((folder) => (folder.id === id ? saved : folder)));
     } catch (error) {
-      this.toasts.error(errorText(error));
+      this.toastService.error(errorText(error));
     }
   }
 
@@ -119,7 +119,7 @@ export class ConnectionStore {
       this.emit(id, true);
       return true;
     } catch (error) {
-      this.toasts.error(`${this.get(id)?.name ?? 'Connection'}: ${errorText(error)}`);
+      this.toastService.error(`${this.get(id)?.name ?? 'Connection'}: ${errorText(error)}`);
       return false;
     } finally {
       this.setPending(id, false);

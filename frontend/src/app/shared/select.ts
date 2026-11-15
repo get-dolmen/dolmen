@@ -18,19 +18,7 @@ let nextId = 0;
   selector: 'dm-select',
   imports: [Icon],
   templateUrl: './select.html',
-  styles: `
-    :host { display: block; min-width: 0; }
-    .trigger { display: flex; align-items: center; gap: 6px; text-align: left; cursor: pointer; }
-    .trigger:disabled { opacity: 0.55; cursor: default; }
-    .text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .text.faint { color: var(--text-faint); }
-    .trigger dm-icon { color: var(--text-faint); transition: transform 0.12s ease; }
-    .trigger[aria-expanded='true'] dm-icon { transform: rotate(180deg); }
-    .menu { position: fixed; min-width: 0; max-height: 220px; overflow: auto; }
-    .menu-item.sel { font-weight: 600; }
-    .menu-item.focus { background: var(--accent-soft); }
-    .check { color: var(--accent); }
-  `,
+  styleUrl: './select.scss',
   host: {
     '(document:mousedown)': 'onOutside($event)',
     '(document:keydown.escape)': 'close()',

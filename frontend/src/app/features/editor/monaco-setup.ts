@@ -3,7 +3,7 @@ import 'monaco-editor/features/register.all';
 import 'monaco-editor/languages/definitions/sql/register';
 import 'monaco-editor/languages/definitions/pgsql/register';
 import 'monaco-editor/languages/definitions/mysql/register';
-import { KEYWORDS, ident } from '../../core/sql';
+import { KEYWORDS, quoteIdentifier } from '../../core/sql';
 import { isDarkTheme } from '../../core/ui';
 import type { DbColumn, DbKind, DbTable } from '../../core/models';
 import { completionContext, expectsTable, parseTableRefs, statementAround } from './completion';
@@ -102,7 +102,7 @@ async function provide(
   }
 
   const out: monaco.languages.CompletionItem[] = [];
-  const quote = (n: string) => (src ? ident(src.kind, n) : n);
+  const quote = (n: string) => (src ? quoteIdentifier(src.kind, n) : n);
   const add = (label: string, kind: monaco.languages.CompletionItemKind, sort: string, detail?: string, insert?: string) =>
     out.push({ label, kind, detail, range, insertText: insert ?? label, sortText: sort + label.toLowerCase() });
 

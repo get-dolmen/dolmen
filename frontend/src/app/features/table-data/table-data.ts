@@ -10,7 +10,7 @@ import { TableBridge, type TableHandle } from '../../core/table-bridge';
 import { Toasts } from '../../core/toast';
 import { TxStore } from '../../core/tx.store';
 import { MOD, isMac } from '../../core/ui';
-import { ident, qualified } from '../../core/sql';
+import { quoteIdentifier, qualified } from '../../core/sql';
 import type { Cell, DbKind, TablePage } from '../../core/models';
 import { Confirm } from '../../shared/confirm';
 import { Icon } from '../../shared/icon';
@@ -93,7 +93,7 @@ export class TableData implements TableHandle, OnDestroy {
     const t = this.tab().table;
     if (!p || !t) return [];
     const k = this.kind();
-    return previewSQL(buildChanges(p.columns, this.rows, this.deleted), qualified(k, t.schema, t.name), (n) => ident(k, n));
+    return previewSQL(buildChanges(p.columns, this.rows, this.deleted), qualified(k, t.schema, t.name), (n) => quoteIdentifier(k, n));
   });
 
   readonly rangeText = computed(() => {
@@ -297,13 +297,13 @@ export class TableData implements TableHandle, OnDestroy {
     const cur = this.sortState();
     const next = cur?.col !== col ? 'asc' : cur.dir === 'asc' ? 'desc' : null;
     this.sortState.set(next ? { col, dir: next } : null);
-    this.orderBy = next ? `${ident(this.kind(), col)} ${next.toUpperCase()}` : '';
+    this.orderBy = next ? `${quoteIdentifier(this.kind(), col)} ${next.toUpperCase()}` : '';
     void this.reload(0);
   }
 
   /** Header filter icon: starts a condition on that column in the WHERE box. */
   private filterOn(col: string) {
-    const cond = `${ident(this.kind(), col)} = `;
+    const cond = `${quoteIdentifier(this.kind(), col)} = `;
     this.where = this.where.trim() ? `${this.where.trim()} AND ${cond}` : cond;
     const el = this.whereInput()?.nativeElement;
     if (el) {
@@ -563,7 +563,7 @@ export class TableData implements TableHandle, OnDestroy {
     const m = this.cellMenu();
     const c = this.menuColumn();
     if (!m || !c || m.value === undefined) return;
-    const id = ident(this.kind(), c.name);
+    const id = quoteIdentifier(this.kind(), c.name);
     let cond: string;
     if (m.value === null) cond = `${id} IS NULL`;
     else if (typeof m.value === 'number') cond = `${id} = ${m.value}`;

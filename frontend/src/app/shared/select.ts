@@ -25,39 +25,39 @@ let nextId = 0;
   },
 })
 export class Select {
-  readonly options = input<readonly SelectOption[]>([]);
-  readonly value = input('');
-  readonly label = input('');
-  readonly placeholder = input('Choose…');
-  readonly disabled = input(false);
-  readonly valueChange = output<string>();
+  public readonly options = input<readonly SelectOption[]>([]);
+  public readonly value = input('');
+  public readonly label = input('');
+  public readonly placeholder = input('Choose…');
+  public readonly disabled = input(false);
+  public readonly valueChange = output<string>();
 
-  readonly listId = `dm-select-${nextId++}`;
-  readonly open = signal(false);
-  readonly focus = signal(0);
-  readonly pos = signal({ x: 0, y: 0 });
-  readonly width = signal(0);
-  readonly current = computed(() => this.options().find((o) => o.value === this.value()));
+  public readonly listId = `dm-select-${nextId++}`;
+  public readonly open = signal(false);
+  public readonly focus = signal(0);
+  public readonly pos = signal({ x: 0, y: 0 });
+  public readonly width = signal(0);
+  public readonly current = computed(() => this.options().find((o) => o.value === this.value()));
 
   private el = inject<ElementRef<HTMLElement>>(ElementRef);
 
-  constructor() {
+  public constructor() {
     // A fixed popup cannot follow a scrolling dialog, so close it instead.
     const onScroll = () => this.close();
     window.addEventListener('scroll', onScroll, true);
     inject(DestroyRef).onDestroy(() => window.removeEventListener('scroll', onScroll, true));
   }
 
-  toggle() {
+  public toggle() {
     if (this.open()) this.close();
     else this.show();
   }
 
-  close() {
+  public close() {
     this.open.set(false);
   }
 
-  show() {
+  public show() {
     if (this.disabled()) return;
     const r = this.el.nativeElement.getBoundingClientRect();
     const height = Math.min(220, this.options().length * 26 + 8);
@@ -71,12 +71,12 @@ export class Select {
     this.open.set(true);
   }
 
-  choose(o: SelectOption) {
+  public choose(o: SelectOption) {
     this.close();
     if (o.value !== this.value()) this.valueChange.emit(o.value);
   }
 
-  onKey(e: KeyboardEvent) {
+  public onKey(e: KeyboardEvent) {
     const opts = this.options();
     if (!this.open()) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ') {
@@ -102,7 +102,7 @@ export class Select {
     }
   }
 
-  onOutside(e: MouseEvent) {
+  public onOutside(e: MouseEvent) {
     if (this.open() && !this.el.nativeElement.contains(e.target as Node)) this.close();
   }
 }

@@ -18,18 +18,7 @@ export interface ConfirmOptions {
  */
 @Component({
   selector: 'dm-confirm-dialog',
-  template: `
-    <div class="dialog confirm" role="alertdialog" aria-modal="true" [attr.aria-label]="data.title || 'Confirm'">
-      <header><h2>{{ data.title || 'Confirm' }}</h2></header>
-      <div class="body"><p class="message">{{ data.message }}</p></div>
-      <footer>
-        <span class="spacer"></span>
-        <button class="btn" type="button" (click)="ref.close(false)">{{ data.cancelLabel || 'Cancel' }}</button>
-        <button class="btn" type="button" [class.danger]="data.danger" [class.primary]="!data.danger"
-                (click)="ref.close(true)">{{ data.confirmLabel || 'Confirm' }}</button>
-      </footer>
-    </div>
-  `,
+  templateUrl: './confirm.html',
   styles: `
     .confirm { width: 100%; }
     .message { margin: 2px 0 4px; white-space: pre-line; }

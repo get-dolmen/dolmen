@@ -20,12 +20,12 @@ export interface ColumnHeaderParams {
   styleUrl: './column-header.scss',
 })
 export class ColumnHeader implements IHeaderAngularComp {
-  readonly col = signal<TableColumn | null>(null);
-  readonly sort = signal<'asc' | 'desc' | null>(null);
+  public readonly col = signal<TableColumn | null>(null);
+  public readonly sort = signal<'asc' | 'desc' | null>(null);
   private params?: IHeaderParams & ColumnHeaderParams;
 
-  agInit(p: IHeaderParams & ColumnHeaderParams) { this.set(p); }
-  refresh(p: IHeaderParams & ColumnHeaderParams) { this.set(p); return true; }
+  public agInit(p: IHeaderParams & ColumnHeaderParams) { this.set(p); }
+  public refresh(p: IHeaderParams & ColumnHeaderParams) { this.set(p); return true; }
 
   private set(p: IHeaderParams & ColumnHeaderParams) {
     this.params = p;
@@ -33,17 +33,17 @@ export class ColumnHeader implements IHeaderAngularComp {
     this.sort.set(p.sort());
   }
 
-  sortTitle() {
+  public sortTitle() {
     const s = this.sort();
     return s === 'asc' ? 'Sorted ascending: click for descending' : s === 'desc' ? 'Sorted descending: click to clear' : 'Sort ascending';
   }
 
-  toggleSort(e: Event) {
+  public toggleSort(e: Event) {
     e.stopPropagation();
     this.params?.onSort();
   }
 
-  filter(e: Event) {
+  public filter(e: Event) {
     e.stopPropagation();
     this.params?.onFilter();
   }

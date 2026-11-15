@@ -1,0 +1,15 @@
+<ag-grid-angular
+  class="grid"
+  [theme]="theme"
+  [columnDefs]="[]"
+  [rowData]="[]"
+  [defaultColDef]="defaultColDef"
+  [rowSelection]="{ mode: 'multiRow', checkboxes: false, headerCheckbox: false, enableClickSelection: true }"
+  [suppressDragLeaveHidesColumns]="true"
+  [enableCellTextSelection]="false"
+  [tooltipShowDelay]="400"
+  [animateRows]="false"
+  [suppressCellFocus]="false"
+  (gridReady)="onReady($event)"
+  (cellKeyDown)="onKey($event)"
+/>

@@ -72,23 +72,7 @@ function widthFor(name: string, rows: Cell[][], i: number): number {
 @Component({
   selector: 'dm-result-grid',
   imports: [AgGridAngular],
-  template: `
-    <ag-grid-angular
-      class="grid"
-      [theme]="theme"
-      [columnDefs]="[]"
-      [rowData]="[]"
-      [defaultColDef]="defaultColDef"
-      [rowSelection]="{ mode: 'multiRow', checkboxes: false, headerCheckbox: false, enableClickSelection: true }"
-      [suppressDragLeaveHidesColumns]="true"
-      [enableCellTextSelection]="false"
-      [tooltipShowDelay]="400"
-      [animateRows]="false"
-      [suppressCellFocus]="false"
-      (gridReady)="onReady($event)"
-      (cellKeyDown)="onKey($event)"
-    />
-  `,
+  templateUrl: './result-grid.html',
   styles: `
     :host { display: block; height: 100%; }
     .grid { height: 100%; width: 100%; }

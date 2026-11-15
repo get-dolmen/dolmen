@@ -50,15 +50,15 @@ export class RunStore {
   private tx = inject(TxStore);
   private ui = inject(Ui);
 
-  readonly runs = signal<Record<string, TabRun>>({});
+  public readonly runs = signal<Record<string, TabRun>>({});
 
-  get(tabId: string): TabRun { return this.runs()[tabId] ?? emptyRun(); }
+  public get(tabId: string): TabRun { return this.runs()[tabId] ?? emptyRun(); }
 
-  setPanel(tabId: string, panel: ResultsPanel) { this.patch(tabId, { panel }); }
-  setActiveResult(tabId: string, i: number) { this.patch(tabId, { activeResult: i, panel: 'results' }); }
+  public setPanel(tabId: string, panel: ResultsPanel) { this.patch(tabId, { panel }); }
+  public setActiveResult(tabId: string, i: number) { this.patch(tabId, { activeResult: i, panel: 'results' }); }
 
   /** Removes inline results from a tab (all of them when `ids` is omitted). */
-  dismissInline(tabId: string, ids?: readonly string[]) {
+  public dismissInline(tabId: string, ids?: readonly string[]) {
     const run = this.get(tabId);
     const drop = ids && new Set(ids);
     const inline = drop ? run.inline.filter((b) => !drop.has(b.id)) : [];
@@ -66,7 +66,7 @@ export class RunStore {
   }
 
   /** Runs the selection, else the statement under the cursor (`all` = whole script). */
-  async run(mode: 'cursor' | 'all') {
+  public async run(mode: 'cursor' | 'all') {
     const tab = this.tabs.active();
     if (!tab) return;
     if (this.get(tab.id).running) return;
@@ -118,11 +118,11 @@ export class RunStore {
     }
   }
 
-  cancel(tabId = this.tabs.activeId()) {
+  public cancel(tabId = this.tabs.activeId()) {
     if (this.get(tabId).running) void this.api.cancel(tabId);
   }
 
-  async fetchMore(tabId: string, resultId: string) {
+  public async fetchMore(tabId: string, resultId: string) {
     try {
       const r = await this.api.fetchMore(tabId, resultId, PAGE_SIZE);
       this.updateResult(tabId, resultId, (res) => ({
@@ -138,7 +138,7 @@ export class RunStore {
     }
   }
 
-  async export(tabId: string, resultId: string, format: 'csv' | 'json') {
+  public async export(tabId: string, resultId: string, format: 'csv' | 'json') {
     try {
       const r = await this.api.exportResult(tabId, resultId, format);
       if (!r.path) return;
@@ -150,7 +150,7 @@ export class RunStore {
     }
   }
 
-  forget(tabId: string) {
+  public forget(tabId: string) {
     const r = { ...this.runs() };
     delete r[tabId];
     this.runs.set(r);

@@ -28,7 +28,7 @@ export class ResultsPanelComponent {
   public readonly errorCount = computed(() => this.run().messages.filter((message) => message.kind === 'error').length);
   public readonly fetching = signal(false);
   public readonly menu = signal<{ x: number; y: number; kind: 'copy' | 'export' } | null>(null);
-  public readonly formats = COPY_FORMATS;
+  public readonly copyFormats = COPY_FORMATS;
 
   public setPanel(panel: PanelKind) { this.runStore.setPanel(this.tabId(), panel); }
 

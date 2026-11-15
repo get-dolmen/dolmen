@@ -10,38 +10,37 @@ export const COPY_FORMATS: { id: CopyFormat; label: string }[] = [
   { id: 'markdown', label: 'Markdown' },
 ];
 
-const text = (v: Cell) => (v === null || v === undefined ? '' : String(v));
+const cellText = (cell: Cell) => (cell === null || cell === undefined ? '' : String(cell));
 
-function csvCell(v: Cell): string {
-  const s = text(v);
-  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+function csvCell(cell: Cell): string {
+  const text = cellText(cell);
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
-function markdownCell(v: Cell): string {
-  const s = text(v);
-  return s.replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ');
+function markdownCell(cell: Cell): string {
+  return cellText(cell).replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ');
 }
 
 /** Formats rows for the clipboard in the chosen format. NULL is empty except in JSON (null). */
 export function formatRows(format: CopyFormat, columns: ResultColumn[], rows: Cell[][], header = true): string {
   switch (format) {
     case 'csv': {
-      const lines = rows.map((r) => r.map(csvCell).join(','));
-      if (header) lines.unshift(columns.map((c) => csvCell(c.name)).join(','));
+      const lines = rows.map((row) => row.map(csvCell).join(','));
+      if (header) lines.unshift(columns.map((column) => csvCell(column.name)).join(','));
       return lines.join('\n');
     }
     case 'json':
       return JSON.stringify(
-        rows.map((r) => header
-          ? Object.fromEntries(columns.map((c, i) => [c.name, r[i] ?? null]))
-          : r),
+        rows.map((row) => (header
+          ? Object.fromEntries(columns.map((column, columnIndex) => [column.name, row[columnIndex] ?? null]))
+          : row)),
         null,
         2,
       );
     case 'markdown': {
-      const lines = rows.map((r) => `| ${r.map(markdownCell).join(' | ')} |`);
+      const lines = rows.map((row) => `| ${row.map(markdownCell).join(' | ')} |`);
       if (header) {
-        lines.unshift(`| ${columns.map((c) => markdownCell(c.name)).join(' | ')} |`);
+        lines.unshift(`| ${columns.map((column) => markdownCell(column.name)).join(' | ')} |`);
         lines.splice(1, 0, `| ${columns.map(() => '---').join(' | ')} |`);
       }
       return lines.join('\n');

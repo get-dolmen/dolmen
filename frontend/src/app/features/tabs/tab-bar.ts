@@ -19,116 +19,123 @@ import { Icon } from '../../shared/icon';
   styleUrl: './tab-bar.scss',
 })
 export class TabBar {
-  public readonly tabs = inject(TabStore);
-  public readonly cmds = inject(Commands);
-  private conns = inject(ConnectionStore);
-  private runs = inject(RunStore);
-  private scratches = inject(ScratchStore);
-  private schema = inject(SchemaStore);
-  public readonly tx = inject(TxStore);
-  public readonly ui = inject(Ui);
-  public readonly editing = signal('');
-  public readonly mod = MOD;
-  public readonly txMenu = signal<{ x: number; y: number } | null>(null);
-  public readonly dbMenu = signal<{ x: number; y: number } | null>(null);
-  public readonly tab = computed(() => this.tabs.active());
-  public readonly txState = computed(() => this.tx.get(this.tabs.activeId()));
-  public readonly since = computed(() => new Date(this.txState().startedAt).toLocaleTimeString());
-  public readonly readOnly = computed(() => !!this.conns.get(this.tabs.active()?.connId)?.readOnly);
-  public readonly dbInfo = computed(() => {
-    const t = this.tab();
-    return t?.kind === 'sql' ? this.schema.databases()[t.connId] : undefined;
+  public readonly tabStore = inject(TabStore);
+  public readonly commandService = inject(Commands);
+  private connectionStore = inject(ConnectionStore);
+  private runStore = inject(RunStore);
+  private scratchStore = inject(ScratchStore);
+  private schemaStore = inject(SchemaStore);
+  public readonly transactionStore = inject(TxStore);
+  public readonly uiState = inject(Ui);
+  public readonly editingTabId = signal('');
+  public readonly modifierKey = MOD;
+  public readonly transactionMenu = signal<{ x: number; y: number } | null>(null);
+  public readonly databaseMenu = signal<{ x: number; y: number } | null>(null);
+  public readonly activeTab = computed(() => this.tabStore.active());
+  public readonly transactionState = computed(() => this.transactionStore.get(this.tabStore.activeId()));
+  public readonly startedAtLabel = computed(
+    () => new Date(this.transactionState().startedAt).toLocaleTimeString(),
+  );
+  public readonly readOnly = computed(
+    () => !!this.connectionStore.get(this.tabStore.active()?.connId)?.readOnly,
+  );
+  public readonly databaseInfo = computed(() => {
+    const tab = this.activeTab();
+    return tab?.kind === 'sql' ? this.schemaStore.databases()[tab.connId] : undefined;
   });
-  public readonly showDb = computed(() => !!this.dbInfo()?.supported && (this.dbInfo()?.databases.length ?? 0) > 1);
-  public readonly dbLabel = computed(() => {
-    const t = this.tab();
-    if (!t) return '';
-    return t.database || this.dbInfo()?.current || 'default';
+  public readonly showDatabasePicker = computed(
+    () => !!this.databaseInfo()?.supported && (this.databaseInfo()?.databases.length ?? 0) > 1,
+  );
+  public readonly databaseLabel = computed(() => {
+    const tab = this.activeTab();
+    if (!tab) return '';
+    return tab.database || this.databaseInfo()?.current || 'default';
   });
 
-  public openTxMenu(e: MouseEvent) {
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    this.txMenu.set(clampMenu(r.right - 300, r.bottom + 4, 300, 160));
+  public openTransactionMenu(event: MouseEvent) {
+    const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.transactionMenu.set(clampMenu(bounds.right - 300, bounds.bottom + 4, 300, 160));
   }
 
   public setMode(mode: 'auto' | 'manual') {
-    const t = this.tabs.active();
-    if (t && this.tx.setMode(t.id, mode)) this.txMenu.set(null);
+    const tab = this.tabStore.active();
+    if (tab && this.transactionStore.setMode(tab.id, mode)) this.transactionMenu.set(null);
   }
 
-  public openDbMenu(e: MouseEvent) {
-    const t = this.tab();
-    if (!t || t.locked) return;
-    if (!this.dbInfo()) void this.schema.loadDatabases(t.connId);
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    this.dbMenu.set(clampMenu(r.right - 240, r.bottom + 4, 240, 260));
+  public openDatabaseMenu(event: MouseEvent) {
+    const tab = this.activeTab();
+    if (!tab || tab.locked) return;
+    if (!this.databaseInfo()) void this.schemaStore.loadDatabases(tab.connId);
+    const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.databaseMenu.set(clampMenu(bounds.right - 240, bounds.bottom + 4, 240, 260));
   }
 
-  public isCurrentDb(db: string) {
-    const t = this.tab();
-    return !!t && (t.database || this.dbInfo()?.current || '') === db;
+  public isCurrentDatabase(database: string) {
+    const tab = this.activeTab();
+    return !!tab && (tab.database || this.databaseInfo()?.current || '') === database;
   }
 
-  public async chooseDb(db: string) {
-    this.dbMenu.set(null);
-    const t = this.tab();
-    const info = this.dbInfo();
-    if (!t || !info || t.locked) return;
-    const next = db === info.current ? '' : db;
-    if ((t.database || '') === next) return;
-    if (!(await this.tx.confirmLeave(t.id))) return;
-    this.tabs.setConnection(t.id, t.connId, next);
+  public async chooseDatabase(database: string) {
+    this.databaseMenu.set(null);
+    const tab = this.activeTab();
+    const databaseInfo = this.databaseInfo();
+    if (!tab || !databaseInfo || tab.locked) return;
+    const nextDatabase = database === databaseInfo.current ? '' : database;
+    if ((tab.database || '') === nextDatabase) return;
+    if (!(await this.transactionStore.confirmLeave(tab.id))) return;
+    this.tabStore.setConnection(tab.id, tab.connId, nextDatabase);
   }
 
-  public color(t: EditorTab) { return this.conns.get(t.connId)?.color ?? null; }
+  public connectionColor(tab: EditorTab) { return this.connectionStore.get(tab.connId)?.color ?? null; }
+
   /** "connection" or "connection/database" for data tabs. */
-  public where(t: EditorTab) {
-    const c = this.conns.get(t.connId)?.name ?? '?';
-    return t.database ? `${c}/${t.database}` : c;
+  public locationLabel(tab: EditorTab) {
+    const connectionName = this.connectionStore.get(tab.connId)?.name ?? '?';
+    return tab.database ? `${connectionName}/${tab.database}` : connectionName;
   }
 
-  public running(t: EditorTab) { return !!this.runs.runs()[t.id]?.running; }
+  public isRunning(tab: EditorTab) { return !!this.runStore.runs()[tab.id]?.running; }
 
-  public title(t: EditorTab) {
-    const c = this.conns.get(t.connId);
-    return `${t.name}${c ? ' · ' + c.name : ''}\nDouble-click to rename`;
+  public tooltip(tab: EditorTab) {
+    const connection = this.connectionStore.get(tab.connId);
+    return `${tab.name}${connection ? ' · ' + connection.name : ''}\nDouble-click to rename`;
   }
 
-  public rename(t: EditorTab, name: string) {
-    if (this.editing() !== t.id) return;
-    this.editing.set('');
-    if (!name.trim() || name.trim() === t.name) return;
+  public renameTab(tab: EditorTab, name: string) {
+    if (this.editingTabId() !== tab.id) return;
+    this.editingTabId.set('');
+    if (!name.trim() || name.trim() === tab.name) return;
     // SQL tabs are scratch files: rename the file; data tabs only change their label.
-    if (t.kind === 'sql') void this.scratches.rename(t.id, name);
-    else this.tabs.rename(t.id, name);
+    if (tab.kind === 'sql') void this.scratchStore.rename(tab.id, name);
+    else this.tabStore.rename(tab.id, name);
   }
 
-  public readonly menu = signal<{ x: number; y: number; t: EditorTab } | null>(null);
+  public readonly tabMenu = signal<{ x: number; y: number; tab: EditorTab } | null>(null);
 
-  public openMenu(e: MouseEvent, t: EditorTab) {
-    e.preventDefault();
-    this.menu.set({ ...clampMenu(e.clientX, e.clientY, 210, 240), t });
+  public openTabMenu(event: MouseEvent, tab: EditorTab) {
+    event.preventDefault();
+    this.tabMenu.set({ ...clampMenu(event.clientX, event.clientY, 210, 240), tab });
   }
 
-  public async act(action: string) {
-    const m = this.menu();
-    this.menu.set(null);
-    if (!m) return;
-    const id = m.t.id;
+  public async runMenuAction(action: string) {
+    const menu = this.tabMenu();
+    this.tabMenu.set(null);
+    if (!menu) return;
+    const tabId = menu.tab.id;
     switch (action) {
-      case 'rename': return this.editing.set(id);
-      case 'save': return void this.scratches.save(id);
-      case 'export': return void this.scratches.exportFile(id);
-      case 'duplicate': return void this.scratches.duplicate(id);
-      case 'close': return void this.cmds.closeTab(id);
+      case 'rename': return this.editingTabId.set(tabId);
+      case 'save': return void this.scratchStore.save(tabId);
+      case 'export': return void this.scratchStore.exportFile(tabId);
+      case 'duplicate': return void this.scratchStore.duplicate(tabId);
+      case 'close': return void this.commandService.closeTab(tabId);
       case 'others':
-        for (const t of this.tabs.tabs()) if (t.id !== id) await this.cmds.closeTab(t.id);
+        for (const tab of this.tabStore.tabs()) if (tab.id !== tabId) await this.commandService.closeTab(tab.id);
         return;
-      case 'delete': return void this.scratches.remove(id);
+      case 'delete': return void this.scratchStore.remove(tabId);
     }
   }
 
-  public drop(e: CdkDragDrop<unknown>) {
-    if (e.previousIndex !== e.currentIndex) this.tabs.move(e.previousIndex, e.currentIndex);
+  public dropTab(event: CdkDragDrop<unknown>) {
+    if (event.previousIndex !== event.currentIndex) this.tabStore.move(event.previousIndex, event.currentIndex);
   }
 }

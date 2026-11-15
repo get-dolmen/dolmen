@@ -10,8 +10,9 @@ const PLAIN_IDENTIFIER: Record<DbKind, RegExp> = {
 /** Quotes an identifier only when the dialect requires it. */
 export function quoteIdentifier(kind: DbKind, name: string): string {
   if (PLAIN_IDENTIFIER[kind].test(name) && !RESERVED_WORDS.has(name.toUpperCase())) return name;
-  const quote = kind === 'mysql' ? '`' : '"';
-  return quote + name.split(quote).join(quote + quote) + quote;
+  const quoteCharacter = kind === 'mysql' ? '`' : '"';
+  const escapedName = name.split(quoteCharacter).join(quoteCharacter + quoteCharacter);
+  return quoteCharacter + escapedName + quoteCharacter;
 }
 
 /** schema.table, omitting the schema when it is the connection's default. */

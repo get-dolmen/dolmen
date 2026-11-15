@@ -18,7 +18,7 @@ export interface PaletteItem {
   color?: string;
   run: () => void;
   /** Alt+Enter action (tables: insert the name). */
-  alt?: () => void;
+  alternateRun?: () => void;
 }
 
 const GROUP_ORDER: PaletteItem['group'][] = ['Tabs', 'Scratches', 'Tables', 'Connections', 'Commands'];
@@ -26,9 +26,11 @@ const MAX_RESULTS = 60;
 
 /** Ranks items by fuzzy score; with an empty query, keeps the given order. */
 export function rankItems(query: string, items: PaletteItem[], limit = MAX_RESULTS): PaletteItem[] {
-  const q = query.trim();
-  if (!q) return items.slice(0, limit);
-  return fuzzysort.go(q, items, { keys: ['label', 'detail'], limit, threshold: 0.2 }).map((r) => r.obj);
+  const searchText = query.trim();
+  if (!searchText) return items.slice(0, limit);
+  return fuzzysort
+    .go(searchText, items, { keys: ['label', 'detail'], limit, threshold: 0.2 })
+    .map((result) => result.obj);
 }
 
 @Component({
@@ -37,132 +39,149 @@ export function rankItems(query: string, items: PaletteItem[], limit = MAX_RESUL
   styleUrl: './palette.scss',
 })
 export class Palette {
-  private ui = inject(Ui);
-  private tabs = inject(TabStore);
-  private conns = inject(ConnectionStore);
-  private schema = inject(SchemaStore);
-  private cmds = inject(Commands);
-  private tx = inject(TxStore);
-  private scratches = inject(ScratchStore);
-  private input = viewChild.required<ElementRef<HTMLInputElement>>('input');
-  private list = viewChild.required<ElementRef<HTMLElement>>('list');
-  public readonly mod = MOD;
+  private uiState = inject(Ui);
+  private tabStore = inject(TabStore);
+  private connectionStore = inject(ConnectionStore);
+  private schemaStore = inject(SchemaStore);
+  private commandService = inject(Commands);
+  private transactionStore = inject(TxStore);
+  private scratchStore = inject(ScratchStore);
+  private searchInput = viewChild.required<ElementRef<HTMLInputElement>>('input');
+  private resultList = viewChild.required<ElementRef<HTMLElement>>('list');
+  public readonly modifierKey = MOD;
 
-  public readonly query = signal(this.ui.paletteQuery());
-  public readonly index = signal(0);
-  public readonly loadingTables = computed(() => [...this.schema.loading()].some((k) => k.includes('|tables|')));
+  public readonly query = signal(this.uiState.paletteQuery());
+  public readonly selectedIndex = signal(0);
+  public readonly loadingTables = computed(
+    () => [...this.schemaStore.loading()].some((scope) => scope.includes('|tables|')),
+  );
 
   public constructor() {
-    afterNextRender(() => this.input().nativeElement.focus());
+    afterNextRender(() => this.searchInput().nativeElement.focus());
     // Each connection's own database, plus any other database already browsed in the explorer.
-    const connected = new Set(this.conns.connected().map((c) => c.id));
-    const scopes = new Set([...connected, ...Object.keys(this.schema.schemasByScope()).filter((s) => connected.has(parseConnectionScope(s).connId))]);
-    for (const s of scopes) void this.schema.loadAllTables(s);
+    const connectedIds = new Set(this.connectionStore.connected().map((connection) => connection.id));
+    const browsedScopes = Object.keys(this.schemaStore.schemasByScope())
+      .filter((scope) => connectedIds.has(parseConnectionScope(scope).connId));
+    for (const scope of new Set([...connectedIds, ...browsedScopes])) void this.schemaStore.loadAllTables(scope);
   }
 
   private items = computed<PaletteItem[]>(() => {
     const items: PaletteItem[] = [];
-    const active = this.tabs.active();
-    for (const t of this.tabs.tabs()) {
-      const conn = this.conns.get(t.connId);
+    const activeTab = this.tabStore.active();
+    for (const tab of this.tabStore.tabs()) {
+      const connection = this.connectionStore.get(tab.connId);
       items.push({
-        id: `tab:${t.id}`, group: 'Tabs', label: t.name, detail: conn?.name, color: conn?.color,
-        hint: t.id === active?.id ? 'current' : undefined,
-        run: () => this.tabs.activate(t.id),
+        id: `tab:${tab.id}`, group: 'Tabs', label: tab.name, detail: connection?.name, color: connection?.color,
+        hint: tab.id === activeTab?.id ? 'current' : undefined,
+        run: () => this.tabStore.activate(tab.id),
       });
     }
     // Scratch files that are not open in a tab.
-    const openIds = new Set(this.tabs.tabs().map((t) => t.id));
-    for (const s of this.scratches.list()) {
-      if (openIds.has(s.id)) continue;
-      const conn = this.conns.get(s.connId);
+    const openTabIds = new Set(this.tabStore.tabs().map((tab) => tab.id));
+    for (const scratch of this.scratchStore.list()) {
+      if (openTabIds.has(scratch.id)) continue;
+      const connection = this.connectionStore.get(scratch.connId);
       items.push({
-        id: `scr:${s.id}`, group: 'Scratches', label: s.name, color: conn?.color,
-        detail: [conn?.name, s.database].filter(Boolean).join(' / ') || 'no connection',
-        run: () => void this.scratches.open(s.id),
+        id: `scr:${scratch.id}`, group: 'Scratches', label: scratch.name, color: connection?.color,
+        detail: [connection?.name, scratch.database].filter(Boolean).join(' / ') || 'no connection',
+        run: () => void this.scratchStore.open(scratch.id),
       });
     }
     // Tables of every loaded scope: each connection and, for Postgres, each browsed database.
-    for (const [scope, cs] of Object.entries(this.schema.schemasByScope())) {
+    for (const [scope, cachedSchema] of Object.entries(this.schemaStore.schemasByScope())) {
       const { connId, database } = parseConnectionScope(scope);
-      const c = this.conns.get(connId);
-      if (!c?.connected) continue;
-      const where = database ? `${c.name} · ${database}` : c.name;
-      for (const [schema, tables] of Object.entries(cs.tables)) {
-        for (const t of tables) {
+      const connection = this.connectionStore.get(connId);
+      if (!connection?.connected) continue;
+      const location = database ? `${connection.name} · ${database}` : connection.name;
+      for (const [schema, tables] of Object.entries(cachedSchema.tables)) {
+        for (const table of tables) {
           items.push({
-            id: `tbl:${scope}:${schema}:${t.name}`, group: 'Tables', label: t.name,
-            detail: `${where} · ${schema}${t.type === 'view' ? ' · view' : ''}`, color: c.color,
-            run: () => this.openTable(connId, database, t),
-            alt: () => this.cmds.insertName(connId, schema, t.name, database),
+            id: `tbl:${scope}:${schema}:${table.name}`, group: 'Tables', label: table.name,
+            detail: `${location} · ${schema}${table.type === 'view' ? ' · view' : ''}`, color: connection.color,
+            run: () => this.openTableData(connId, database, table),
+            alternateRun: () => this.commandService.insertName(connId, schema, table.name, database),
           });
         }
       }
     }
-    for (const c of this.conns.connections()) {
-      const isActive = active?.connId === c.id;
+    for (const connection of this.connectionStore.connections()) {
+      const isActive = activeTab?.connId === connection.id;
+      const detail = isActive
+        ? 'used by this tab'
+        : connection.connected ? 'connected · use in this tab' : 'connect and use in this tab';
       items.push({
-        id: `conn:${c.id}`, group: 'Connections', label: c.name, color: c.color,
-        detail: isActive ? 'used by this tab' : c.connected ? 'connected · use in this tab' : 'connect and use in this tab',
-        hint: c.readOnly ? 'read-only' : undefined,
+        id: `conn:${connection.id}`, group: 'Connections', label: connection.name, color: connection.color,
+        detail,
+        hint: connection.readOnly ? 'read-only' : undefined,
         run: async () => {
-          if (active && active.connId !== c.id && !(await this.tx.confirmLeave(active.id))) return;
-          if (active) this.tabs.setConnection(active.id, c.id);
-          void this.conns.ensureConnected(c.id);
+          if (activeTab && activeTab.connId !== connection.id
+            && !(await this.transactionStore.confirmLeave(activeTab.id))) return;
+          if (activeTab) this.tabStore.setConnection(activeTab.id, connection.id);
+          void this.connectionStore.ensureConnected(connection.id);
         },
       });
     }
-    for (const cmd of this.cmds.list()) {
-      items.push({ id: `cmd:${cmd.id}`, group: 'Commands', label: cmd.label, hint: cmd.hint, run: cmd.run });
+    for (const command of this.commandService.list()) {
+      items.push({
+        id: `cmd:${command.id}`, group: 'Commands', label: command.label, hint: command.hint, run: command.run,
+      });
     }
     return items;
   });
 
   public readonly results = computed(() => {
-    const raw = this.query();
-    if (raw.startsWith('>')) return rankItems(raw.slice(1), this.items().filter((i) => i.group === 'Commands'));
-    const ranked = rankItems(raw, this.items());
-    if (!raw.trim()) {
+    const rawQuery = this.query();
+    if (rawQuery.startsWith('>')) {
+      const commandItems = this.items().filter((item) => item.group === 'Commands');
+      return rankItems(rawQuery.slice(1), commandItems);
+    }
+    const ranked = rankItems(rawQuery, this.items());
+    if (!rawQuery.trim()) {
       // Without a query: tabs, connections and commands only (tables would flood the list).
-      return ranked.filter((i) => i.group !== 'Tables');
+      return ranked.filter((item) => item.group !== 'Tables');
     }
     // Group results while keeping score order inside each group.
-    return [...ranked].sort((a, b) => GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group));
+    return [...ranked].sort((first, second) => GROUP_ORDER.indexOf(first.group) - GROUP_ORDER.indexOf(second.group));
   });
 
-  public setQuery(q: string) {
-    this.query.set(q);
-    this.index.set(0);
+  public setQuery(query: string) {
+    this.query.set(query);
+    this.selectedIndex.set(0);
   }
 
-  private openTable(connId: string, database: string, t: DbTable) {
-    this.ui.sidebarOpen.set(true);
-    this.ui.reveal.set({ connId, database, schema: t.schema, table: t.name });
-    this.cmds.openTableData(connId, database, t);
+  private openTableData(connectionId: string, database: string, table: DbTable) {
+    this.uiState.sidebarOpen.set(true);
+    this.uiState.reveal.set({ connId: connectionId, database, schema: table.schema, table: table.name });
+    this.commandService.openTableData(connectionId, database, table);
   }
 
-  public choose(it: PaletteItem, alt: boolean) {
+  public choose(item: PaletteItem, alternate: boolean) {
     this.close();
-    (alt && it.alt ? it.alt : it.run)();
+    if (alternate && item.alternateRun) item.alternateRun();
+    else item.run();
   }
 
-  public close() { this.ui.paletteOpen.set(false); }
+  public close() { this.uiState.paletteOpen.set(false); }
 
-  public onKey(e: KeyboardEvent) {
-    const n = this.results().length;
-    switch (e.key) {
-      case 'ArrowDown': this.index.set(n ? (this.index() + 1) % n : 0); break;
-      case 'ArrowUp': this.index.set(n ? (this.index() - 1 + n) % n : 0); break;
+  public onKey(event: KeyboardEvent) {
+    const count = this.results().length;
+    switch (event.key) {
+      case 'ArrowDown': this.selectedIndex.set(count ? (this.selectedIndex() + 1) % count : 0); break;
+      case 'ArrowUp': this.selectedIndex.set(count ? (this.selectedIndex() - 1 + count) % count : 0); break;
       case 'Enter': {
-        const it = this.results()[this.index()];
-        if (it) this.choose(it, e.altKey);
+        const item = this.results()[this.selectedIndex()];
+        if (item) this.choose(item, event.altKey);
         break;
       }
       case 'Escape': this.close(); break;
       default: return;
     }
-    e.preventDefault();
-    e.stopPropagation();
-    queueMicrotask(() => this.list().nativeElement.querySelector(`#pi-${this.index()}`)?.scrollIntoView({ block: 'nearest' }));
+    event.preventDefault();
+    event.stopPropagation();
+    queueMicrotask(() => {
+      this.resultList().nativeElement
+        .querySelector(`#pi-${this.selectedIndex()}`)
+        ?.scrollIntoView({ block: 'nearest' });
+    });
   }
 }

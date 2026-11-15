@@ -4,19 +4,20 @@
     <span class="glass" aria-hidden="true">⌕</span>
     <input #input class="q" [value]="query()" (input)="setQuery($any($event.target).value)"
            placeholder="Search tables, tabs and connections; type > for commands" spellcheck="false" autocomplete="off"
-           role="combobox" aria-controls="palette-list" [attr.aria-activedescendant]="'pi-' + index()" />
+           role="combobox" aria-controls="palette-list" [attr.aria-activedescendant]="'pi-' + selectedIndex()" />
   </div>
   <div class="list" id="palette-list" role="listbox" #list>
-    @for (it of results(); track it.id; let i = $index) {
-      @if (i === 0 || results()[i - 1].group !== it.group) {
-        <div class="group">{{ it.group }}</div>
+    @for (item of results(); track item.id; let index = $index) {
+      @if (index === 0 || results()[index - 1].group !== item.group) {
+        <div class="group">{{ item.group }}</div>
       }
-      <div class="item" role="option" [id]="'pi-' + i" [class.on]="i === index()" [attr.aria-selected]="i === index()"
-           (mousemove)="index.set(i)" (click)="choose(it, false)">
-        @if (it.color) { <span class="dot" [style.background]="it.color"></span> }
-        <span class="label ellipsis">{{ it.label }}</span>
-        @if (it.detail) { <span class="detail ellipsis">{{ it.detail }}</span> }
-        @if (it.hint) { <span class="hint">{{ it.hint }}</span> }
+      <div class="item" role="option" [id]="'pi-' + index" [class.on]="index === selectedIndex()"
+           [attr.aria-selected]="index === selectedIndex()"
+           (mousemove)="selectedIndex.set(index)" (click)="choose(item, false)">
+        @if (item.color) { <span class="dot" [style.background]="item.color"></span> }
+        <span class="label ellipsis">{{ item.label }}</span>
+        @if (item.detail) { <span class="detail ellipsis">{{ item.detail }}</span> }
+        @if (item.hint) { <span class="hint">{{ item.hint }}</span> }
       </div>
     } @empty {
       <div class="none">{{ loadingTables() ? 'Loading tables…' : 'No matches' }}</div>
@@ -27,6 +28,6 @@
     <span><span class="kbd">↵</span> open</span>
     <span><span class="kbd">⌥↵</span> insert table name</span>
     <span class="spacer"></span>
-    <span><span class="kbd">{{ mod }}P</span> toggle</span>
+    <span><span class="kbd">{{ modifierKey }}P</span> toggle</span>
   </div>
 </div>

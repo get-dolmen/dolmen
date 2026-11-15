@@ -1,0 +1,83 @@
+<div class="head">
+  <button class="toggle" (click)="toggle()" [attr.aria-expanded]="!collapsed()">
+    <span class="chev" [class.open]="!collapsed()">›</span>
+    <span class="title">Scratches</span>
+    <span class="count">{{ store.list().length }}</span>
+  </button>
+  <span class="spacer"></span>
+  <button class="ib" (click)="cmds.newTab()" title="New scratch" aria-label="New scratch"><dm-icon name="plus" [size]="14" /></button>
+  <button class="ib" (click)="store.importFile()" title="Open a .sql file as scratch" aria-label="Open a SQL file"><dm-icon name="folderOpen" [size]="14" /></button>
+  <button class="ib" (click)="ui.toggleScratchPosition()"
+          [title]="ui.scratchPosition() === 'left' ? 'Move scratches under the explorer' : 'Move scratches to a left panel'"
+          [attr.aria-label]="ui.scratchPosition() === 'left' ? 'Dock scratches in the explorer' : 'Dock scratches on the left'">
+    <dm-icon [name]="ui.scratchPosition() === 'left' ? 'panelBottom' : 'panelLeft'" [size]="14" />
+  </button>
+</div>
+
+@if (!collapsed()) {
+  <div class="list" role="tree">
+    @for (r of rows(); track r.node.key) {
+      @if (r.node.kind === 'folder') {
+        @let f = r.node;
+        <div class="row folder" role="treeitem" [attr.aria-expanded]="r.open" [style.padding-left.px]="8 + r.depth * 14"
+             [class.drop]="dropKey() === f.key" (click)="toggleFolder(f.key)" (contextmenu)="openFolderMenu($event, f)"
+             (dragover)="onDragOver($event, f)" (dragleave)="dropKey() === f.key && dropKey.set('')" (drop)="onDrop($event, f)"
+             [title]="folderTitle(f)">
+          <span class="chev" [class.open]="r.open">›</span>
+          @switch (f.level) {
+            @case ('conn') { <span class="dot" [style.background]="f.color"></span> }
+            @case ('db') { <svg class="ficon db" width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><ellipse cx="8" cy="3.5" rx="5.5" ry="2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M2.5 3.5v9c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2v-9M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg> }
+            @case ('table') { <dm-icon name="table" [size]="13" class="ficon tbl" /> }
+            @default { <span class="dot none"></span> }
+          }
+          <span class="label ellipsis" [class.strong]="f.level === 'conn'">{{ f.label }}</span>
+          @if (f.detail) { <span class="detail ellipsis">{{ f.detail }}</span> }
+          <span class="n">{{ f.count }}</span>
+        </div>
+      } @else {
+        @let s = r.node.scratch;
+        <div class="row file" role="treeitem" tabindex="0" [attr.draggable]="s.locked ? null : 'true'" [style.padding-left.px]="8 + r.depth * 14 + 14"
+             [class.open]="store.openIds().has(s.id)" [class.active]="s.id === tabs.activeId()"
+             (click)="editing() !== s.id && store.open(s.id)" (keydown.enter)="store.open(s.id)" (keydown.f2)="editing.set(s.id)"
+             (contextmenu)="openFileMenu($event, s)" (dragstart)="onDragStart($event, s)" (dragend)="dropKey.set('')"
+             [title]="(s.preview || s.name) + (s.locked ? '\\nLocked to its connection and database' : '\\nDrag onto a folder to move it')">
+          <dm-icon name="file" [size]="14" class="fi" />
+          @if (editing() === s.id) {
+            <input class="rename" dmAutofocus [value]="s.name" (click)="$event.stopPropagation()"
+                   (keydown.enter)="rename(s, $any($event.target).value)" (keydown.escape)="editing.set('')"
+                   (blur)="rename(s, $any($event.target).value)" />
+          } @else {
+            <span class="label ellipsis">{{ s.name }}</span>
+            @if (s.locked) { <dm-icon name="lock" [size]="12" class="lock" /> }
+            <span class="when">{{ ago(s.updatedAt) }}</span>
+          }
+        </div>
+      }
+    } @empty {
+      <p class="empty">{{ filter() ? 'No scratch matches the filter.' : 'No scratch files yet.' }}</p>
+    }
+  </div>
+}
+
+@if (menu(); as m) {
+  <div class="menu" [style.left.px]="m.x" [style.top.px]="m.y" (dmClickOutside)="menu.set(null)">
+    @if (m.kind === 'file') {
+      <button class="menu-item" (click)="act('open')">Open</button>
+      <button class="menu-item" (click)="act('rename')">Rename<span class="hint">F2</span></button>
+      <button class="menu-item" (click)="act(m.s.locked ? 'unlock' : 'lock')">{{ m.s.locked ? 'Unlock database' : 'Lock to its database' }}</button>
+      <button class="menu-item" (click)="act('duplicate')">Duplicate</button>
+      <button class="menu-item" (click)="act('export')">Save as file…</button>
+      @if (m.s.table) {
+        <button class="menu-item" (click)="act('untable')">Move out of “{{ m.s.table }}”</button>
+      }
+      <div class="menu-sep"></div>
+      <button class="menu-item danger" (click)="act('delete')">Delete…</button>
+    } @else {
+      @if (m.f.level !== 'none') {
+        <button class="menu-item" (click)="act('new')">New scratch here</button>
+      }
+      <button class="menu-item" (click)="act('collapse')">Collapse all</button>
+      <button class="menu-item" (click)="act('expand')">Expand all</button>
+    }
+  </div>
+}

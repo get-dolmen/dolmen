@@ -42,7 +42,11 @@ export class Topbar {
 
   kind(c: ConnectionView) { return KIND_LABELS[c.kind]; }
 
-  openMenu(e: MouseEvent) {
+  toggleMenu(e: MouseEvent) {
+    if (this.menu()) {
+      this.menu.set(null);
+      return;
+    }
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     this.menu.set(clampMenu(r.left, r.bottom + 4, 260, 320));
   }

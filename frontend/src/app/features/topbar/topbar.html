@@ -1,5 +1,7 @@
 <div class="left">
-  <button class="conn nodrag" (click)="openMenu($event)" title="Connection used by this tab">
+  <!-- Keep the click-outside handler from closing the menu before this click toggles it. -->
+  <button class="conn nodrag" (mousedown)="$event.stopPropagation()" (click)="toggleMenu($event)"
+          title="Connection used by this tab">
     @if (conn(); as c) {
       <span class="dot" [style.background]="c.color" [class.off]="!c.connected"></span>
       <span class="ellipsis">{{ c.name }}</span>

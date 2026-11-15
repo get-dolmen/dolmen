@@ -21,8 +21,8 @@ export interface EditorTab {
   dirty: boolean;
 }
 
-const CONTENT_SAVE_MS = 600;
-const LAYOUT_SAVE_MS = 300;
+const CONTENT_SAVE_DELAY_MS = 600;
+const LAYOUT_SAVE_DELAY_MS = 300;
 
 /** Scratch tabs: each is a .sql file persisted by the backend. */
 @Injectable({ providedIn: 'root' })
@@ -32,41 +32,41 @@ export class TabStore {
 
   public readonly tabs = signal<EditorTab[]>([]);
   public readonly activeId = signal<string>('');
-  public readonly active = computed(() => this.tabs().find((t) => t.id === this.activeId()));
+  public readonly active = computed(() => this.tabs().find((tab) => tab.id === this.activeId()));
   public readonly loaded = signal(false);
 
   private contentTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  /** Content writes in flight, so a close or delete can wait for them. */
+  /** Content saves in flight, so a close or delete can wait for them. */
   private contentSaves = new Map<string, Set<Promise<void>>>();
   private layoutTimer?: ReturnType<typeof setTimeout>;
 
   public async load() {
     try {
-      const ws = await this.api.loadWorkspace();
-      this.tabs.set(ws.tabs.map((t) => ({
-        id: t.id, name: t.name, connId: t.connId, database: t.database ?? '', content: t.content ?? '', dirty: false,
-        kind: t.kind === 'table' ? 'table' : 'sql', txMode: t.txMode === 'manual' ? 'manual' : 'auto',
-        locked: !!t.locked,
-        table: t.kind === 'table' ? { schema: t.schema ?? '', name: t.table ?? '', type: t.tableType ?? 'table' } : undefined,
+      const workspace = await this.api.loadWorkspace();
+      this.tabs.set(workspace.tabs.map((tab) => ({
+        id: tab.id, name: tab.name, connId: tab.connId, database: tab.database ?? '', content: tab.content ?? '', dirty: false,
+        kind: tab.kind === 'table' ? 'table' : 'sql', txMode: tab.txMode === 'manual' ? 'manual' : 'auto',
+        locked: !!tab.locked,
+        table: tab.kind === 'table' ? { schema: tab.schema ?? '', name: tab.table ?? '', type: tab.tableType ?? 'table' } : undefined,
       })));
-      this.activeId.set(ws.tabs.some((t) => t.id === ws.activeId) ? ws.activeId : ws.tabs[0]?.id ?? '');
-    } catch (e) {
-      this.toasts.error(errorText(e));
+      this.activeId.set(workspace.tabs.some((tab) => tab.id === workspace.activeId) ? workspace.activeId : workspace.tabs[0]?.id ?? '');
+    } catch (error) {
+      this.toasts.error(errorText(error));
     }
     this.loaded.set(true);
   }
 
-  public get(id: string) { return this.tabs().find((t) => t.id === id); }
+  public get(id: string) { return this.tabs().find((tab) => tab.id === id); }
 
   public create(connId = '', content = '', name?: string, database = ''): EditorTab {
     return this.insert({ id: crypto.randomUUID(), name: name ?? this.nextName(), connId, database, kind: 'sql', txMode: 'auto', locked: false, content, dirty: !!content });
   }
 
   /** Opens an existing scratch file in a new tab. */
-  public openScratch(t: TabState): EditorTab {
+  public openScratch(tab: TabState): EditorTab {
     return this.insert({
-      id: t.id, name: t.name, connId: t.connId, database: t.database ?? '', kind: 'sql', txMode: 'auto', locked: !!t.locked,
-      content: t.content ?? '', dirty: false,
+      id: tab.id, name: tab.name, connId: tab.connId, database: tab.database ?? '', kind: 'sql', txMode: 'auto', locked: !!tab.locked,
+      content: tab.content ?? '', dirty: false,
     }, false);
   }
 
@@ -86,10 +86,10 @@ export class TabStore {
 
   private insert(tab: EditorTab, save = true): EditorTab {
     const content = save ? tab.content : '';
-    const idx = this.tabs().findIndex((t) => t.id === this.activeId());
-    const list = [...this.tabs()];
-    list.splice(idx + 1, 0, tab);
-    this.tabs.set(list);
+    const insertionIndex = this.tabs().findIndex((tab) => tab.id === this.activeId());
+    const tabs = [...this.tabs()];
+    tabs.splice(insertionIndex + 1, 0, tab);
+    this.tabs.set(tabs);
     this.activeId.set(tab.id);
     if (content) this.scheduleContentSave(tab.id);
     this.saveLayoutSoon();
@@ -104,28 +104,28 @@ export class TabStore {
   }
 
   public activateRelative(delta: number) {
-    const list = this.tabs();
-    const i = list.findIndex((t) => t.id === this.activeId());
-    if (i < 0 || list.length < 2) return;
-    this.activate(list[(i + delta + list.length) % list.length].id);
+    const tabs = this.tabs();
+    const i = tabs.findIndex((tab) => tab.id === this.activeId());
+    if (i < 0 || tabs.length < 2) return;
+    this.activate(tabs[(i + delta + tabs.length) % tabs.length].id);
   }
 
   public async close(id: string) {
-    const list = this.tabs();
-    const i = list.findIndex((t) => t.id === id);
+    const tabs = this.tabs();
+    const i = tabs.findIndex((tab) => tab.id === id);
     if (i < 0) return;
     // Wait for a pending write: deleting the scratch right after must not race
     // with it, or the write would recreate the file.
     await this.flush(id);
     if (!this.get(id)) return;
-    const rest = this.tabs().filter((t) => t.id !== id);
-    if (this.activeId() === id) this.activeId.set(rest[Math.min(i, rest.length - 1)]?.id ?? '');
-    this.tabs.set(rest);
+    const remaining = this.tabs().filter((tab) => tab.id !== id);
+    if (this.activeId() === id) this.activeId.set(remaining[Math.min(i, remaining.length - 1)]?.id ?? '');
+    this.tabs.set(remaining);
     this.saveLayoutSoon();
     try {
       await this.api.closeTab(id);
-    } catch (e) {
-      this.toasts.error(errorText(e));
+    } catch (error) {
+      this.toasts.error(errorText(error));
     }
   }
 
@@ -136,23 +136,23 @@ export class TabStore {
     this.saveLayoutSoon();
   }
 
-  public move(from: number, to: number) {
-    const list = [...this.tabs()];
-    const [t] = list.splice(from, 1);
-    list.splice(to, 0, t);
-    this.tabs.set(list);
+  public move(fromIndex: number, toIndex: number) {
+    const tabs = [...this.tabs()];
+    const [tab] = tabs.splice(fromIndex, 1);
+    tabs.splice(toIndex, 0, tab);
+    this.tabs.set(tabs);
     this.saveLayoutSoon();
   }
 
-  public setConnection(id: string, connId: string, database = '') {
-    const t = this.get(id);
-    if (!t) return;
-    if (t.locked) {
-      this.toasts.error(`${t.name} is locked to its connection and database. Unlock it first.`);
+  public setConnection(id: string, connectionId: string, database = '') {
+    const tab = this.get(id);
+    if (!tab) return;
+    if (tab.locked) {
+      this.toasts.error(`${tab.name} is locked to its connection and database. Unlock it first.`);
       return;
     }
-    if (t.connId === connId && t.database === database) return;
-    this.patch(id, { connId, database });
+    if (tab.connId === connectionId && tab.database === database) return;
+    this.patch(id, { connId: connectionId, database });
     void this.api.releaseTabSession(id);
     this.saveLayoutSoon();
   }
@@ -176,34 +176,34 @@ export class TabStore {
   }
 
   public setContent(id: string, content: string) {
-    const t = this.get(id);
-    if (!t || t.content === content) return;
+    const tab = this.get(id);
+    if (!tab || tab.content === content) return;
     this.patch(id, { content, dirty: true });
     this.scheduleContentSave(id);
   }
 
   /** Takes a version that is already on disk (pulled by git sync) without marking it dirty. */
   public adoptContent(id: string, content: string) {
-    const t = this.get(id);
-    if (!t || t.content === content) return;
+    const tab = this.get(id);
+    if (!tab || tab.content === content) return;
     this.patch(id, { content, dirty: false });
   }
 
-  /** Writes pending content immediately and waits for writes already in flight. */
+  /** Writes pending content immediately and waits for pendingWrites already in flight. */
   public flush(id?: string): Promise<unknown> {
-    const ids = id ? [id] : [...new Set([...this.contentTimers.keys(), ...this.contentSaves.keys()])];
-    const writes: Promise<unknown>[] = [];
-    for (const tid of ids) {
-      const inFlight = [...(this.contentSaves.get(tid) ?? [])];
-      const timer = this.contentTimers.get(tid);
+    const tabIds = id ? [id] : [...new Set([...this.contentTimers.keys(), ...this.contentSaves.keys()])];
+    const pendingWrites: Promise<unknown>[] = [];
+    for (const tabId of tabIds) {
+      const inFlightSaves = [...(this.contentSaves.get(tabId) ?? [])];
+      const timer = this.contentTimers.get(tabId);
       if (timer) {
         clearTimeout(timer);
-        this.contentTimers.delete(tid);
-        writes.push(this.startContentSave(tid));
+        this.contentTimers.delete(tabId);
+        pendingWrites.push(this.startContentSave(tabId));
       }
-      writes.push(...inFlight);
+      pendingWrites.push(...inFlightSaves);
     }
-    return Promise.all(writes);
+    return Promise.all(pendingWrites);
   }
 
   private scheduleContentSave(id: string) {
@@ -211,37 +211,37 @@ export class TabStore {
     this.contentTimers.set(id, setTimeout(() => {
       this.contentTimers.delete(id);
       void this.startContentSave(id);
-    }, CONTENT_SAVE_MS));
+    }, CONTENT_SAVE_DELAY_MS));
   }
 
   private startContentSave(id: string): Promise<void> {
-    const save = this.saveContent(id).finally(() => {
-      const set = this.contentSaves.get(id);
-      if (!set) return;
-      set.delete(save);
-      if (!set.size) this.contentSaves.delete(id);
+    const pendingSave = this.saveContent(id).finally(() => {
+      const saves = this.contentSaves.get(id);
+      if (!saves) return;
+      saves.delete(pendingSave);
+      if (!saves.size) this.contentSaves.delete(id);
     });
-    const set = this.contentSaves.get(id) ?? new Set<Promise<void>>();
-    set.add(save);
-    this.contentSaves.set(id, set);
-    return save;
+    const saves = this.contentSaves.get(id) ?? new Set<Promise<void>>();
+    saves.add(pendingSave);
+    this.contentSaves.set(id, saves);
+    return pendingSave;
   }
 
   private async saveContent(id: string) {
-    const t = this.get(id);
-    if (!t) return;
-    const content = t.content;
+    const tab = this.get(id);
+    if (!tab) return;
+    const content = tab.content;
     try {
       await this.api.saveTabContent(id, content);
       if (this.get(id)?.content === content) this.patch(id, { dirty: false });
-    } catch (e) {
-      this.toasts.error(`Could not save ${t.name}: ${errorText(e)}`);
+    } catch (error) {
+      this.toasts.error(`Could not save ${tab.name}: ${errorText(error)}`);
     }
   }
 
   private saveLayoutSoon() {
     clearTimeout(this.layoutTimer);
-    this.layoutTimer = setTimeout(() => void this.saveLayout(), LAYOUT_SAVE_MS);
+    this.layoutTimer = setTimeout(() => void this.saveLayout(), LAYOUT_SAVE_DELAY_MS);
   }
 
   /**
@@ -254,29 +254,29 @@ export class TabStore {
   }
 
   private async saveLayout() {
-    const ws = {
+    const workspace = {
       activeId: this.activeId(),
-      tabs: this.tabs().map((t) => ({
-        id: t.id, name: t.name, connId: t.connId, database: t.database || undefined,
-        kind: t.kind === 'table' ? ('table' as const) : undefined,
-        schema: t.table?.schema, table: t.table?.name, tableType: t.table?.type,
-        txMode: t.txMode === 'manual' ? ('manual' as const) : undefined,
-        locked: t.locked || undefined,
+      tabs: this.tabs().map((tab) => ({
+        id: tab.id, name: tab.name, connId: tab.connId, database: tab.database || undefined,
+        kind: tab.kind === 'table' ? ('table' as const) : undefined,
+        schema: tab.table?.schema, table: tab.table?.name, tableType: tab.table?.type,
+        txMode: tab.txMode === 'manual' ? ('manual' as const) : undefined,
+        locked: tab.locked || undefined,
       })),
     };
     try {
-      await this.api.saveWorkspaceLayout(ws);
-    } catch (e) {
-      this.toasts.error(errorText(e));
+      await this.api.saveWorkspaceLayout(workspace);
+    } catch (error) {
+      this.toasts.error(errorText(error));
     }
   }
 
-  private patch(id: string, p: Partial<EditorTab>) {
-    this.tabs.update((ts) => ts.map((t) => (t.id === id ? { ...t, ...p } : t)));
+  private patch(id: string, changes: Partial<EditorTab>) {
+    this.tabs.update((tabs) => tabs.map((tab) => (tab.id === id ? { ...tab, ...changes } : tab)));
   }
 
   private nextName(): string {
-    const used = new Set([...this.tabs().map((t) => t.name), ...this.takenNames()]);
+    const used = new Set([...this.tabs().map((tab) => tab.name), ...this.takenNames()]);
     for (let i = 1; ; i++) {
       const n = `query${i}.sql`;
       if (!used.has(n)) return n;

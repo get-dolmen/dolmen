@@ -48,11 +48,11 @@ export class SchemaStore {
   private connectionStore = inject(ConnectionStore);
 
   public readonly schemasByScope = signal<Record<string, ConnectionSchema>>({});
-  readonly databases = signal<Record<string, ServerDatabases>>({});
+  public readonly databases = signal<Record<string, ServerDatabases>>({});
   public readonly loading = signal<ReadonlySet<string>>(new Set());
   private inflight = new Map<string, Promise<unknown>>();
 
-  constructor() {
+  public constructor() {
     this.connectionStore.onChange((id, connected) => {
       this.invalidate(id);
       if (connected) void this.loadDatabases(id).then(() => this.loadSchemas(id));

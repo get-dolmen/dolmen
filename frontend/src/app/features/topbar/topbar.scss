@@ -22,7 +22,8 @@
   border: 1px solid var(--accent); border-radius: var(--radius);
   background: var(--bg-panel); cursor: pointer; font-weight: 500;
 }
-.conn:hover { background: var(--accent-soft); }
+.conn:hover,
+.conn.open { background: var(--accent-soft); }
 
 .db { color: var(--text-muted); font-weight: 400; }
 .lock { color: var(--warn); flex: none; }

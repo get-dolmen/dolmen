@@ -22,12 +22,12 @@ export interface PromptOptions {
   `,
 })
 export class PromptDialog {
-  public readonly ref = inject<DialogRef<string | null>>(DialogRef);
-  public readonly data = inject<PromptOptions>(DIALOG_DATA);
+  public readonly dialogRef = inject<DialogRef<string | null>>(DialogRef);
+  public readonly options = inject<PromptOptions>(DIALOG_DATA);
 
-  public done(value: string) {
-    const v = value.trim();
-    if (v) this.ref.close(v);
+  public submit(value: string) {
+    const text = value.trim();
+    if (text) this.dialogRef.close(text);
   }
 }
 
@@ -37,7 +37,11 @@ export class Prompt {
 
   /** Resolves with the trimmed text, or null when cancelled. */
   public ask(options: PromptOptions): Promise<string | null> {
-    const ref = this.dialog.open<string | null, PromptOptions>(PromptDialog, { data: options, width: '420px', maxWidth: '92vw' });
-    return new Promise((resolve) => ref.closed.subscribe((v) => resolve(v ?? null)));
+    const dialogRef = this.dialog.open<string | null, PromptOptions>(PromptDialog, {
+      data: options,
+      width: '420px',
+      maxWidth: '92vw',
+    });
+    return new Promise((resolve) => dialogRef.closed.subscribe((value) => resolve(value ?? null)));
   }
 }

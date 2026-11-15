@@ -44,53 +44,7 @@ type DragItem = { kind: 'conn'; id: string; name: string } | { kind: 'folder'; i
   selector: 'dm-schema-sidebar',
   imports: [FormsModule, ClickOutside, Autofocus, Icon, ScratchList],
   templateUrl: './schema-sidebar.html',
-  styles: `
-    :host { display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
-    .head { display: flex; align-items: center; height: 34px; padding: 0 6px 0 12px; flex: none; }
-    .title { font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
-    .filter { padding: 0 8px 6px; flex: none; }
-    .filter .input { height: 26px; background: var(--bg-panel); }
-    .tree { flex: 1 1 0; min-height: 40px; overflow: auto; padding-bottom: 12px; }
-    .tree.rootdrop { box-shadow: inset 0 0 0 1px var(--accent); }
-    .scratches { flex: 0 0 auto; min-height: 32px; max-height: 45%; }
-    .row { display: flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px 0 6px; cursor: pointer; white-space: nowrap; outline: none; }
-    .row:hover { background: var(--bg-hover); }
-    .row.sel:focus-visible, .row.sel:focus { background: var(--accent-soft); box-shadow: none; }
-    .row.hl { background: var(--accent-soft); }
-    .row.conn { height: 28px; font-weight: 600; margin-top: 2px; }
-    .row.folder { font-weight: 500; }
-    .row.drop { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
-    .row[draggable='true'] { cursor: grab; }
-    .row[draggable='true']:active { cursor: grabbing; }
-    .ficon { color: var(--text-faint); flex: none; }
-    .rename { flex: 1; min-width: 0; height: 20px; padding: 0 4px; border: 1px solid var(--accent); border-radius: 3px; background: var(--bg-panel); outline: none; font-size: var(--fs); }
-    .row.col { cursor: default; font-size: var(--fs-sm); }
-    .row.note { cursor: default; font-size: var(--fs-xs); font-style: italic; }
-    .chev { width: 12px; flex: none; text-align: center; color: var(--text-faint); transition: transform 0.12s; font-size: 14px; line-height: 1; }
-    .chev.open { transform: rotate(90deg); }
-    .chev.toggle { width: 16px; margin: 0 -2px; border-radius: 3px; cursor: pointer; }
-    .chev.toggle:hover { color: var(--text); background: var(--bg-active); }
-    /* Submenus open to the left: the explorer sits at the right edge of the window. */
-    .menu .menu-item:disabled { opacity: 0.45; cursor: default; background: none; }
-    .menu-sub { position: relative; }
-    .menu-sub > .menu.sub { display: none; position: absolute; top: -5px; right: calc(100% - 2px); left: auto; min-width: 180px; }
-    .menu-sub:hover > .menu.sub, .menu-sub:focus-within > .menu.sub { display: block; }
-    .menu-sub:hover > .menu-item { background: var(--bg-hover); }
-    .dot.off { opacity: 0.35; }
-    .icon { width: 14px; flex: none; text-align: center; color: var(--text-faint); font-size: 12px; }
-    .icon.db { color: var(--accent); }
-    .icon.view { color: var(--warn); }
-    .icon.pk { color: var(--warn); }
-    .name { min-width: 0; }
-    .name.strong { font-weight: 600; }
-    .count { flex: none; padding: 0 5px; height: 16px; line-height: 14px; border: 1px solid var(--border); border-radius: 4px;
-             font-size: 10.5px; font-weight: 500; color: var(--text-faint); font-variant-numeric: tabular-nums; }
-    .kind { margin-left: auto; font-size: var(--fs-xs); font-weight: 400; padding-left: 6px; }
-    .type { margin-left: auto; padding-left: 8px; font-family: var(--font-mono); font-size: 11px; max-width: 55%; }
-    .spin { width: 10px; height: 10px; border: 1.5px solid var(--border-strong); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; flex: none; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .empty { padding: 28px 16px; text-align: center; color: var(--text-muted); }
-  `,
+  styleUrl: './schema-sidebar.scss',
 })
 export class SchemaSidebar {
   readonly cmds = inject(Commands);

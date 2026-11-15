@@ -4,10 +4,10 @@ import { Directive, ElementRef, afterNextRender, inject } from '@angular/core';
 @Directive({ selector: 'input[dmAutofocus]' })
 export class Autofocus {
   public constructor() {
-    const el = inject<ElementRef<HTMLInputElement>>(ElementRef).nativeElement;
+    const element = inject<ElementRef<HTMLInputElement>>(ElementRef).nativeElement;
     afterNextRender(() => {
-      el.focus();
-      el.select();
+      element.focus();
+      element.select();
     });
   }
 }

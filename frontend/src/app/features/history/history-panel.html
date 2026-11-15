@@ -1,0 +1,27 @@
+<div class="bar">
+  <input class="input sm" type="search" placeholder="Search history…" [ngModel]="search()" (ngModelChange)="search.set($event)" />
+  <label class="scope"><input type="checkbox" [ngModel]="allConns()" (ngModelChange)="allConns.set($event)" /> All connections</label>
+  <span class="spacer"></span>
+  <button class="btn ghost sm" (click)="reload()">Refresh</button>
+  <button class="btn ghost sm danger" (click)="clear()" [disabled]="!entries().length">Clear</button>
+</div>
+<div class="list">
+  @for (e of entries(); track e.id) {
+    <div class="entry" [class.err]="e.status !== 'ok'" (dblclick)="insert(e)" title="Double-click to insert into the editor">
+      <div class="meta">
+        <span class="status" [attr.data-s]="e.status"></span>
+        <span>{{ e.startedAt | date: 'MMM d, HH:mm:ss' }}</span>
+        @if (allConns()) { <span class="faint">· {{ connName(e.connId) }}</span> }
+        <span class="faint">· {{ e.durationMs.toLocaleString() }} ms</span>
+        @if (e.status === 'ok' && e.rows >= 0) { <span class="faint">· {{ e.rows.toLocaleString() }} rows</span> }
+        <span class="spacer"></span>
+        <button class="btn ghost sm" (click)="insert(e)">Insert</button>
+        <button class="btn ghost sm" (click)="cmds.copy(e.sql)">Copy</button>
+      </div>
+      <pre class="sql">{{ e.sql }}</pre>
+      @if (e.error) { <div class="error">{{ e.error }}</div> }
+    </div>
+  } @empty {
+    <p class="empty muted">{{ loading() ? 'Loading…' : 'No history yet. Statements you run appear here.' }}</p>
+  }
+</div>

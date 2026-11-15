@@ -17,52 +17,7 @@ import { Topbar } from './features/topbar/topbar';
 @Component({
   selector: 'app-root',
   imports: [Topbar, TabBar, SqlEditor, ResultsPanelComponent, SchemaSidebar, ScratchList, Statusbar, Palette, TableData],
-  template: `
-    <dm-topbar />
-    <div class="main">
-      @if (ui.scratchPosition() === 'left' && ui.scratchOpen()) {
-        <dm-scratch-list class="scratch-left" [style.width.px]="ui.scratchWidth()" />
-        <div class="split v" role="separator" aria-orientation="vertical" aria-label="Resize scratches"
-             (pointerdown)="dragScratches($event)" (dblclick)="ui.scratchWidth.set(260)"></div>
-      }
-      <section class="work" [class.ro]="readOnly()">
-        <dm-tab-bar />
-        <!-- SQL tabs share one editor; it stays mounted (hidden) while a data tab is active. -->
-        <div class="sql" #work [hidden]="!tabs.active() || tabs.active()?.kind === 'table'">
-          <!-- Inline mode shows results inside the editor, so it takes the whole height. -->
-          <dm-sql-editor class="editor" [class.full]="ui.inlineResults()" [style.flex-basis.%]="ui.inlineResults() ? 100 : ui.editorRatio() * 100" />
-          @if (!ui.inlineResults()) {
-            <div class="split h" role="separator" aria-orientation="horizontal" aria-label="Resize editor and results"
-                 (pointerdown)="dragRows($event)" (dblclick)="ui.editorRatio.set(0.55)"></div>
-            @if (tabs.active(); as t) {
-              @if (t.kind === 'sql') {
-                <dm-results-panel class="results" [tabId]="t.id" [connId]="t.connId" />
-              }
-            }
-          }
-        </div>
-        @if (!tabs.active()) {
-          <div class="welcome">
-            <p>No tab open.</p>
-            <button class="btn primary" (click)="cmds.newTab()">New tab</button>
-          </div>
-        }
-        <!-- One data editor per table tab, kept alive so pending edits survive tab switches. -->
-        @for (t of tableTabs(); track t.id) {
-          <dm-table-data class="data" [tab]="t" [hidden]="t.id !== tabs.activeId()" />
-        }
-      </section>
-      @if (ui.sidebarOpen()) {
-        <div class="split v" role="separator" aria-orientation="vertical" aria-label="Resize explorer"
-             (pointerdown)="dragSidebar($event)" (dblclick)="ui.sidebarWidth.set(280)"></div>
-        <dm-schema-sidebar class="sidebar" [style.width.px]="ui.sidebarWidth()" />
-      }
-    </div>
-    <dm-statusbar />
-    @if (ui.paletteOpen()) {
-      <dm-palette />
-    }
-  `,
+  templateUrl: './app.html',
   styles: `
     :host { display: flex; flex-direction: column; height: 100vh; }
     .main { flex: 1; display: flex; min-height: 0; }

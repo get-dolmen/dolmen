@@ -27,7 +27,7 @@ export class ScratchStore {
   private refreshId = 0;
 
   /** Every scratch, most recently edited first, with open tabs' live names and links. */
-  readonly list = computed<ScratchInfo[]>(() => {
+  public readonly list = computed<ScratchInfo[]>(() => {
     const open = new Map(this.tabs.tabs().filter((t) => t.kind === 'sql').map((t) => [t.id, t]));
     const seen = new Set<string>();
     const out = this.saved().map((s) => {
@@ -43,7 +43,7 @@ export class ScratchStore {
     return out;
   });
 
-  readonly openIds = computed(() => new Set(this.tabs.tabs().map((t) => t.id)));
+  public readonly openIds = computed(() => new Set(this.tabs.tabs().map((t) => t.id)));
 
   constructor() {
     this.tabs.takenNames = () => this.saved().map((s) => s.name);
@@ -54,12 +54,12 @@ export class ScratchStore {
     });
   }
 
-  refreshSoon(ms = 900) {
+  public refreshSoon(ms = 900) {
     clearTimeout(this.timer);
     this.timer = setTimeout(() => void this.refresh(), ms);
   }
 
-  async refresh() {
+  public async refresh() {
     const gen = ++this.refreshId;
     try {
       const list = await this.api.listScratches();
@@ -74,7 +74,7 @@ export class ScratchStore {
    * edits, and closes tabs whose scratch was deleted elsewhere (unless the
    * tab has unsaved changes, which would otherwise be lost).
    */
-  async reloadOpen() {
+  public async reloadOpen() {
     for (const t of this.tabs.tabs().filter((x) => x.kind === 'sql')) {
       try {
         const saved = await this.api.openScratch(t.id);
@@ -104,7 +104,7 @@ export class ScratchStore {
   }
 
   /** Opens a scratch, or focuses its tab when already open. */
-  async open(id: string) {
+  public async open(id: string) {
     if (this.tabs.get(id)) return this.tabs.activate(id);
     try {
       this.tabs.openScratch(await this.api.openScratch(id));
@@ -113,7 +113,7 @@ export class ScratchStore {
     }
   }
 
-  async rename(id: string, name: string) {
+  public async rename(id: string, name: string) {
     name = name.trim();
     if (!name) return;
     await this.tabs.flush(id);
@@ -126,7 +126,7 @@ export class ScratchStore {
     }
   }
 
-  async remove(id: string): Promise<boolean> {
+  public async remove(id: string): Promise<boolean> {
     const s = this.list().find((x) => x.id === id);
     if (!(await this.confirm.ask(`Delete the scratch file “${s?.name ?? id}”? This cannot be undone.`,
       { title: 'Delete scratch file', confirmLabel: 'Delete', danger: true }))) return false;
@@ -144,7 +144,7 @@ export class ScratchStore {
     }
   }
 
-  async duplicate(id: string) {
+  public async duplicate(id: string) {
     await this.tabs.flush(id);
     const src = this.list().find((x) => x.id === id);
     const base = (src?.name ?? 'query.sql').replace(/\.sql$/i, '');
@@ -160,7 +160,7 @@ export class ScratchStore {
   }
 
   /** A name not used by any scratch: "users.sql", "users 2.sql", … */
-  freeName(base: string): string {
+  public freeName(base: string): string {
     base = base.replace(/\.sql$/i, '');
     const taken = new Set(this.list().map((x) => x.name));
     let name = `${base}.sql`;
@@ -169,7 +169,7 @@ export class ScratchStore {
   }
 
   /** Creates a scratch filed under a connection / database / table folder and opens it. */
-  async createIn(where: { connId: string; database: string; schema?: string; table?: string }, content = '', name?: string) {
+  public async createIn(where: { connId: string; database: string; schema?: string; table?: string }, content = '', name?: string) {
     try {
       const t = await this.api.createScratch(crypto.randomUUID(), name ?? this.freeName(where.table || 'query'),
         where.connId, where.database, where.table ? where.schema ?? '' : '', where.table ?? '', content);
@@ -183,7 +183,7 @@ export class ScratchStore {
   }
 
   /** Moves a scratch to another folder. An open tab follows the new connection / database. */
-  async moveTo(id: string, where: { connId: string; database: string; schema: string; table: string }) {
+  public async moveTo(id: string, where: { connId: string; database: string; schema: string; table: string }) {
     const locked = this.tabs.get(id)?.locked ?? this.saved().find((x) => x.id === id)?.locked;
     if (locked) {
       this.toasts.error('This scratch is locked to its connection and database. Unlock it first.');
@@ -203,7 +203,7 @@ export class ScratchStore {
   }
 
   /** Pins or unpins a scratch's connection and database. */
-  async setLocked(id: string, locked: boolean) {
+  public async setLocked(id: string, locked: boolean) {
     try {
       // The backend stores the lock with the scratch: let it see the tab first.
       await this.tabs.flush(id);
@@ -217,7 +217,7 @@ export class ScratchStore {
   }
 
   /** Writes a copy to a .sql file chosen by the user. */
-  async exportFile(id: string) {
+  public async exportFile(id: string) {
     await this.tabs.flush(id);
     try {
       const path = await this.api.exportScratch(id);
@@ -228,7 +228,7 @@ export class ScratchStore {
   }
 
   /** Opens a .sql file from disk as a new scratch, linked to the current tab's connection. */
-  async importFile() {
+  public async importFile() {
     const active = this.tabs.active();
     try {
       const t = await this.api.importScratch(crypto.randomUUID(), active?.connId ?? '', active?.database ?? '');
@@ -241,7 +241,7 @@ export class ScratchStore {
   }
 
   /** ⌘S on a SQL tab: write now (content also autosaves). */
-  async save(id: string) {
+  public async save(id: string) {
     const t = this.tabs.get(id);
     if (!t) return;
     await this.tabs.flush(id);

@@ -1,0 +1,15 @@
+:host { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+.bar .input { max-width: 280px; height: 24px; }
+.scope { display: flex; align-items: center; gap: 4px; font-size: var(--fs-sm); color: var(--text-muted); }
+.list { flex: 1; overflow: auto; }
+.entry { padding: 6px 12px 8px; border-bottom: 1px solid var(--border); }
+.entry:hover { background: var(--bg-hover); }
+.entry:not(:hover) .btn { visibility: hidden; }
+.meta { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--text-muted); height: 22px; }
+.status { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.status[data-s='error'] { background: var(--danger); }
+.status[data-s='cancelled'] { background: var(--warn); }
+.sql { margin: 2px 0 0; font: 12px/1.45 var(--font-mono); white-space: pre-wrap; word-break: break-word; max-height: 7.3em; overflow: hidden; user-select: text; }
+.error { margin-top: 3px; font-size: var(--fs-xs); color: var(--danger); user-select: text; }
+.empty { padding: 24px; text-align: center; }

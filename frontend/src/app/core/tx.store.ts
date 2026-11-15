@@ -17,22 +17,22 @@ export class TxStore {
   private toasts = inject(Toasts);
   private confirm = inject(Confirm);
 
-  readonly status = signal<Record<string, TxStatus>>({});
+  public readonly status = signal<Record<string, TxStatus>>({});
 
-  get(tabId: string): TxStatus { return this.status()[tabId] ?? CLOSED; }
+  public get(tabId: string): TxStatus { return this.status()[tabId] ?? CLOSED; }
 
-  set(tabId: string, st: TxStatus | undefined) {
+  public set(tabId: string, st: TxStatus | undefined) {
     this.status.set({ ...this.status(), [tabId]: st ?? CLOSED });
   }
 
-  forget(tabId: string) {
+  public forget(tabId: string) {
     const s = { ...this.status() };
     delete s[tabId];
     this.status.set(s);
   }
 
   /** Switching mode is refused while a transaction is open. */
-  setMode(tabId: string, mode: TxMode): boolean {
+  public setMode(tabId: string, mode: TxMode): boolean {
     if (this.get(tabId).open) {
       this.toasts.error('Commit or roll back the open transaction first.');
       return false;
@@ -45,7 +45,7 @@ export class TxStore {
    * Before a tab leaves its session (connection or database switch): asks to
    * confirm when a transaction is open, since the backend rolls it back.
    */
-  async confirmLeave(tabId: string): Promise<boolean> {
+  public async confirmLeave(tabId: string): Promise<boolean> {
     const tx = this.get(tabId);
     if (!tx.open) return true;
     if (!(await this.confirm.ask(
@@ -56,8 +56,8 @@ export class TxStore {
     return true;
   }
 
-  commit(tabId = this.tabs.activeId()) { return this.end(tabId, true); }
-  rollback(tabId = this.tabs.activeId()) { return this.end(tabId, false); }
+  public commit(tabId = this.tabs.activeId()) { return this.end(tabId, true); }
+  public rollback(tabId = this.tabs.activeId()) { return this.end(tabId, false); }
 
   private async end(tabId: string, commit: boolean) {
     const n = this.get(tabId).statements;

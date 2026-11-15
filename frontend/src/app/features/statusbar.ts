@@ -36,42 +36,42 @@ export interface UpdateView {
   styleUrl: './statusbar.scss',
 })
 export class Statusbar implements OnDestroy {
-  readonly toasts = inject(Toasts);
-  readonly cmds = inject(Commands);
-  readonly sync = inject(SyncStore);
+  public readonly toasts = inject(Toasts);
+  public readonly cmds = inject(Commands);
+  public readonly sync = inject(SyncStore);
   private tabs = inject(TabStore);
   private conns = inject(ConnectionStore);
   private schema = inject(SchemaStore);
   private runs = inject(RunStore);
   private txs = inject(TxStore);
-  readonly mod = MOD;
+  public readonly mod = MOD;
   private api = inject(Api);
 
-  readonly info = signal<{ version: string; repo: string; commit: string } | null>(null);
-  readonly updateOpen = signal(false);
-  readonly update = signal<UpdateView>({ state: 'checking' });
-  readonly versionLabel = computed(() => {
+  public readonly info = signal<{ version: string; repo: string; commit: string } | null>(null);
+  public readonly updateOpen = signal(false);
+  public readonly update = signal<UpdateView>({ state: 'checking' });
+  public readonly versionLabel = computed(() => {
     const v = this.info()?.version ?? '';
     return !v || v === 'dev' ? 'dev build' : v.startsWith('v') ? v : `v${v}`;
   });
-  readonly progressLabel = computed(() => {
+  public readonly progressLabel = computed(() => {
     const p = this.update().progress;
     return p === undefined ? '' : ` ${p}%`;
   });
-  readonly sizeLabel = computed(() => {
+  public readonly sizeLabel = computed(() => {
     const size = this.update().size ?? 0;
     return size > 0 ? ` (${(size / (1 << 20)).toFixed(0)} MB)` : '';
   });
 
   private stopProgress?: () => void;
 
-  toggleUpdate() {
+  public toggleUpdate() {
     if (this.busy()) return;
     this.updateOpen.update((o) => !o);
     if (this.updateOpen()) void this.check();
   }
 
-  closeUpdate() {
+  public closeUpdate() {
     if (!this.busy()) this.updateOpen.set(false);
   }
 
@@ -82,7 +82,7 @@ export class Statusbar implements OnDestroy {
   }
 
   /** Asks GitHub for the latest release; runs only when the user opens the popover. */
-  async check() {
+  public async check() {
     this.update.set({ state: 'checking' });
     try {
       const u = await this.api.checkForUpdate();
@@ -95,7 +95,7 @@ export class Statusbar implements OnDestroy {
   }
 
   /** Downloads the release, installs it over the running copy and restarts. */
-  async install() {
+  public async install() {
     const u = this.update();
     if (!u.latest || !u.canInstall) return;
     this.update.set({ state: 'downloading', latest: u.latest, canInstall: true });
@@ -117,28 +117,28 @@ export class Statusbar implements OnDestroy {
     }
   }
 
-  openRelease() {
+  public openRelease() {
     const url = this.update().url;
     if (url) this.api.openReleasePage(url).catch((e) => this.toasts.error(errorText(e)));
   }
 
-  ngOnDestroy() {
+  public ngOnDestroy() {
     this.stopProgress?.();
   }
 
-  readonly conn = computed(() => this.conns.get(this.tabs.active()?.connId));
-  readonly kind = computed(() => (this.conn() ? KIND_LABELS[this.conn()!.kind] : ''));
-  readonly database = computed(() => this.tabs.active()?.database ?? '');
-  readonly schemaName = computed(() => {
+  public readonly conn = computed(() => this.conns.get(this.tabs.active()?.connId));
+  public readonly kind = computed(() => (this.conn() ? KIND_LABELS[this.conn()!.kind] : ''));
+  public readonly database = computed(() => this.tabs.active()?.database ?? '');
+  public readonly schemaName = computed(() => {
     const c = this.conn();
     return c ? this.schema.get(this.schema.scopeFor(c.id, this.database()))?.defaultSchema ?? '' : '';
   });
 
-  readonly tx = computed(() => this.txs.get(this.tabs.activeId()));
-  readonly manual = computed(() => this.tabs.active()?.txMode === 'manual');
+  public readonly tx = computed(() => this.txs.get(this.tabs.activeId()));
+  public readonly manual = computed(() => this.tabs.active()?.txMode === 'manual');
 
   private now = signal(Date.now());
-  constructor() {
+  public constructor() {
     this.api.version().then((v) => this.info.set(v)).catch(() => this.info.set({ version: 'dev', repo: '', commit: '' }));
     this.stopProgress = EventsOn('update:progress', (p: { phase: string; received: number; total: number }) => {
       const u = this.update();
@@ -156,12 +156,12 @@ export class Statusbar implements OnDestroy {
     }, 250);
   }
 
-  readonly txAge = computed(() => {
+  public readonly txAge = computed(() => {
     const s = Math.max(0, Math.round((this.now() - this.tx().startedAt) / 1000));
     return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`;
   });
 
-  readonly runText = computed(() => {
+  public readonly runText = computed(() => {
     const run = this.runs.runs()[this.tabs.activeId()];
     if (!run) return '';
     if (run.running) return `Running… ${((this.now() - run.startedAt) / 1000).toFixed(1)} s`;

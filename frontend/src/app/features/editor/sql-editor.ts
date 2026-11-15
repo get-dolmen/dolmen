@@ -30,7 +30,7 @@ export class SqlEditor implements EditorHandle, OnDestroy {
   private injector = inject(EnvironmentInjector);
   private host = viewChild.required<ElementRef<HTMLDivElement>>('host');
 
-  readonly flash = signal(false);
+  public readonly flash = signal(false);
   private editor?: monaco.editor.IStandaloneCodeEditor;
   private models = new Map<string, monaco.editor.ITextModel>();
   private viewStates = new Map<string, monaco.editor.ICodeEditorViewState | null>();
@@ -38,7 +38,7 @@ export class SqlEditor implements EditorHandle, OnDestroy {
   private resize?: ResizeObserver;
   private inline?: InlineZones;
 
-  constructor() {
+  public constructor() {
     afterNextRender(() => this.create());
 
     // Repaint Monaco from the CSS tokens when the light/dark setting changes.
@@ -183,7 +183,7 @@ export class SqlEditor implements EditorHandle, OnDestroy {
 
   // ---- EditorHandle ----
 
-  runTarget(mode: 'cursor' | 'all'): RunTarget | null {
+  public runTarget(mode: 'cursor' | 'all'): RunTarget | null {
     const ed = this.editor;
     const model = ed?.getModel();
     if (!ed || !model) return null;
@@ -194,26 +194,26 @@ export class SqlEditor implements EditorHandle, OnDestroy {
     return { sql: model.getValue(), cursor: pos ? model.getOffsetAt(pos) : 0, base: 0 };
   }
 
-  insert(text: string) {
+  public insert(text: string) {
     const ed = this.editor;
     const sel = ed?.getSelection();
     if (!ed || !sel) return;
     ed.executeEdits('dolmen', [{ range: sel, text, forceMoveMarkers: true }]);
   }
 
-  replaceContent(id: string, content: string) {
+  public replaceContent(id: string, content: string) {
     const model = this.models.get(id);
     if (model && model.getValue() !== content) model.setValue(content);
   }
 
-  focus() { this.editor?.focus(); }
+  public focus() { this.editor?.focus(); }
 
-  flashError() {
+  public flashError() {
     this.flash.set(true);
     setTimeout(() => this.flash.set(false), 600);
   }
 
-  ngOnDestroy() {
+  public ngOnDestroy() {
     this.bridge.detach(this);
     this.resize?.disconnect();
     this.inline?.dispose();

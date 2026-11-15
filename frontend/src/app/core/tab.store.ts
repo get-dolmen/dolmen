@@ -28,7 +28,7 @@ const LAYOUT_SAVE_DELAY_MS = 300;
 @Injectable({ providedIn: 'root' })
 export class TabStore {
   private api = inject(Api);
-  private toasts = inject(Toasts);
+  private toastService = inject(Toasts);
 
   public readonly tabs = signal<EditorTab[]>([]);
   public readonly activeId = signal<string>('');
@@ -51,7 +51,7 @@ export class TabStore {
       })));
       this.activeId.set(workspace.tabs.some((tab) => tab.id === workspace.activeId) ? workspace.activeId : workspace.tabs[0]?.id ?? '');
     } catch (error) {
-      this.toasts.error(errorText(error));
+      this.toastService.error(errorText(error));
     }
     this.loaded.set(true);
   }
@@ -91,9 +91,9 @@ export class TabStore {
   private insert(tab: EditorTab, save = true): EditorTab {
     const content = save ? tab.content : '';
     const insertionIndex = this.tabs().findIndex((tab) => tab.id === this.activeId());
-    const tabs = [...this.tabs()];
-    tabs.splice(insertionIndex + 1, 0, tab);
-    this.tabs.set(tabs);
+    const nextTabs = [...this.tabs()];
+    nextTabs.splice(insertionIndex + 1, 0, tab);
+    this.tabs.set(nextTabs);
     this.activeId.set(tab.id);
     if (content) this.scheduleContentSave(tab.id);
     this.saveLayoutSoon();
@@ -109,27 +109,31 @@ export class TabStore {
 
   public activateRelative(delta: number) {
     const tabs = this.tabs();
-    const i = tabs.findIndex((tab) => tab.id === this.activeId());
-    if (i < 0 || tabs.length < 2) return;
-    this.activate(tabs[(i + delta + tabs.length) % tabs.length].id);
+    const activeIndex = tabs.findIndex((tab) => tab.id === this.activeId());
+    if (activeIndex < 0 || tabs.length < 2) return;
+    const nextIndex = (activeIndex + delta + tabs.length) % tabs.length;
+    this.activate(tabs[nextIndex].id);
   }
 
   public async close(id: string) {
     const tabs = this.tabs();
-    const i = tabs.findIndex((tab) => tab.id === id);
-    if (i < 0) return;
+    const closingIndex = tabs.findIndex((tab) => tab.id === id);
+    if (closingIndex < 0) return;
     // Wait for a pending write: deleting the scratch right after must not race
     // with it, or the write would recreate the file.
     await this.flush(id);
     if (!this.get(id)) return;
-    const remaining = this.tabs().filter((tab) => tab.id !== id);
-    if (this.activeId() === id) this.activeId.set(remaining[Math.min(i, remaining.length - 1)]?.id ?? '');
-    this.tabs.set(remaining);
+    const remainingTabs = this.tabs().filter((tab) => tab.id !== id);
+    if (this.activeId() === id) {
+      const nextActive = remainingTabs[Math.min(closingIndex, remainingTabs.length - 1)];
+      this.activeId.set(nextActive?.id ?? '');
+    }
+    this.tabs.set(remainingTabs);
     this.saveLayoutSoon();
     try {
       await this.api.closeTab(id);
     } catch (error) {
-      this.toasts.error(errorText(error));
+      this.toastService.error(errorText(error));
     }
   }
 
@@ -141,10 +145,10 @@ export class TabStore {
   }
 
   public move(fromIndex: number, toIndex: number) {
-    const tabs = [...this.tabs()];
-    const [tab] = tabs.splice(fromIndex, 1);
-    tabs.splice(toIndex, 0, tab);
-    this.tabs.set(tabs);
+    const nextTabs = [...this.tabs()];
+    const [movedTab] = nextTabs.splice(fromIndex, 1);
+    nextTabs.splice(toIndex, 0, movedTab);
+    this.tabs.set(nextTabs);
     this.saveLayoutSoon();
   }
 
@@ -152,7 +156,7 @@ export class TabStore {
     const tab = this.get(id);
     if (!tab) return;
     if (tab.locked) {
-      this.toasts.error(`${tab.name} is locked to its folder. Unlock it first.`);
+      this.toastService.error(`${tab.name} is locked to its folder. Unlock it first.`);
       return;
     }
     if (tab.connId === connectionId && tab.database === database) return;
@@ -239,7 +243,7 @@ export class TabStore {
       await this.api.saveTabContent(id, content);
       if (this.get(id)?.content === content) this.patch(id, { dirty: false });
     } catch (error) {
-      this.toasts.error(`Could not save ${tab.name}: ${errorText(error)}`);
+      this.toastService.error(`Could not save ${tab.name}: ${errorText(error)}`);
     }
   }
 
@@ -271,7 +275,7 @@ export class TabStore {
     try {
       await this.api.saveWorkspaceLayout(workspace);
     } catch (error) {
-      this.toasts.error(errorText(error));
+      this.toastService.error(errorText(error));
     }
   }
 
@@ -280,10 +284,10 @@ export class TabStore {
   }
 
   private nextName(): string {
-    const used = new Set([...this.tabs().map((tab) => tab.name), ...this.takenNames()]);
-    for (let i = 1; ; i++) {
-      const n = `query${i}.sql`;
-      if (!used.has(n)) return n;
+    const usedNames = new Set([...this.tabs().map((tab) => tab.name), ...this.takenNames()]);
+    for (let index = 1; ; index++) {
+      const name = `query${index}.sql`;
+      if (!usedNames.has(name)) return name;
     }
   }
 }

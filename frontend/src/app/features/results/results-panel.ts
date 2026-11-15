@@ -13,32 +13,7 @@ import type { QueryResult } from '../../core/models';
   selector: 'dm-results-panel',
   imports: [ResultGrid, HistoryPanel, DatePipe, ClickOutside],
   templateUrl: './results-panel.html',
-  styles: `
-    :host { display: flex; flex-direction: column; min-height: 0; background: var(--bg-panel); }
-    .head { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 8px 0 4px; border-bottom: 1px solid var(--border); background: var(--bg); flex: none; }
-    .tabs { display: flex; height: 100%; overflow-x: auto; scrollbar-width: none; }
-    .tab { display: flex; align-items: center; gap: 6px; height: 100%; padding: 0 10px; border: 0; background: none; color: var(--text-muted); cursor: pointer; white-space: nowrap; border-bottom: 2px solid transparent; font-size: var(--fs-sm); font-weight: 500; }
-    .tab:hover { color: var(--text); }
-    .tab.on { color: var(--text); border-bottom-color: var(--accent); }
-    .count { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; font-size: 10px; line-height: 16px; text-align: center; background: var(--bg-active); }
-    .count.err { background: var(--danger); color: white; }
-    .info { font-size: var(--fs-xs); color: var(--text-muted); margin-right: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-    .body { flex: 1; position: relative; min-height: 0; }
-    .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 2px; color: var(--text-muted); text-align: center; padding: 16px; }
-    .empty p { margin: 2px; }
-    .messages { height: 100%; overflow: auto; padding: 4px 0; user-select: text; }
-    .msg { display: flex; gap: 10px; padding: 5px 12px; border-left: 3px solid transparent; font-size: var(--fs-sm); }
-    .msg[data-kind='error'] { border-left-color: var(--danger); background: var(--danger-soft); }
-    .msg[data-kind='error'] .txt > div { color: var(--danger); }
-    .msg[data-kind='ok'] { border-left-color: var(--accent); }
-    .time { font-family: var(--font-mono); font-size: var(--fs-xs); padding-top: 1px; }
-    .txt { min-width: 0; flex: 1; }
-    .txt pre { margin: 3px 0 0; font: 11.5px/1.45 var(--font-mono); color: var(--text-muted); white-space: pre-wrap; word-break: break-word; max-height: 5.8em; overflow: hidden; }
-    .running { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 12px; background: var(--bg-raised); border: 1px solid var(--border); border-radius: 20px; box-shadow: var(--shadow); font-size: var(--fs-sm); z-index: 5; }
-    .running .kbd { margin-left: 4px; }
-    .spinner { width: 14px; height: 14px; border: 2px solid var(--accent-soft); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-  `,
+  styleUrl: './results-panel.scss',
 })
 export class ResultsPanelComponent {
   readonly runs = inject(RunStore);

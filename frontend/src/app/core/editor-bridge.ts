@@ -23,12 +23,12 @@ export interface EditorHandle {
 export class EditorBridge {
   private handle?: EditorHandle;
 
-  attach(h: EditorHandle) { this.handle = h; }
-  detach(h: EditorHandle) { if (this.handle === h) this.handle = undefined; }
+  public attach(h: EditorHandle) { this.handle = h; }
+  public detach(h: EditorHandle) { if (this.handle === h) this.handle = undefined; }
 
-  runTarget(mode: 'cursor' | 'all') { return this.handle?.runTarget(mode) ?? null; }
-  insert(text: string) { this.handle?.insert(text); }
-  replaceContent(id: string, content: string) { this.handle?.replaceContent(id, content); }
-  focus() { this.handle?.focus(); }
-  flashError() { this.handle?.flashError(); }
+  public runTarget(mode: 'cursor' | 'all') { return this.handle?.runTarget(mode) ?? null; }
+  public insert(text: string) { this.handle?.insert(text); }
+  public replaceContent(id: string, content: string) { this.handle?.replaceContent(id, content); }
+  public focus() { this.handle?.focus(); }
+  public flashError() { this.handle?.flashError(); }
 }

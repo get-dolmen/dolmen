@@ -21,20 +21,20 @@ export class HistoryPanel {
   private editor = inject(EditorBridge);
   private toasts = inject(Toasts);
   private confirm = inject(Confirm);
-  readonly cmds = inject(Commands);
+  public readonly cmds = inject(Commands);
 
-  readonly connId = input<string>('');
+  public readonly connId = input<string>('');
   /** Bumped by the parent after each run so the list refreshes. */
-  readonly version = input(0);
+  public readonly version = input(0);
 
-  readonly search = signal('');
-  readonly allConns = signal(false);
-  readonly entries = signal<HistoryEntry[]>([]);
-  readonly loading = signal(false);
+  public readonly search = signal('');
+  public readonly allConns = signal(false);
+  public readonly entries = signal<HistoryEntry[]>([]);
+  public readonly loading = signal(false);
   private scope = computed(() => (this.allConns() ? '' : this.connId()));
   private timer?: ReturnType<typeof setTimeout>;
 
-  constructor() {
+  public constructor() {
     effect(() => {
       this.scope();
       this.search();
@@ -46,7 +46,7 @@ export class HistoryPanel {
     });
   }
 
-  async reload() {
+  public async reload() {
     this.loading.set(true);
     try {
       this.entries.set(await this.api.listHistory(this.scope(), this.search(), 300));
@@ -57,14 +57,14 @@ export class HistoryPanel {
     }
   }
 
-  connName(id: string) { return this.conns.get(id)?.name ?? 'deleted connection'; }
+  public connName(id: string) { return this.conns.get(id)?.name ?? 'deleted connection'; }
 
-  insert(e: HistoryEntry) {
+  public insert(e: HistoryEntry) {
     this.editor.insert(e.sql);
     this.editor.focus();
   }
 
-  async clear() {
+  public async clear() {
     const scope = this.scope();
     const what = scope ? `for “${this.connName(scope)}”` : 'for all connections';
     if (!(await this.confirm.ask(`Clear query history ${what}?`,

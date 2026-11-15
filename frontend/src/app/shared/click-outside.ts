@@ -17,10 +17,17 @@ export class ClickOutside {
   }
 }
 
+export type MenuPos = { x: number; y: number };
+
 /** Keeps a menu opened at (x, y) inside the viewport. */
-export function clampMenu(x: number, y: number, w = 220, h = 260): { x: number; y: number } {
+export function clampMenu(x: number, y: number, w = 220, h = 260): MenuPos {
   return {
     x: Math.max(4, Math.min(x, window.innerWidth - w - 4)),
     y: Math.max(4, Math.min(y, window.innerHeight - h - 4)),
   };
+}
+
+/** Places a menu under its trigger, or closes it when it is already open. */
+export function toggleMenuAt(current: MenuPos | null, trigger: DOMRect, w = 220, h = 260): MenuPos | null {
+  return current ? null : clampMenu(trigger.left, trigger.bottom + 4, w, h);
 }

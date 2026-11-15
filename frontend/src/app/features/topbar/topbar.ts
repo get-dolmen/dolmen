@@ -5,7 +5,7 @@ import { TxStore } from '../../core/tx.store';
 import { TabStore } from '../../core/tab.store';
 import { Ui, MOD, isMac } from '../../core/ui';
 import { Toasts } from '../../core/toast';
-import { ClickOutside, clampMenu } from '../../shared/click-outside';
+import { ClickOutside, toggleMenuAt, type MenuPos } from '../../shared/click-outside';
 import { Icon } from '../../shared/icon';
 import { KIND_LABELS, type ConnectionView } from '../../core/models';
 import { WindowToggleMaximise } from '../../../../wailsjs/runtime';
@@ -34,7 +34,7 @@ export class Topbar {
   readonly conn = computed(() => this.conns.get(this.tabs.active()?.connId));
   readonly database = computed(() => this.tabs.active()?.database ?? '');
   readonly locked = computed(() => !!this.tabs.active()?.locked);
-  readonly menu = signal<{ x: number; y: number } | null>(null);
+  readonly menu = signal<MenuPos | null>(null);
   readonly menuOpen = computed(() => this.menu() !== null);
 
   /** macOS zooms the window on a title-bar double-click; Wails does not do it by itself. */
@@ -48,12 +48,8 @@ export class Topbar {
   kind(c: ConnectionView) { return KIND_LABELS[c.kind]; }
 
   toggleMenu(e: MouseEvent) {
-    if (this.menuOpen()) {
-      this.menu.set(null);
-      return;
-    }
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    this.menu.set(clampMenu(r.left, r.bottom + 4, MENU_WIDTH, MENU_HEIGHT));
+    this.menu.set(toggleMenuAt(this.menu(), r, MENU_WIDTH, MENU_HEIGHT));
   }
 
   async choose(c: ConnectionView) {

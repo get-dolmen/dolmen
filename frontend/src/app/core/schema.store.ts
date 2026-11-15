@@ -45,9 +45,9 @@ export class SchemaStore {
   private toasts = inject(Toasts);
   private conns = inject(ConnectionStore);
 
-  readonly data = signal<Record<string, ConnSchema>>({});
+  public readonly data = signal<Record<string, ConnSchema>>({});
   readonly databases = signal<Record<string, ServerDatabases>>({});
-  readonly loading = signal<ReadonlySet<string>>(new Set());
+  public readonly loading = signal<ReadonlySet<string>>(new Set());
   private inflight = new Map<string, Promise<unknown>>();
 
   constructor() {
@@ -57,16 +57,16 @@ export class SchemaStore {
     });
   }
 
-  get(scope: string): ConnSchema | undefined { return this.data()[scope]; }
+  public get(scope: string): ConnSchema | undefined { return this.data()[scope]; }
 
   /** The scope for a tab or tree node; the connection's own database maps to the plain connection scope. */
-  scope(connId: string, database = ''): string {
+  public scope(connId: string, database = ''): string {
     const cur = this.databases()[connId]?.current;
     return scopeOf(connId, database && database !== cur ? database : '');
   }
 
   /** Forgets everything cached for a connection, including its other databases. */
-  invalidate(connId: string) {
+  public invalidate(connId: string) {
     const owns = (k: string) => k === connId || k.startsWith(connId + '@') || k.startsWith(connId + '|');
     this.data.set(Object.fromEntries(Object.entries(this.data()).filter(([k]) => !owns(k))));
     const dbs = { ...this.databases() };
@@ -75,14 +75,14 @@ export class SchemaStore {
     for (const k of [...this.inflight.keys()]) if (owns(k)) this.inflight.delete(k);
   }
 
-  async refresh(connId: string) {
+  public async refresh(connId: string) {
     this.invalidate(connId);
     await this.loadDatabases(connId);
     await this.loadSchemas(connId);
   }
 
   /** Reloads one database (scope) of a connection, keeping the others cached. */
-  async refreshScope(scope: string) {
+  public async refreshScope(scope: string) {
     const data = { ...this.data() };
     delete data[scope];
     this.data.set(data);
@@ -90,7 +90,7 @@ export class SchemaStore {
     await this.loadSchemas(scope);
   }
 
-  loadDatabases(connId: string): Promise<unknown> {
+  public loadDatabases(connId: string): Promise<unknown> {
     if (this.databases()[connId]) return Promise.resolve();
     return this.once(`${connId}|databases`, async () => {
       const d = await this.api.listDatabases(connId);
@@ -98,7 +98,7 @@ export class SchemaStore {
     });
   }
 
-  loadSchemas(scope: string): Promise<unknown> {
+  public loadSchemas(scope: string): Promise<unknown> {
     if (this.get(scope)?.loaded) return Promise.resolve();
     const { connId, database } = parseScope(scope);
     return this.once(`${scope}|schemas`, async () => {
@@ -108,7 +108,7 @@ export class SchemaStore {
     });
   }
 
-  loadTables(scope: string, schema: string): Promise<unknown> {
+  public loadTables(scope: string, schema: string): Promise<unknown> {
     if (this.get(scope)?.tables[schema]) return Promise.resolve();
     const { connId, database } = parseScope(scope);
     return this.once(`${scope}|tables|${schema}`, async () => {
@@ -117,7 +117,7 @@ export class SchemaStore {
     });
   }
 
-  loadColumns(scope: string, schema: string, table: string): Promise<unknown> {
+  public loadColumns(scope: string, schema: string, table: string): Promise<unknown> {
     if (this.get(scope)?.columns[`${schema}.${table}`]) return Promise.resolve();
     const { connId, database } = parseScope(scope);
     return this.once(`${scope}|cols|${schema}.${table}`, async () => {
@@ -127,7 +127,7 @@ export class SchemaStore {
   }
 
   /** Loads every column of a schema in one query (used by autocomplete). */
-  loadAllColumns(scope: string, schema: string): Promise<unknown> {
+  public loadAllColumns(scope: string, schema: string): Promise<unknown> {
     if (this.get(scope)?.fullColumns[schema]) return Promise.resolve();
     const { connId, database } = parseScope(scope);
     return this.once(`${scope}|allcols|${schema}`, async () => {
@@ -143,7 +143,7 @@ export class SchemaStore {
   }
 
   /** Loads tables of every schema (capped) for the search palette. */
-  async loadAllTables(scope: string, maxSchemas = 60) {
+  public async loadAllTables(scope: string, maxSchemas = 60) {
     await this.loadSchemas(scope);
     const c = this.get(scope);
     if (!c) return;

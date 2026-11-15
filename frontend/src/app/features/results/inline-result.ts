@@ -7,18 +7,21 @@ import { COPY_FORMATS, formatRows, type CopyFormat } from './copy';
 import type { QueryResult } from '../../core/models';
 
 /** Header height, and the grid's header and row heights (see gridTheme). */
-export const INLINE_HEAD = 36;
-const GRID_HEAD = 30;
-const GRID_ROW = 26;
-const GRID_SCROLLBAR = 14;
-const MAX_ROWS = 10;
-const ERROR_LINE = 18;
+export const INLINE_HEADER_HEIGHT = 36;
+const GRID_HEADER_HEIGHT = 30;
+const GRID_ROW_HEIGHT = 26;
+const GRID_SCROLLBAR_HEIGHT = 14;
+const MAX_VISIBLE_ROWS = 10;
+const ERROR_LINE_HEIGHT = 18;
 
 /** Default height of an inline block, before the user resizes it. */
-export function inlineHeight(r: QueryResult): number {
-  if (r.error) return INLINE_HEAD + 8 + Math.min(6, r.error.split('\n').length) * ERROR_LINE;
-  if (!r.isQuery) return INLINE_HEAD;
-  return INLINE_HEAD + GRID_HEAD + Math.max(1, Math.min(MAX_ROWS, r.rows.length)) * GRID_ROW + GRID_SCROLLBAR;
+export function inlineHeight(result: QueryResult): number {
+  if (result.error) {
+    return INLINE_HEADER_HEIGHT + 8 + Math.min(6, result.error.split('\n').length) * ERROR_LINE_HEIGHT;
+  }
+  if (!result.isQuery) return INLINE_HEADER_HEIGHT;
+  const visibleRows = Math.max(1, Math.min(MAX_VISIBLE_ROWS, result.rows.length));
+  return INLINE_HEADER_HEIGHT + GRID_HEADER_HEIGHT + visibleRows * GRID_ROW_HEIGHT + GRID_SCROLLBAR_HEIGHT;
 }
 
 /** One result shown in the editor under its statement. */
@@ -30,8 +33,8 @@ export function inlineHeight(r: QueryResult): number {
   host: { '[class.has-error]': '!!block().result.error' },
 })
 export class InlineResult {
-  private runs = inject(RunStore);
-  private cmds = inject(Commands);
+  private runStore = inject(RunStore);
+  private commandService = inject(Commands);
   public readonly tabId = input.required<string>();
   public readonly block = input.required<InlineBlock>();
   /** From the tab's latest run: the backend still holds its rows for export. */
@@ -40,37 +43,39 @@ export class InlineResult {
   public readonly resizeStart = output<PointerEvent>();
   public readonly resetHeight = output<void>();
 
-  private grid = viewChild(ResultGrid);
+  private resultGrid = viewChild(ResultGrid);
   public readonly fetching = signal(false);
   public readonly menu = signal<{ x: number; y: number; kind: 'copy' | 'export' } | null>(null);
   public readonly formats = COPY_FORMATS;
 
-  public summary(r: QueryResult): string {
-    if (r.message) return r.message;
-    const affected = r.rowsAffected >= 0 ? `${r.rowsAffected.toLocaleString()} row${r.rowsAffected === 1 ? '' : 's'} affected` : 'Done';
-    return `${affected} · ${r.durationMs.toLocaleString()} ms`;
+  public summary(result: QueryResult): string {
+    if (result.message) return result.message;
+    const affected = result.rowsAffected >= 0
+      ? `${result.rowsAffected.toLocaleString()} row${result.rowsAffected === 1 ? '' : 's'} affected`
+      : 'Done';
+    return `${affected} · ${result.durationMs.toLocaleString()} ms`;
   }
 
   public async fetchMore() {
     this.fetching.set(true);
-    await this.runs.fetchMore(this.tabId(), this.block().id);
+    await this.runStore.fetchMore(this.tabId(), this.block().id);
     this.fetching.set(false);
   }
 
-  public openMenu(e: MouseEvent, kind: 'copy' | 'export') {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    this.menu.set({ ...clampMenu(rect.right - 220, rect.bottom + 4, 220, kind === 'copy' ? 330 : 80), kind });
+  public openMenu(event: MouseEvent, kind: 'copy' | 'export') {
+    const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.menu.set({ ...clampMenu(bounds.right - 220, bounds.bottom + 4, 220, kind === 'copy' ? 330 : 80), kind });
   }
 
-  public copy(what: 'all' | 'selected', format: CopyFormat) {
+  public copy(scope: 'all' | 'selected', format: CopyFormat) {
     this.menu.set(null);
-    const r = this.block().result;
-    const rows = what === 'all' ? r.rows : this.grid()?.selectedRows() ?? [];
-    void this.cmds.copy(formatRows(format, r.columns, rows, true));
+    const result = this.block().result;
+    const rows = scope === 'all' ? result.rows : this.resultGrid()?.selectedRows() ?? [];
+    void this.commandService.copy(formatRows(format, result.columns, rows, true));
   }
 
   public export(format: 'csv' | 'json') {
     this.menu.set(null);
-    void this.runs.export(this.tabId(), this.block().id, format);
+    void this.runStore.export(this.tabId(), this.block().id, format);
   }
 }

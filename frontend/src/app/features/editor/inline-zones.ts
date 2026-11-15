@@ -1,10 +1,10 @@
 import { ApplicationRef, type ComponentRef, EnvironmentInjector, createComponent } from '@angular/core';
 import type { InlineBlock, RunStore, TabRun } from '../../core/run.store';
-import { INLINE_HEAD, InlineResult, inlineHeight } from '../results/inline-result';
+import { INLINE_HEADER_HEIGHT, InlineResult, inlineHeight } from '../results/inline-result';
 import { monaco } from './monaco-setup';
 
 const GAP = 4; // space above and below a block inside its zone
-const MIN_HEIGHT = INLINE_HEAD;
+const MIN_HEIGHT = INLINE_HEADER_HEIGHT;
 const MAX_HEIGHT = 2000;
 
 interface Zone {

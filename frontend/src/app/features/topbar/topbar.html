@@ -3,11 +3,11 @@
   <button class="conn nodrag" (mousedown)="$event.stopPropagation()" (click)="toggleMenu($event)"
           [class.open]="menuOpen()" title="Connection used by this tab" aria-haspopup="true"
           [attr.aria-expanded]="menuOpen()">
-    @if (conn(); as c) {
-      <span class="dot" [style.background]="c.color" [class.off]="!c.connected"></span>
-      <span class="ellipsis">{{ c.name }}</span>
-      @if (database(); as db) { <span class="db ellipsis">/ {{ db }}</span> }
-      @if (c.readOnly) { <span class="badge ro">🔒 RO</span> }
+    @if (connection(); as connection) {
+      <span class="dot" [style.background]="connection.color" [class.off]="!connection.connected"></span>
+      <span class="ellipsis">{{ connection.name }}</span>
+      @if (database(); as databaseName) { <span class="db ellipsis">/ {{ databaseName }}</span> }
+      @if (connection.readOnly) { <span class="badge ro">🔒 RO</span> }
       @if (locked()) { <dm-icon name="lock" [size]="12" class="lock" /> }
     } @else {
       <span class="faint">No connection</span>
@@ -16,46 +16,46 @@
   </button>
 </div>
 
-<button class="search nodrag" (click)="ui.openPalette()">
+<button class="search nodrag" (click)="uiState.openPalette()">
   <span class="glass" aria-hidden="true">⌕</span>
   <span class="ph">Search tables, tabs, commands…</span>
-  <span class="kbd">{{ mod }}P</span>
+  <span class="kbd">{{ modifierKey }}P</span>
 </button>
 
 <div class="actions nodrag">
-  @if (ui.scratchPosition() === 'left') {
-    <button class="btn ghost icon" (click)="ui.scratchOpen.set(!ui.scratchOpen())" [class.on]="ui.scratchOpen()"
-            [title]="ui.scratchOpen() ? 'Hide the scratches panel' : 'Show the scratches panel'"
-            [attr.aria-label]="ui.scratchOpen() ? 'Hide scratches' : 'Show scratches'">
+  @if (uiState.scratchPosition() === 'left') {
+    <button class="btn ghost icon" (click)="uiState.scratchOpen.set(!uiState.scratchOpen())" [class.on]="uiState.scratchOpen()"
+            [title]="uiState.scratchOpen() ? 'Hide the scratches panel' : 'Show the scratches panel'"
+            [attr.aria-label]="uiState.scratchOpen() ? 'Hide scratches' : 'Show scratches'">
       <dm-icon name="panelLeft" [size]="16" />
     </button>
   }
-  <button class="btn ghost icon" (click)="ui.sidebarOpen.set(!ui.sidebarOpen())" [class.on]="ui.sidebarOpen()"
-          [title]="'Toggle explorer (' + mod + 'B)'" aria-label="Toggle explorer">
+  <button class="btn ghost icon" (click)="uiState.sidebarOpen.set(!uiState.sidebarOpen())" [class.on]="uiState.sidebarOpen()"
+          [title]="'Toggle explorer (' + modifierKey + 'B)'" aria-label="Toggle explorer">
     <dm-icon name="panelRight" [size]="16" />
   </button>
-  <button class="btn ghost icon" (click)="cmds.openSettings()" [title]="'Settings (' + mod + ',)'" aria-label="Settings">
+  <button class="btn ghost icon" (click)="commandService.openSettings()" [title]="'Settings (' + modifierKey + ',)'" aria-label="Settings">
     <dm-icon name="settings" [size]="16" />
   </button>
 </div>
 
-@if (menu(); as m) {
-  <div class="menu" [style.left.px]="m.x" [style.top.px]="m.y" (dmClickOutside)="menu.set(null)">
+@if (menu(); as menuPosition) {
+  <div class="menu" [style.left.px]="menuPosition.x" [style.top.px]="menuPosition.y" (dmClickOutside)="menu.set(null)">
     <div class="menu-label">Use in this tab</div>
-    @for (c of conns.connections(); track c.id) {
-      <button class="menu-item" [class.active]="c.id === conn()?.id" (click)="choose(c)">
-        <span class="dot" [style.background]="c.color" [style.opacity]="c.connected ? 1 : 0.35"></span>
-        <span class="ellipsis">{{ c.name }}</span>
-        @if (c.readOnly) { <span class="badge ro">RO</span> }
-        <span class="hint">{{ kind(c) }}</span>
+    @for (connectionOption of connectionStore.connections(); track connectionOption.id) {
+      <button class="menu-item" [class.active]="connectionOption.id === connection()?.id" (click)="choose(connectionOption)">
+        <span class="dot" [style.background]="connectionOption.color" [style.opacity]="connectionOption.connected ? 1 : 0.35"></span>
+        <span class="ellipsis">{{ connectionOption.name }}</span>
+        @if (connectionOption.readOnly) { <span class="badge ro">RO</span> }
+        <span class="hint">{{ kindLabel(connectionOption) }}</span>
       </button>
     } @empty {
       <div class="menu-label">No saved connections</div>
     }
     <div class="menu-sep"></div>
-    <button class="menu-item" (click)="menu.set(null); cmds.newConnection()">New connection…</button>
-    @if (conn(); as c) {
-      <button class="menu-item" (click)="menu.set(null); cmds.editConnection(c)">Edit “{{ c.name }}”…</button>
+    <button class="menu-item" (click)="menu.set(null); commandService.newConnection()">New connection…</button>
+    @if (connection(); as currentConnection) {
+      <button class="menu-item" (click)="menu.set(null); commandService.editConnection(currentConnection)">Edit “{{ currentConnection.name }}”…</button>
     }
   </div>
 }

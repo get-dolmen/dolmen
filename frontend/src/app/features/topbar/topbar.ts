@@ -17,50 +17,50 @@ const MENU_HEIGHT = 320;
 @Component({
   selector: 'dm-topbar',
   imports: [ClickOutside, Icon],
-  host: { '[class.mac]': 'mac', '(dblclick)': 'onDblClick($event)' },
+  host: { '[class.mac]': 'isMacPlatform', '(dblclick)': 'onDoubleClick($event)' },
   templateUrl: './topbar.html',
   styleUrl: './topbar.scss',
 })
 export class Topbar {
-  public readonly ui = inject(Ui);
-  public readonly cmds = inject(Commands);
-  public readonly conns = inject(ConnectionStore);
-  private tabs = inject(TabStore);
-  public readonly tx = inject(TxStore);
-  private toasts = inject(Toasts);
-  public readonly mod = MOD;
-  public readonly mac = isMac;
+  public readonly uiState = inject(Ui);
+  public readonly commandService = inject(Commands);
+  public readonly connectionStore = inject(ConnectionStore);
+  private tabStore = inject(TabStore);
+  public readonly transactionStore = inject(TxStore);
+  private toastService = inject(Toasts);
+  public readonly modifierKey = MOD;
+  public readonly isMacPlatform = isMac;
 
-  public readonly conn = computed(() => this.conns.get(this.tabs.active()?.connId));
-  public readonly database = computed(() => this.tabs.active()?.database ?? '');
-  public readonly locked = computed(() => !!this.tabs.active()?.locked);
+  public readonly connection = computed(() => this.connectionStore.get(this.tabStore.active()?.connId));
+  public readonly database = computed(() => this.tabStore.active()?.database ?? '');
+  public readonly locked = computed(() => !!this.tabStore.active()?.locked);
   public readonly menu = signal<MenuPos | null>(null);
   public readonly menuOpen = computed(() => this.menu() !== null);
 
   /** macOS zooms the window on a title-bar double-click; Wails does not do it by itself. */
-  public onDblClick(e: MouseEvent) {
+  public onDoubleClick(event: MouseEvent) {
     if (!isMac) return;
-    const target = e.target as HTMLElement;
+    const target = event.target as HTMLElement;
     if (target.closest('.nodrag, button, input, textarea, select, a')) return;
     WindowToggleMaximise();
   }
 
-  public kind(c: ConnectionView) { return KIND_LABELS[c.kind]; }
+  public kindLabel(connection: ConnectionView) { return KIND_LABELS[connection.kind]; }
 
-  public toggleMenu(e: MouseEvent) {
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    this.menu.set(toggleMenuAt(this.menu(), r, MENU_WIDTH, MENU_HEIGHT));
+  public toggleMenu(event: MouseEvent) {
+    const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.menu.set(toggleMenuAt(this.menu(), bounds, MENU_WIDTH, MENU_HEIGHT));
   }
 
-  public async choose(c: ConnectionView) {
+  public async choose(connection: ConnectionView) {
     this.menu.set(null);
-    const t = this.tabs.active();
-    if (t?.locked) {
-      this.toasts.error(`${t.name} is locked to its connection and database. Unlock it first.`);
+    const tab = this.tabStore.active();
+    if (tab?.locked) {
+      this.toastService.error(`${tab.name} is locked to its connection and database. Unlock it first.`);
       return;
     }
-    if (t && t.connId !== c.id && !(await this.tx.confirmLeave(t.id))) return;
-    if (t) this.tabs.setConnection(t.id, c.id);
-    void this.conns.ensureConnected(c.id);
+    if (tab && tab.connId !== connection.id && !(await this.transactionStore.confirmLeave(tab.id))) return;
+    if (tab) this.tabStore.setConnection(tab.id, connection.id);
+    void this.connectionStore.ensureConnected(connection.id);
   }
 }

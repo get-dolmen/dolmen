@@ -46,13 +46,13 @@ export class Palette {
   private scratches = inject(ScratchStore);
   private input = viewChild.required<ElementRef<HTMLInputElement>>('input');
   private list = viewChild.required<ElementRef<HTMLElement>>('list');
-  readonly mod = MOD;
+  public readonly mod = MOD;
 
-  readonly query = signal(this.ui.paletteQuery());
-  readonly index = signal(0);
-  readonly loadingTables = computed(() => [...this.schema.loading()].some((k) => k.includes('|tables|')));
+  public readonly query = signal(this.ui.paletteQuery());
+  public readonly index = signal(0);
+  public readonly loadingTables = computed(() => [...this.schema.loading()].some((k) => k.includes('|tables|')));
 
-  constructor() {
+  public constructor() {
     afterNextRender(() => this.input().nativeElement.focus());
     // Each connection's own database, plus any other database already browsed in the explorer.
     const connected = new Set(this.conns.connected().map((c) => c.id));
@@ -118,7 +118,7 @@ export class Palette {
     return items;
   });
 
-  readonly results = computed(() => {
+  public readonly results = computed(() => {
     const raw = this.query();
     if (raw.startsWith('>')) return rankItems(raw.slice(1), this.items().filter((i) => i.group === 'Commands'));
     const ranked = rankItems(raw, this.items());
@@ -130,7 +130,7 @@ export class Palette {
     return [...ranked].sort((a, b) => GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group));
   });
 
-  setQuery(q: string) {
+  public setQuery(q: string) {
     this.query.set(q);
     this.index.set(0);
   }
@@ -141,14 +141,14 @@ export class Palette {
     this.cmds.openTableData(connId, database, t);
   }
 
-  choose(it: PaletteItem, alt: boolean) {
+  public choose(it: PaletteItem, alt: boolean) {
     this.close();
     (alt && it.alt ? it.alt : it.run)();
   }
 
-  close() { this.ui.paletteOpen.set(false); }
+  public close() { this.ui.paletteOpen.set(false); }
 
-  onKey(e: KeyboardEvent) {
+  public onKey(e: KeyboardEvent) {
     const n = this.results().length;
     switch (e.key) {
       case 'ArrowDown': this.index.set(n ? (this.index() + 1) % n : 0); break;

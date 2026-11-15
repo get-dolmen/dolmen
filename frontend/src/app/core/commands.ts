@@ -44,7 +44,7 @@ export class Commands {
   private confirm = inject(Confirm);
   private prompt = inject(Prompt);
 
-  list(): Command[] {
+  public list(): Command[] {
     const active = this.tabs.active();
     const conn = this.conns.get(active?.connId);
     const cmds: Command[] = [
@@ -105,17 +105,17 @@ export class Commands {
   }
 
   /** In a data tab, Run reloads the grid. */
-  run() {
+  public run() {
     if (this.tableHandle()) return this.tableHandle()!.refresh();
     void this.runs.run('cursor');
   }
-  runAll() {
+  public runAll() {
     if (this.tableHandle()) return this.tableHandle()!.refresh();
     void this.runs.run('all');
   }
 
   /** ⌘S: applies pending edits in a data tab; elsewhere it only forces the autosave. */
-  save() {
+  public save() {
     const h = this.tableHandle();
     if (h) h.apply();
     else if (this.tabs.active()?.kind === 'sql') void this.scratches.save(this.tabs.activeId());
@@ -127,16 +127,16 @@ export class Commands {
   }
 
   /** Opens (or focuses) the data editor of a table. */
-  openTableData(connId: string, database: string, t: DbTable) {
+  public openTableData(connId: string, database: string, t: DbTable) {
     const existing = this.tabs.tabs().find((x) => x.kind === 'table' && x.connId === connId && (x.database || '') === (database || '')
       && x.table?.schema === t.schema && x.table?.name === t.name);
     if (existing) return this.tabs.activate(existing.id);
     this.tabs.createTable(connId, database, { schema: t.schema, name: t.name, type: t.type });
   }
-  cancel() { this.runs.cancel(); }
+  public cancel() { this.runs.cancel(); }
 
   /** New tab; without arguments it reuses the current tab's connection and database. */
-  newTab(connId?: string, database?: string) {
+  public newTab(connId?: string, database?: string) {
     const active = this.tabs.active();
     const conn = connId ?? active?.connId ?? this.conns.connected()[0]?.id ?? '';
     const db = database ?? (conn === active?.connId ? active.database : '');
@@ -144,7 +144,7 @@ export class Commands {
     queueMicrotask(() => this.editor.focus());
   }
 
-  async closeTab(id = this.tabs.activeId()) {
+  public async closeTab(id = this.tabs.activeId()) {
     const t = this.tabs.get(id);
     if (t?.kind === 'table' && t.dirty
       && !(await this.confirm.ask(`Discard unsaved changes to ${t.name}?`, { title: 'Discard changes', confirmLabel: 'Discard', danger: true }))) return;
@@ -158,14 +158,14 @@ export class Commands {
     void this.tabs.close(id);
   }
 
-  newConnection() { this.openConnectionDialog(); }
-  editConnection(c: ConnectionView) { this.openConnectionDialog(c); }
+  public newConnection() { this.openConnectionDialog(); }
+  public editConnection(c: ConnectionView) { this.openConnectionDialog(c); }
 
   /**
    * Turns read-only on or off. Saving reopens a live connection, which rolls
    * back its open transactions, so that is confirmed first.
    */
-  async toggleReadOnly(c: ConnectionView) {
+  public async toggleReadOnly(c: ConnectionView) {
     const readOnly = !c.readOnly;
     const open = this.tabs.tabs().filter((t) => t.connId === c.id && this.tx.get(t.id).open);
     if (open.length && !(await this.confirm.ask(
@@ -181,7 +181,7 @@ export class Commands {
     }
   }
 
-  openSettings() {
+  public openSettings() {
     this.dialog.open(SettingsDialog, { width: 'auto', maxWidth: '94vw' });
   }
 
@@ -197,7 +197,7 @@ export class Commands {
   }
 
   /** Opens a new tab with SELECT * … on the table's database and runs it. */
-  async selectTop(connId: string, t: DbTable, database = '') {
+  public async selectTop(connId: string, t: DbTable, database = '') {
     const conn = this.conns.get(connId);
     if (!conn) return;
     const def = this.schema.get(this.schema.scopeFor(connId, database))?.defaultSchema;
@@ -207,7 +207,7 @@ export class Commands {
     setTimeout(() => this.runAll(), 0);
   }
 
-  async showDDL(connId: string, t: DbTable, database = '') {
+  public async showDDL(connId: string, t: DbTable, database = '') {
     try {
       const ddl = await this.api.tableDDL(connId, database, t.schema, t.name, t.type);
       await this.scratches.createIn({ connId, database, schema: t.schema, table: t.name }, ddl.trim() + '\n', this.scratches.freeName(`${t.name}.ddl`));
@@ -217,7 +217,7 @@ export class Commands {
   }
 
   /** Drops a table or view after a confirmation, then refreshes the explorer. */
-  async dropTable(connId: string, t: DbTable, database = '') {
+  public async dropTable(connId: string, t: DbTable, database = '') {
     const what = t.type === 'view' ? 'view' : 'table';
     const label = t.schema ? `${t.schema}.${t.name}` : t.name;
     if (!(await this.confirm.ask(`Drop the ${what} ${label}?\n\nThis cannot be undone.`,
@@ -239,7 +239,7 @@ export class Commands {
   }
 
   /** Copies a table's or view's DDL to the clipboard. */
-  async copyDDL(connId: string, t: DbTable, database = '') {
+  public async copyDDL(connId: string, t: DbTable, database = '') {
     try {
       const ddl = await this.api.tableDDL(connId, database, t.schema, t.name, t.type);
       if (await this.copy(ddl.trim() + '\n')) this.toasts.success(`Copied the DDL of ${t.name}`);
@@ -249,7 +249,7 @@ export class Commands {
   }
 
   /** Opens a scratch with a CREATE TABLE to complete and run, in the given schema. */
-  async newTable(connId: string, schema: string, database = '') {
+  public async newTable(connId: string, schema: string, database = '') {
     const conn = this.conns.get(connId);
     if (!conn) return;
     const name = await this.prompt.ask({ title: 'New table', label: schema ? `Table name in ${schema}` : 'Table name', value: 'new_table', confirmLabel: 'Open script' });
@@ -260,7 +260,7 @@ export class Commands {
   }
 
   /** Creates a database on the connection's server, then shows it in the explorer. */
-  async createDatabase(connId: string) {
+  public async createDatabase(connId: string) {
     const name = await this.prompt.ask({ title: 'New database', label: 'Database name', confirmLabel: 'Create' });
     if (!name) return;
     try {
@@ -273,7 +273,7 @@ export class Commands {
   }
 
   /** Drops a database after a confirmation; its tabs are closed (their sessions are gone). */
-  async dropDatabase(connId: string, database: string) {
+  public async dropDatabase(connId: string, database: string) {
     const tabs = this.tabs.tabs().filter((x) => x.connId === connId && x.database === database);
     const extra = tabs.length ? `\n\n${tabs.length} tab${tabs.length === 1 ? '' : 's'} using it will lose ${tabs.length === 1 ? 'its' : 'their'} session, and data tabs on it will close.` : '';
     if (!(await this.confirm.ask(`Drop the database ${database}?\n\nThis cannot be undone.${extra}`,
@@ -293,11 +293,11 @@ export class Commands {
   }
 
   /** New empty scratch filed under a table. */
-  newScratchFor(connId: string, t: DbTable, database = '') {
+  public newScratchFor(connId: string, t: DbTable, database = '') {
     void this.scratches.createIn({ connId, database, schema: t.schema, table: t.name });
   }
 
-  insertName(connId: string, schema: string, name: string, database = '') {
+  public insertName(connId: string, schema: string, name: string, database = '') {
     const conn = this.conns.get(connId);
     if (!conn) return;
     this.editor.insert(qualified(conn.kind, schema, name, this.schema.get(this.schema.scopeFor(connId, database))?.defaultSchema));
@@ -305,7 +305,7 @@ export class Commands {
   }
 
   /** Copies text to the clipboard; false (after a toast) when it failed. */
-  async copy(text: string): Promise<boolean> {
+  public async copy(text: string): Promise<boolean> {
     try {
       if (!(await ClipboardSetText(text))) throw new Error();
       return true;

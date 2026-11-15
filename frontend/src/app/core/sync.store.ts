@@ -20,12 +20,12 @@ export class SyncStore {
 
   /** "just now", "5 min ago", or the date; "" when never synced. */
   public lastSyncText(now = Date.now()): string {
-    const ms = this.status()?.lastSyncAt;
-    if (!ms) return '';
-    const s = Math.max(0, Math.round((now - ms) / 1000));
-    if (s < 45) return 'just now';
-    if (s < 3600) return `${Math.max(1, Math.round(s / 60))} min ago`;
-    if (s < 86400) return `${Math.round(s / 3600)} h ago`;
-    return new Date(ms).toLocaleDateString();
+    const lastSyncAt = this.status()?.lastSyncAt;
+    if (!lastSyncAt) return '';
+    const seconds = Math.max(0, Math.round((now - lastSyncAt) / 1000));
+    if (seconds < 45) return 'just now';
+    if (seconds < 3600) return `${Math.max(1, Math.round(seconds / 60))} min ago`;
+    if (seconds < 86400) return `${Math.round(seconds / 3600)} h ago`;
+    return new Date(lastSyncAt).toLocaleDateString();
   }
 }

@@ -15,30 +15,30 @@ import { ScratchList } from '../scratches/scratch-list';
 import { KIND_LABELS, type ConnectionFolder, type ConnectionView, type DbColumn, type DbTable } from '../../core/models';
 
 /** Where a node's metadata comes from: a connection and, for Postgres, one of its databases. */
-interface Place { connId: string; database: string; scope: string; }
+interface NodePlace { connId: string; database: string; scope: string; }
 
-type Row =
+type TreeRow =
   | { kind: 'folder'; key: string; depth: number; folder: ConnectionFolder; open: boolean; count: number; match: boolean }
-  | { kind: 'conn'; key: string; depth: number; conn: ConnectionView; open: boolean; loading: boolean; count?: number }
-  | ({ kind: 'db'; key: string; depth: number; open: boolean; loading: boolean; isCurrent: boolean; count?: number } & Place)
-  | ({ kind: 'schema'; key: string; depth: number; schema: string; open: boolean; loading: boolean; isDefault: boolean; count?: number } & Place)
-  | ({ kind: 'table'; key: string; depth: number; table: DbTable; open: boolean; loading: boolean } & Place)
+  | { kind: 'conn'; key: string; depth: number; connection: ConnectionView; open: boolean; loading: boolean; count?: number }
+  | ({ kind: 'db'; key: string; depth: number; open: boolean; loading: boolean; isCurrent: boolean; count?: number } & NodePlace)
+  | ({ kind: 'schema'; key: string; depth: number; schema: string; open: boolean; loading: boolean; isDefault: boolean; count?: number } & NodePlace)
+  | ({ kind: 'table'; key: string; depth: number; table: DbTable; open: boolean; loading: boolean } & NodePlace)
   | { kind: 'column'; key: string; depth: number; column: DbColumn }
   | { kind: 'note'; key: string; depth: number; text: string };
 
 type MenuTarget =
   | { kind: 'folder'; folder: ConnectionFolder }
-  | { kind: 'conn'; conn: ConnectionView }
-  | ({ kind: 'db' } & Place)
-  | ({ kind: 'table'; table: DbTable } & Place);
+  | { kind: 'conn'; connection: ConnectionView }
+  | ({ kind: 'db' } & NodePlace)
+  | ({ kind: 'table'; table: DbTable } & NodePlace);
 
-type Menu = MenuTarget & { x: number; y: number };
+type ContextMenu = MenuTarget & { x: number; y: number };
 
 const MAX_TABLES_UNFILTERED = 2000;
-const CONN_DRAG_TYPE = 'application/x-dolmen-connection';
+const CONNECTION_DRAG_TYPE = 'application/x-dolmen-connection';
 const FOLDER_DRAG_TYPE = 'application/x-dolmen-folder';
 
-type DragItem = { kind: 'conn'; id: string; name: string } | { kind: 'folder'; id: string; name: string };
+type DraggedItem = { kind: 'conn'; id: string; name: string } | { kind: 'folder'; id: string; name: string };
 
 @Component({
   selector: 'dm-schema-sidebar',
@@ -47,427 +47,476 @@ type DragItem = { kind: 'conn'; id: string; name: string } | { kind: 'folder'; i
   styleUrl: './schema-sidebar.scss',
 })
 export class SchemaSidebar {
-  public readonly cmds = inject(Commands);
-  public readonly conns = inject(ConnectionStore);
-  public readonly schema = inject(SchemaStore);
-  private tabs = inject(TabStore);
-  public readonly ui = inject(Ui);
-  private tx = inject(TxStore);
-  private confirm = inject(Confirm);
-  private toasts = inject(Toasts);
-  private el = inject<ElementRef<HTMLElement>>(ElementRef);
+  public readonly commandService = inject(Commands);
+  public readonly connectionStore = inject(ConnectionStore);
+  public readonly schemaStore = inject(SchemaStore);
+  private tabStore = inject(TabStore);
+  public readonly uiState = inject(Ui);
+  private transactionStore = inject(TxStore);
+  private confirmDialog = inject(Confirm);
+  private toastService = inject(Toasts);
+  private hostElement = inject<ElementRef<HTMLElement>>(ElementRef);
 
-  public readonly filter = signal('');
-  public readonly expanded = signal<ReadonlySet<string>>(new Set());
-  public readonly selected = signal('');
-  public readonly highlight = signal('');
-  public readonly menu = signal<Menu | null>(null);
-  public readonly editingFolder = signal('');
-  public readonly dropKey = signal('');
+  public readonly filterText = signal('');
+  public readonly expandedKeys = signal<ReadonlySet<string>>(new Set());
+  public readonly selectedKey = signal('');
+  public readonly highlightKey = signal('');
+  public readonly contextMenu = signal<ContextMenu | null>(null);
+  public readonly editingFolderId = signal('');
+  public readonly dropTargetKey = signal('');
   /** The connection or folder being dragged, for drop validation and hints. */
-  public readonly drag = signal<DragItem | null>(null);
+  public readonly draggedItem = signal<DraggedItem | null>(null);
 
   public constructor() {
     // Expand freshly connected connections down to their default schema.
-    this.conns.onChange(async (id, connected) => {
+    this.connectionStore.onChange(async (connectionId, connected) => {
       if (!connected) return;
-      await this.schema.loadDatabases(id);
-      await this.schema.loadSchemas(id);
-      this.expand(`c:${id}`);
-      const dbs = this.schema.databases()[id];
-      if (dbs?.supported) this.expand(`d:${id}:${dbs.current}`);
-      const s = this.schema.get(id);
-      if (s?.defaultSchema) {
-        this.expand(`s:${id}:${s.defaultSchema}`);
-        void this.schema.loadTables(id, s.defaultSchema);
+      await this.schemaStore.loadDatabases(connectionId);
+      await this.schemaStore.loadSchemas(connectionId);
+      this.expandKey(`c:${connectionId}`);
+      const databaseList = this.schemaStore.databases()[connectionId];
+      if (databaseList?.supported) this.expandKey(`d:${connectionId}:${databaseList.current}`);
+      const cachedSchema = this.schemaStore.get(connectionId);
+      if (cachedSchema?.defaultSchema) {
+        this.expandKey(`s:${connectionId}:${cachedSchema.defaultSchema}`);
+        void this.schemaStore.loadTables(connectionId, cachedSchema.defaultSchema);
       }
     });
 
     // Reveal requests from the palette.
     effect(() => {
-      const r = this.ui.reveal();
-      if (!r) return;
+      const reveal = this.uiState.reveal();
+      if (!reveal) return;
       untracked(async () => {
-        this.filter.set('');
-        const scope = this.schema.scopeFor(r.connId, r.database);
-        this.expand(`c:${r.connId}`);
-        const dbs = this.schema.databases()[r.connId];
-        if (dbs?.supported) this.expand(`d:${r.connId}:${r.database || dbs.current}`);
-        this.expand(`s:${scope}:${r.schema}`);
-        await this.schema.loadTables(scope, r.schema);
-        const key = `t:${scope}:${r.schema}:${r.table}`;
-        this.highlight.set(key);
-        setTimeout(() => this.el.nativeElement.querySelector(`[id="n-${CSS.escape(key)}"]`)?.scrollIntoView({ block: 'center' }), 30);
-        setTimeout(() => this.highlight() === key && this.highlight.set(''), 2500);
+        this.filterText.set('');
+        const scope = this.schemaStore.scopeFor(reveal.connId, reveal.database);
+        this.expandKey(`c:${reveal.connId}`);
+        const databaseList = this.schemaStore.databases()[reveal.connId];
+        if (databaseList?.supported) {
+          this.expandKey(`d:${reveal.connId}:${reveal.database || databaseList.current}`);
+        }
+        this.expandKey(`s:${scope}:${reveal.schema}`);
+        await this.schemaStore.loadTables(scope, reveal.schema);
+        const key = `t:${scope}:${reveal.schema}:${reveal.table}`;
+        this.highlightKey.set(key);
+        setTimeout(() => {
+          this.hostElement.nativeElement
+            .querySelector(`[id="n-${CSS.escape(key)}"]`)
+            ?.scrollIntoView({ block: 'center' });
+        }, 30);
+        setTimeout(() => this.highlightKey() === key && this.highlightKey.set(''), 2500);
       });
     });
   }
 
-  public readonly rows = computed<Row[]>(() => {
-    const exp = this.expanded();
-    const data = this.schema.schemasByScope();
-    const dbs = this.schema.databases();
-    const loading = this.schema.loading();
-    const f = this.filter().trim().toLowerCase();
-    const out: Row[] = [];
-    const folders = this.conns.folders();
-    const rootFolders = new Set(folders.map((x) => x.id));
-    const parentOf = (folder: ConnectionFolder) => (folder.parentId && rootFolders.has(folder.parentId) ? folder.parentId : '');
-    const byFolder = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  public readonly rows = computed<TreeRow[]>(() => {
+    const expandedKeys = this.expandedKeys();
+    const schemasByScope = this.schemaStore.schemasByScope();
+    const databaseLists = this.schemaStore.databases();
+    const loadingKeys = this.schemaStore.loading();
+    const searchText = this.filterText().trim().toLowerCase();
+    const rows: TreeRow[] = [];
+    const folders = this.connectionStore.folders();
+    const rootFolderIds = new Set(folders.map((folder) => folder.id));
+    const parentIdOf = (folder: ConnectionFolder) =>
+      (folder.parentId && rootFolderIds.has(folder.parentId) ? folder.parentId : '');
+    const byFolderName = (first: { name: string }, second: { name: string }) =>
+      first.name.localeCompare(second.name, undefined, { sensitivity: 'base' });
 
     const foldersByParent = new Map<string, ConnectionFolder[]>();
     for (const folder of folders) {
-      const parent = parentOf(folder);
-      const list = foldersByParent.get(parent) ?? [];
-      list.push(folder);
-      foldersByParent.set(parent, list);
+      const parentId = parentIdOf(folder);
+      const siblings = foldersByParent.get(parentId) ?? [];
+      siblings.push(folder);
+      foldersByParent.set(parentId, siblings);
     }
-    for (const list of foldersByParent.values()) list.sort(byFolder);
-    const connsByFolder = new Map<string, ConnectionView[]>();
-    for (const conn of this.conns.connections()) {
-      const parent = conn.folderId && rootFolders.has(conn.folderId) ? conn.folderId : '';
-      const list = connsByFolder.get(parent) ?? [];
-      list.push(conn);
-      connsByFolder.set(parent, list);
+    for (const siblings of foldersByParent.values()) siblings.sort(byFolderName);
+    const connectionsByFolder = new Map<string, ConnectionView[]>();
+    for (const connection of this.connectionStore.connections()) {
+      const parentId = connection.folderId && rootFolderIds.has(connection.folderId) ? connection.folderId : '';
+      const siblings = connectionsByFolder.get(parentId) ?? [];
+      siblings.push(connection);
+      connectionsByFolder.set(parentId, siblings);
     }
-    for (const list of connsByFolder.values()) list.sort(byFolder);
+    for (const siblings of connectionsByFolder.values()) siblings.sort(byFolderName);
 
     /** Appends the schemas → tables → columns of one scope. Returns false when the filter hides it all. */
-    const addSchemas = (place: Place, cs: ConnectionSchema | undefined, depth: number): boolean => {
-      if (!cs) return !f;
-      let any = false;
-      for (const s of cs.schemas) {
-        const sk = `s:${place.scope}:${s}`;
-        const tables = cs.tables[s];
-        const matches = f && tables ? tables.filter((t) => t.name.toLowerCase().includes(f)) : tables;
-        if (f && (!matches || !matches.length)) continue; // the filter hides schemas without matches
-        any = true;
-        const open = exp.has(sk) || !!f;
-        out.push({ kind: 'schema', key: sk, depth, ...place, schema: s, open, loading: loading.has(`${place.scope}|tables|${s}`), isDefault: s === cs.defaultSchema, count: tables?.length });
-        if (!open || !matches) continue;
-        const shown = f ? matches : matches.slice(0, MAX_TABLES_UNFILTERED);
-        for (const t of shown) {
-          const tk = `t:${place.scope}:${s}:${t.name}`;
-          const topen = exp.has(tk);
-          out.push({ kind: 'table', key: tk, depth: depth + 1, ...place, table: t, open: topen, loading: loading.has(`${place.scope}|cols|${s}.${t.name}`) });
-          if (!topen) continue;
-          for (const c of cs.columns[`${s}.${t.name}`] ?? []) {
-            out.push({ kind: 'column', key: `${tk}:${c.name}`, depth: depth + 2, column: c });
+    const addSchemas = (place: NodePlace, cachedSchema: ConnectionSchema | undefined, depth: number): boolean => {
+      if (!cachedSchema) return !searchText;
+      let anyMatch = false;
+      for (const schemaName of cachedSchema.schemas) {
+        const schemaKey = `s:${place.scope}:${schemaName}`;
+        const tables = cachedSchema.tables[schemaName];
+        const matchingTables = searchText && tables
+          ? tables.filter((table) => table.name.toLowerCase().includes(searchText))
+          : tables;
+        // The filter hides schemas without matches.
+        if (searchText && (!matchingTables || !matchingTables.length)) continue;
+        anyMatch = true;
+        const open = expandedKeys.has(schemaKey) || !!searchText;
+        rows.push({
+          kind: 'schema', key: schemaKey, depth, ...place, schema: schemaName, open,
+          loading: loadingKeys.has(`${place.scope}|tables|${schemaName}`),
+          isDefault: schemaName === cachedSchema.defaultSchema,
+          count: tables?.length,
+        });
+        if (!open || !matchingTables) continue;
+        const shownTables = searchText ? matchingTables : matchingTables.slice(0, MAX_TABLES_UNFILTERED);
+        for (const table of shownTables) {
+          const tableKey = `t:${place.scope}:${schemaName}:${table.name}`;
+          const tableOpen = expandedKeys.has(tableKey);
+          rows.push({
+            kind: 'table', key: tableKey, depth: depth + 1, ...place, table, open: tableOpen,
+            loading: loadingKeys.has(`${place.scope}|cols|${schemaName}.${table.name}`),
+          });
+          if (!tableOpen) continue;
+          for (const column of cachedSchema.columns[`${schemaName}.${table.name}`] ?? []) {
+            rows.push({ kind: 'column', key: `${tableKey}:${column.name}`, depth: depth + 2, column });
           }
         }
-        if (shown.length < matches.length) {
-          out.push({ kind: 'note', key: `${sk}:more`, depth: depth + 1, text: `${matches.length - shown.length} more; use the filter` });
+        if (shownTables.length < matchingTables.length) {
+          rows.push({
+            kind: 'note', key: `${schemaKey}:more`, depth: depth + 1,
+            text: `${matchingTables.length - shownTables.length} more; use the filter`,
+          });
         }
-        if (!matches.length) out.push({ kind: 'note', key: `${sk}:none`, depth: depth + 1, text: 'No tables' });
+        if (!matchingTables.length) {
+          rows.push({ kind: 'note', key: `${schemaKey}:none`, depth: depth + 1, text: 'No tables' });
+        }
       }
-      return any || !f;
+      return anyMatch || !searchText;
     };
 
-    const addConn = (conn: ConnectionView, depth: number) => {
-      const ck = `c:${conn.id}`;
-      const d = dbs[conn.id];
-      const connOpen = conn.connected && (exp.has(ck) || !!f);
-      out.push({
-        kind: 'conn', key: ck, depth, conn, open: connOpen,
-        loading: this.conns.pending().has(conn.id) || loading.has(`${conn.id}|schemas`) || loading.has(`${conn.id}|databases`),
-        count: d?.supported ? d.databases.length : undefined,
+    const addConnection = (connection: ConnectionView, depth: number) => {
+      const connectionKey = `c:${connection.id}`;
+      const databaseList = databaseLists[connection.id];
+      const connectionOpen = connection.connected && (expandedKeys.has(connectionKey) || !!searchText);
+      rows.push({
+        kind: 'conn', key: connectionKey, depth, connection, open: connectionOpen,
+        loading: this.connectionStore.pending().has(connection.id)
+          || loadingKeys.has(`${connection.id}|schemas`)
+          || loadingKeys.has(`${connection.id}|databases`),
+        count: databaseList?.supported ? databaseList.databases.length : undefined,
       });
-      if (!connOpen || !d) return;
+      if (!connectionOpen || !databaseList) return;
 
-      if (!d.supported) {
-        addSchemas({ connId: conn.id, database: '', scope: conn.id }, data[conn.id], depth + 1);
+      if (!databaseList.supported) {
+        addSchemas({ connId: connection.id, database: '', scope: connection.id }, schemasByScope[connection.id], depth + 1);
         return;
       }
-      for (const db of d.databases) {
-        const isCurrent = db === d.current;
-        const place: Place = { connId: conn.id, database: isCurrent ? '' : db, scope: isCurrent ? conn.id : connectionScope(conn.id, db) };
-        const dk = `d:${conn.id}:${db}`;
-        const cs = data[place.scope];
-        const open = exp.has(dk) || (!!f && !!cs);
-        const at = out.length;
-        out.push({ kind: 'db', key: dk, depth: depth + 1, ...place, database: db, open, loading: loading.has(`${place.scope}|schemas`), isCurrent, count: cs?.schemas.length });
-        if (open && !addSchemas(place, cs, depth + 2)) out.length = at; // filtered out entirely
+      for (const databaseName of databaseList.databases) {
+        const isCurrent = databaseName === databaseList.current;
+        const place: NodePlace = {
+          connId: connection.id,
+          database: isCurrent ? '' : databaseName,
+          scope: isCurrent ? connection.id : connectionScope(connection.id, databaseName),
+        };
+        const databaseKey = `d:${connection.id}:${databaseName}`;
+        const cachedSchema = schemasByScope[place.scope];
+        const open = expandedKeys.has(databaseKey) || (!!searchText && !!cachedSchema);
+        const rowStart = rows.length;
+        rows.push({
+          kind: 'db', key: databaseKey, depth: depth + 1, ...place, database: databaseName, open,
+          loading: loadingKeys.has(`${place.scope}|schemas`), isCurrent,
+          count: cachedSchema?.schemas.length,
+        });
+        // Filtered out entirely.
+        if (open && !addSchemas(place, cachedSchema, depth + 2)) rows.length = rowStart;
       }
     };
 
-    const countConns = (folderId: string): number => {
-      let n = (connsByFolder.get(folderId) ?? []).length;
-      for (const child of foldersByParent.get(folderId) ?? []) n += countConns(child.id);
-      return n;
+    const countConnections = (folderId: string): number => {
+      let count = (connectionsByFolder.get(folderId) ?? []).length;
+      for (const child of foldersByParent.get(folderId) ?? []) count += countConnections(child.id);
+      return count;
     };
 
     const addFolder = (folder: ConnectionFolder, depth: number) => {
       const key = `f:${folder.id}`;
-      const open = exp.has(key) || !!f;
-      out.push({ kind: 'folder', key, depth, folder, open, count: countConns(folder.id), match: !!f && folder.name.toLowerCase().includes(f) });
+      const open = expandedKeys.has(key) || !!searchText;
+      rows.push({
+        kind: 'folder', key, depth, folder, open, count: countConnections(folder.id),
+        match: !!searchText && folder.name.toLowerCase().includes(searchText),
+      });
       if (!open) return;
       for (const child of foldersByParent.get(folder.id) ?? []) addFolder(child, depth + 1);
-      for (const conn of connsByFolder.get(folder.id) ?? []) addConn(conn, depth + 1);
+      for (const connection of connectionsByFolder.get(folder.id) ?? []) addConnection(connection, depth + 1);
     };
 
     for (const folder of foldersByParent.get('') ?? []) addFolder(folder, 0);
-    for (const conn of connsByFolder.get('') ?? []) addConn(conn, 0);
-    return out;
+    for (const connection of connectionsByFolder.get('') ?? []) addConnection(connection, 0);
+    return rows;
   });
 
-  public pad(depth: number) { return 6 + depth * 16; }
+  public indent(depth: number) { return 6 + depth * 16; }
 
-  public kindLabel(c: ConnectionView) { return KIND_LABELS[c.kind]; }
+  public kindLabel(connection: ConnectionView) { return KIND_LABELS[connection.kind]; }
 
-  private expand(key: string) {
-    if (this.expanded().has(key)) return;
-    this.expanded.set(new Set([...this.expanded(), key]));
+  private expandKey(key: string) {
+    if (this.expandedKeys().has(key)) return;
+    this.expandedKeys.set(new Set([...this.expandedKeys(), key]));
   }
 
-  private collapse(key: string) {
-    const s = new Set(this.expanded());
-    s.delete(key);
-    this.expanded.set(s);
+  private collapseKey(key: string) {
+    const expandedKeys = new Set(this.expandedKeys());
+    expandedKeys.delete(key);
+    this.expandedKeys.set(expandedKeys);
   }
 
   public toggleFolder(folder: ConnectionFolder) {
     const key = `f:${folder.id}`;
-    if (this.expanded().has(key)) this.collapse(key);
-    else this.expand(key);
+    if (this.expandedKeys().has(key)) this.collapseKey(key);
+    else this.expandKey(key);
   }
 
   public async newFolder() {
-    const f = await this.conns.createFolder('New folder');
-    if (!f) return;
-    this.editingFolder.set(f.id);
-    this.selected.set(`f:${f.id}`);
+    const folder = await this.connectionStore.createFolder('New folder');
+    if (!folder) return;
+    this.editingFolderId.set(folder.id);
+    this.selectedKey.set(`f:${folder.id}`);
     setTimeout(() => {
-      const input = this.el.nativeElement.querySelector<HTMLInputElement>(`[id="n-f:${CSS.escape(f.id)}"] input.rename`);
+      const input = this.hostElement.nativeElement.querySelector<HTMLInputElement>(
+        `[id="n-f:${CSS.escape(folder.id)}"] input.rename`,
+      );
       input?.select();
     }, 20);
   }
 
   public async renameFolder(folder: ConnectionFolder, name: string) {
-    if (this.editingFolder() !== folder.id) return;
-    this.editingFolder.set('');
-    if (name.trim() && name.trim() !== folder.name) await this.conns.renameFolder(folder.id, name);
+    if (this.editingFolderId() !== folder.id) return;
+    this.editingFolderId.set('');
+    if (name.trim() && name.trim() !== folder.name) await this.connectionStore.renameFolder(folder.id, name);
   }
 
   public async deleteFolder(folder: ConnectionFolder) {
-    if (!(await this.confirm.ask(
+    if (!(await this.confirmDialog.ask(
       `Delete the folder “${folder.name}”? Its connections and sub-folders move up one level.`,
       { title: 'Delete folder', confirmLabel: 'Delete', danger: true },
     ))) return;
-    await this.conns.deleteFolder(folder.id);
+    await this.connectionStore.deleteFolder(folder.id);
   }
 
   // ---- drag & drop: connections and folders move between folders ----
 
-  public onConnDrag(e: DragEvent, conn: ConnectionView) {
-    this.startDrag(e, { kind: 'conn', id: conn.id, name: conn.name });
+  public onConnectionDrag(event: DragEvent, connection: ConnectionView) {
+    this.startDrag(event, { kind: 'conn', id: connection.id, name: connection.name });
   }
 
-  public onFolderDrag(e: DragEvent, f: ConnectionFolder) {
-    this.startDrag(e, { kind: 'folder', id: f.id, name: f.name });
+  public onFolderDrag(event: DragEvent, folder: ConnectionFolder) {
+    this.startDrag(event, { kind: 'folder', id: folder.id, name: folder.name });
   }
 
-  private startDrag(e: DragEvent, item: DragItem) {
-    this.drag.set(item);
-    this.dropKey.set('');
-    e.dataTransfer?.setData(item.kind === 'conn' ? CONN_DRAG_TYPE : FOLDER_DRAG_TYPE, item.id);
-    e.dataTransfer?.setData('text/plain', item.name);
-    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+  private startDrag(event: DragEvent, item: DraggedItem) {
+    this.draggedItem.set(item);
+    this.dropTargetKey.set('');
+    event.dataTransfer?.setData(item.kind === 'conn' ? CONNECTION_DRAG_TYPE : FOLDER_DRAG_TYPE, item.id);
+    event.dataTransfer?.setData('text/plain', item.name);
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
   }
 
   public endDrag() {
-    this.drag.set(null);
-    this.dropKey.set('');
+    this.draggedItem.set(null);
+    this.dropTargetKey.set('');
   }
 
-  public onFolderOver(e: DragEvent, folder: ConnectionFolder) {
-    const item = this.drag();
-    if (!item || !this.canDropIn(item, folder)) return;
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-    this.dropKey.set(`f:${folder.id}`);
+  public onFolderOver(event: DragEvent, folder: ConnectionFolder) {
+    const item = this.draggedItem();
+    if (!item || !this.canDropInto(item, folder)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    this.dropTargetKey.set(`f:${folder.id}`);
   }
 
-  public onFolderLeave(e: DragEvent, folder: ConnectionFolder) {
-    const next = e.relatedTarget as Node | null;
-    if (next && (e.currentTarget as Node).contains(next)) return;
-    if (this.dropKey() === `f:${folder.id}`) this.dropKey.set('');
+  public onFolderLeave(event: DragEvent, folder: ConnectionFolder) {
+    const nextTarget = event.relatedTarget as Node | null;
+    if (nextTarget && (event.currentTarget as Node).contains(nextTarget)) return;
+    if (this.dropTargetKey() === `f:${folder.id}`) this.dropTargetKey.set('');
   }
 
-  public onFolderDrop(e: DragEvent, folder: ConnectionFolder) {
-    const item = this.drag();
-    if (!item || !this.canDropIn(item, folder)) return;
-    e.preventDefault();
-    e.stopPropagation();
-    this.drop(item, folder.id);
+  public onFolderDrop(event: DragEvent, folder: ConnectionFolder) {
+    const item = this.draggedItem();
+    if (!item || !this.canDropInto(item, folder)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.dropItem(item, folder.id);
   }
 
   /** The area outside folder rows is the root: drop there to move something out. */
-  public onRootOver(e: DragEvent) {
-    if (!this.drag()) return;
-    if ((e.target as HTMLElement).closest?.('.row.folder')) return;
-    e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-    this.dropKey.set('root');
+  public onRootOver(event: DragEvent) {
+    if (!this.draggedItem()) return;
+    if ((event.target as HTMLElement).closest?.('.row.folder')) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    this.dropTargetKey.set('root');
   }
 
-  public onRootLeave(e: DragEvent) {
-    const next = e.relatedTarget as Node | null;
-    if (next && (e.currentTarget as HTMLElement).contains(next)) return;
-    if (this.dropKey() === 'root') this.dropKey.set('');
+  public onRootLeave(event: DragEvent) {
+    const nextTarget = event.relatedTarget as Node | null;
+    if (nextTarget && (event.currentTarget as HTMLElement).contains(nextTarget)) return;
+    if (this.dropTargetKey() === 'root') this.dropTargetKey.set('');
   }
 
-  public onRootDrop(e: DragEvent) {
-    const item = this.drag();
+  public onRootDrop(event: DragEvent) {
+    const item = this.draggedItem();
     if (!item) return;
-    if ((e.target as HTMLElement).closest?.('.row.folder')) return;
-    e.preventDefault();
-    this.drop(item, '');
+    if ((event.target as HTMLElement).closest?.('.row.folder')) return;
+    event.preventDefault();
+    this.dropItem(item, '');
   }
 
   /** A folder can never be dropped into itself or one of its descendants. */
-  private canDropIn(item: DragItem, folder: ConnectionFolder): boolean {
+  private canDropInto(item: DraggedItem, folder: ConnectionFolder): boolean {
     if (item.kind === 'conn') return true;
     if (item.id === folder.id) return false;
-    const byId = new Map(this.conns.folders().map((f) => [f.id, f]));
-    for (let parent = folder.parentId; parent; parent = byId.get(parent)?.parentId) {
-      if (parent === item.id) return false;
+    const foldersById = new Map(this.connectionStore.folders().map((candidate) => [candidate.id, candidate]));
+    for (let parentId = folder.parentId; parentId; parentId = foldersById.get(parentId)?.parentId) {
+      if (parentId === item.id) return false;
     }
     return true;
   }
 
-  private drop(item: DragItem, folderId: string) {
-    this.dropKey.set('');
-    this.drag.set(null);
-    if (folderId) this.expand(`f:${folderId}`);
-    if (item.kind === 'conn') void this.conns.moveToFolder(item.id, folderId);
-    else void this.conns.moveFolder(item.id, folderId);
+  private dropItem(item: DraggedItem, folderId: string) {
+    this.dropTargetKey.set('');
+    this.draggedItem.set(null);
+    if (folderId) this.expandKey(`f:${folderId}`);
+    if (item.kind === 'conn') void this.connectionStore.moveToFolder(item.id, folderId);
+    else void this.connectionStore.moveFolder(item.id, folderId);
   }
 
-  public async toggleConn(c: ConnectionView) {
-    const key = `c:${c.id}`;
-    if (!c.connected) {
-      await this.conns.connect(c.id); // onChange expands it
+  public async toggleConnection(connection: ConnectionView) {
+    const key = `c:${connection.id}`;
+    if (!connection.connected) {
+      await this.connectionStore.connect(connection.id); // onChange expands it
       return;
     }
-    if (this.expanded().has(key)) this.collapse(key);
-    else {
-      this.expand(key);
-      void this.schema.loadDatabases(c.id);
-      void this.schema.loadSchemas(c.id);
-    }
-  }
-
-  public toggle(r: Row) {
-    if (!('open' in r) || r.kind === 'conn') return;
-    if (r.kind === 'folder') {
-      this.toggleFolder(r.folder);
+    if (this.expandedKeys().has(key)) {
+      this.collapseKey(key);
       return;
     }
-    if (r.open) {
-      if (!this.filter()) this.collapse(r.key);
+    this.expandKey(key);
+    void this.schemaStore.loadDatabases(connection.id);
+    void this.schemaStore.loadSchemas(connection.id);
+  }
+
+  public toggle(row: TreeRow) {
+    if (!('open' in row) || row.kind === 'conn') return;
+    if (row.kind === 'folder') {
+      this.toggleFolder(row.folder);
       return;
     }
-    this.expand(r.key);
-    if (r.kind === 'db') void this.schema.loadSchemas(r.scope);
-    if (r.kind === 'schema') void this.schema.loadTables(r.scope, r.schema);
-    if (r.kind === 'table') void this.schema.loadColumns(r.scope, r.table.schema, r.table.name);
+    if (row.open) {
+      if (!this.filterText()) this.collapseKey(row.key);
+      return;
+    }
+    this.expandKey(row.key);
+    if (row.kind === 'db') void this.schemaStore.loadSchemas(row.scope);
+    if (row.kind === 'schema') void this.schemaStore.loadTables(row.scope, row.schema);
+    if (row.kind === 'table') void this.schemaStore.loadColumns(row.scope, row.table.schema, row.table.name);
   }
 
-  public openMenu(e: MouseEvent, m: MenuTarget) {
-    e.preventDefault();
-    this.menu.set({ ...m, ...clampMenu(e.clientX, e.clientY, 240, 420) });
+  public openContextMenu(event: MouseEvent, target: MenuTarget) {
+    event.preventDefault();
+    this.contextMenu.set({ ...target, ...clampMenu(event.clientX, event.clientY, 240, 420) });
   }
 
-  public menuAction(action: string) {
-    const m = this.menu();
-    this.menu.set(null);
-    if (!m) return;
-    switch (m.kind) {
+  public runMenuAction(action: string) {
+    const menu = this.contextMenu();
+    this.contextMenu.set(null);
+    if (!menu) return;
+    switch (menu.kind) {
       case 'folder': {
         switch (action) {
-          case 'rename': return this.editingFolder.set(m.folder.id);
-          case 'delete': return void this.deleteFolder(m.folder);
+          case 'rename': return this.editingFolderId.set(menu.folder.id);
+          case 'delete': return void this.deleteFolder(menu.folder);
         }
         return;
       }
       case 'table': {
-        const { connId, database, table: t } = m;
+        const { connId, database, table } = menu;
         switch (action) {
-          case 'data': return this.cmds.openTableData(connId, database, t);
-          case 'select': return void this.cmds.selectTop(connId, t, database);
-          case 'scratch': return this.cmds.newScratchFor(connId, t, database);
-          case 'insert': return this.cmds.insertName(connId, t.schema, t.name, database);
-          case 'copy': return void this.cmds.copy(t.name);
-          case 'ddl': return void this.cmds.showDDL(connId, t, database);
-          case 'copyddl': return void this.cmds.copyDDL(connId, t, database);
-          case 'newtable': return void this.cmds.newTable(connId, t.schema, database);
-          case 'drop': return void this.cmds.dropTable(connId, t, database);
+          case 'data': return this.commandService.openTableData(connId, database, table);
+          case 'select': return void this.commandService.selectTop(connId, table, database);
+          case 'scratch': return this.commandService.newScratchFor(connId, table, database);
+          case 'insert': return this.commandService.insertName(connId, table.schema, table.name, database);
+          case 'copy': return void this.commandService.copy(table.name);
+          case 'ddl': return void this.commandService.showDDL(connId, table, database);
+          case 'copyddl': return void this.commandService.copyDDL(connId, table, database);
+          case 'newtable': return void this.commandService.newTable(connId, table.schema, database);
+          case 'drop': return void this.commandService.dropTable(connId, table, database);
         }
         return;
       }
       case 'db': {
-        const db = m.database || this.schema.databases()[m.connId]?.current || '';
+        const databaseName = menu.database || this.schemaStore.databases()[menu.connId]?.current || '';
         switch (action) {
-          case 'newtab': return this.cmds.newTab(m.connId, m.database);
-          case 'use': return this.useInTab(m.connId, m.database);
-          case 'copy': return void this.cmds.copy(db);
-          case 'refresh': return void this.schema.refreshScope(m.scope);
-          case 'newdb': return void this.cmds.createDatabase(m.connId);
-          case 'dropdb': return void this.cmds.dropDatabase(m.connId, db);
+          case 'newtab': return this.commandService.newTab(menu.connId, menu.database);
+          case 'use': return this.useInCurrentTab(menu.connId, menu.database);
+          case 'copy': return void this.commandService.copy(databaseName);
+          case 'refresh': return void this.schemaStore.refreshScope(menu.scope);
+          case 'newdb': return void this.commandService.createDatabase(menu.connId);
+          case 'dropdb': return void this.commandService.dropDatabase(menu.connId, databaseName);
         }
         return;
       }
       case 'conn': {
-        const c = m.conn;
+        const connection = menu.connection;
         switch (action) {
-          case 'newtab': return this.cmds.newTab(c.id, '');
-          case 'use': return this.useInTab(c.id, '');
-          case 'refresh': return void this.schema.refresh(c.id);
-          case 'disconnect': return void this.conns.disconnect(c.id);
-          case 'connect': return void this.conns.connect(c.id);
-          case 'readonly': return void this.cmds.toggleReadOnly(c);
-          case 'edit': return this.cmds.editConnection(c);
+          case 'newtab': return this.commandService.newTab(connection.id, '');
+          case 'use': return this.useInCurrentTab(connection.id, '');
+          case 'refresh': return void this.schemaStore.refresh(connection.id);
+          case 'disconnect': return void this.connectionStore.disconnect(connection.id);
+          case 'connect': return void this.connectionStore.connect(connection.id);
+          case 'readonly': return void this.commandService.toggleReadOnly(connection);
+          case 'edit': return this.commandService.editConnection(connection);
         }
       }
     }
   }
 
   /** The database the connection itself is opened on (it cannot be dropped from here). */
-  public isMainDb(connId: string, database: string): boolean {
-    const cur = this.schema.databases()[connId]?.current;
-    return !database || database === cur;
+  public isPrimaryDatabase(connectionId: string, database: string): boolean {
+    const currentDatabase = this.schemaStore.databases()[connectionId]?.current;
+    return !database || database === currentDatabase;
   }
 
-  public async useInTab(connId: string, database: string) {
-    const t = this.tabs.active();
-    if (!t) return;
-    if (t.locked) {
-      this.toasts.error(`${t.name} is locked to its folder. Unlock it first.`);
+  public async useInCurrentTab(connectionId: string, database: string) {
+    const tab = this.tabStore.active();
+    if (!tab) return;
+    if (tab.locked) {
+      this.toastService.error(`${tab.name} is locked to its folder. Unlock it first.`);
       return;
     }
-    if (!(await this.tx.confirmLeave(t.id))) return;
-    this.tabs.setConnection(t.id, connId, database);
+    if (!(await this.transactionStore.confirmLeave(tab.id))) return;
+    this.tabStore.setConnection(tab.id, connectionId, database);
   }
 
   /** Arrow keys move between rows, Left/Right collapse/expand, Enter toggles. */
-  public onTreeKey(e: KeyboardEvent) {
-    const rows = this.rows().filter((r) => r.kind !== 'note' && r.kind !== 'column');
-    const i = rows.findIndex((r) => r.key === this.selected());
-    const focus = (k: string) => this.el.nativeElement.querySelector<HTMLElement>(`[id="n-${CSS.escape(k)}"]`)?.focus();
-    const r = rows[i];
-    switch (e.key) {
-      case 'ArrowDown': if (i < rows.length - 1) focus(rows[i + 1].key); break;
-      case 'ArrowUp': if (i > 0) focus(rows[i - 1].key); break;
-      case 'ArrowRight': case 'ArrowLeft': case 'Enter':
-        if (!r || !('open' in r)) return;
-        if (e.key === 'Enter' || (e.key === 'ArrowRight') !== r.open) {
-          if (r.kind === 'conn') void this.toggleConn(r.conn);
-          else this.toggle(r);
+  public onTreeKeyDown(event: KeyboardEvent) {
+    const rows = this.rows().filter((row) => row.kind !== 'note' && row.kind !== 'column');
+    const selectedIndex = rows.findIndex((row) => row.key === this.selectedKey());
+    const focusRow = (key: string) =>
+      this.hostElement.nativeElement.querySelector<HTMLElement>(`[id="n-${CSS.escape(key)}"]`)?.focus();
+    const row = rows[selectedIndex];
+    switch (event.key) {
+      case 'ArrowDown':
+        if (selectedIndex < rows.length - 1) focusRow(rows[selectedIndex + 1].key);
+        break;
+      case 'ArrowUp':
+        if (selectedIndex > 0) focusRow(rows[selectedIndex - 1].key);
+        break;
+      case 'ArrowRight':
+      case 'ArrowLeft':
+      case 'Enter':
+        if (!row || !('open' in row)) return;
+        if (event.key === 'Enter' || (event.key === 'ArrowRight') !== row.open) {
+          if (row.kind === 'conn') void this.toggleConnection(row.connection);
+          else this.toggle(row);
         }
         break;
-      default: return;
+      default:
+        return;
     }
-    e.preventDefault();
+    event.preventDefault();
   }
 }

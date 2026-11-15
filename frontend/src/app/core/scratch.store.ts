@@ -15,9 +15,9 @@ import type { ScratchInfo } from './models';
 @Injectable({ providedIn: 'root' })
 export class ScratchStore {
   private api = inject(Api);
-  private tabs = inject(TabStore);
-  private editor = inject(EditorBridge);
-  private toasts = inject(Toasts);
+  private tabStore = inject(TabStore);
+  private editorBridge = inject(EditorBridge);
+  private toastService = inject(Toasts);
   private transactionStore = inject(TxStore);
   private confirmDialog = inject(Confirm);
 
@@ -28,7 +28,7 @@ export class ScratchStore {
 
   /** Every scratch, most recently edited first, with open tabs' live names and links. */
   public readonly list = computed<ScratchInfo[]>(() => {
-    const open = new Map(this.tabs.tabs().filter((tab) => tab.kind === 'sql').map((tab) => [tab.id, tab]));
+    const open = new Map(this.tabStore.tabs().filter((tab) => tab.kind === 'sql').map((tab) => [tab.id, tab]));
     const seen = new Set<string>();
     const out = this.persisted().map((scratch) => {
       seen.add(scratch.id);
@@ -43,13 +43,13 @@ export class ScratchStore {
     return out;
   });
 
-  public readonly openIds = computed(() => new Set(this.tabs.tabs().map((tab) => tab.id)));
+  public readonly openIds = computed(() => new Set(this.tabStore.tabs().map((tab) => tab.id)));
 
   constructor() {
-    this.tabs.takenNames = () => this.persisted().map((scratch) => scratch.name);
+    this.tabStore.takenNames = () => this.persisted().map((scratch) => scratch.name);
     // Refresh after tab changes have been written (layout and content saves are debounced).
     effect(() => {
-      this.tabs.tabs();
+      this.tabStore.tabs();
       untracked(() => this.refreshSoon());
     });
   }
@@ -65,7 +65,7 @@ export class ScratchStore {
       const scratches = await this.api.listScratches();
       if (generation === this.refreshId) this.persisted.set(scratches);
     } catch (error) {
-      this.toasts.error(errorText(error));
+      this.toastService.error(errorText(error));
     }
   }
 
@@ -75,29 +75,29 @@ export class ScratchStore {
    * tab has unsaved changes, which would otherwise be lost).
    */
   public async reloadOpen() {
-    for (const tab of this.tabs.tabs().filter((tab) => tab.kind === 'sql')) {
+    for (const tab of this.tabStore.tabs().filter((tab) => tab.kind === 'sql')) {
       try {
         const remote = await this.api.openScratch(tab.id);
-        const current = this.tabs.get(tab.id);
+        const current = this.tabStore.get(tab.id);
         if (!current || current.dirty) continue;
         const content = remote.content ?? '';
         if (content === current.content) continue;
-        this.tabs.adoptContent(tab.id, content);
-        this.editor.replaceContent(tab.id, content);
+        this.tabStore.adoptContent(tab.id, content);
+        this.editorBridge.replaceContent(tab.id, content);
       } catch (error) {
         const message = errorText(error);
-        const current = this.tabs.get(tab.id);
+        const current = this.tabStore.get(tab.id);
         if (!current) continue;
         if (!/not found/i.test(message)) {
-          this.toasts.error(`${current.name}: ${message}`);
+          this.toastService.error(`${current.name}: ${message}`);
           continue;
         }
         if (current.dirty) {
-          this.toasts.error(`${current.name} was deleted by the sync but has unsaved changes.`);
+          this.toastService.error(`${current.name} was deleted by the sync but has unsaved changes.`);
           continue;
         }
-        await this.tabs.close(tab.id);
-        this.toasts.error(`${current.name} was deleted by the sync.`);
+        await this.tabStore.close(tab.id);
+        this.toastService.error(`${current.name} was deleted by the sync.`);
       }
     }
     await this.refresh();
@@ -105,24 +105,24 @@ export class ScratchStore {
 
   /** Opens a scratch, or focuses its tab when already open. */
   public async open(id: string) {
-    if (this.tabs.get(id)) return this.tabs.activate(id);
+    if (this.tabStore.get(id)) return this.tabStore.activate(id);
     try {
-      this.tabs.openScratch(await this.api.openScratch(id));
+      this.tabStore.openScratch(await this.api.openScratch(id));
     } catch (error) {
-      this.toasts.error(errorText(error));
+      this.toastService.error(errorText(error));
     }
   }
 
   public async rename(id: string, name: string) {
     name = name.trim();
     if (!name) return;
-    await this.tabs.flush(id);
+    await this.tabStore.flush(id);
     try {
       const clean = await this.api.renameScratch(id, name);
-      if (this.tabs.get(id)) this.tabs.setName(id, clean);
+      if (this.tabStore.get(id)) this.tabStore.setName(id, clean);
       await this.refresh();
     } catch (error) {
-      this.toasts.error(errorText(error));
+      this.toastService.error(errorText(error));
     }
   }
 
@@ -133,29 +133,29 @@ export class ScratchStore {
     try {
       // Closing waits for the tab'scratch last write; deleting only afterwards keeps
       // an in-flight save from recreating the file.
-      if (this.tabs.get(id)) await this.tabs.close(id);
+      if (this.tabStore.get(id)) await this.tabStore.close(id);
       await this.api.deleteScratch(id);
       this.persisted.update((scratches) => scratches.filter((scratch) => scratch.id !== id));
       await this.refresh();
       return true;
     } catch (error) {
-      this.toasts.error(errorText(error));
+      this.toastService.error(errorText(error));
       return false;
     }
   }
 
   public async duplicate(id: string) {
-    await this.tabs.flush(id);
+    await this.tabStore.flush(id);
     const source = this.list().find((scratch) => scratch.id === id);
     const baseName = (source?.name ?? 'query.sql').replace(/\.sql$/i, '');
     const takenNames = new Set(this.list().map((scratch) => scratch.name));
     let name = `${baseName} copy.sql`;
     for (let i = 2; takenNames.has(name); i++) name = `${baseName} copy ${i}.sql`;
     try {
-      this.tabs.openScratch(await this.api.duplicateScratch(id, crypto.randomUUID(), name));
+      this.tabStore.openScratch(await this.api.duplicateScratch(id, crypto.randomUUID(), name));
       await this.refresh();
     } catch (error) {
-      this.toasts.error(errorText(error));
+      this.toastService.error(errorText(error));
     }
   }
 
@@ -173,32 +173,32 @@ export class ScratchStore {
     try {
       const created = await this.api.createScratch(crypto.randomUUID(), name ?? this.freeName(target.table || 'query'),
         target.connId, target.database, target.table ? target.schema ?? '' : '', target.table ?? '', content);
-      const tab = this.tabs.openScratch(created);
+      const tab = this.tabStore.openScratch(created);
       await this.refresh();
       return tab;
     } catch (error) {
-      this.toasts.error(errorText(error));
+      this.toastService.error(errorText(error));
       return undefined;
     }
   }
 
   /** Moves a scratch to another folder. An open tab follows the new connection / database. */
   public async moveTo(id: string, target: { connId: string; database: string; schema: string; table: string }) {
-    const locked = this.tabs.get(id)?.locked ?? this.persisted().find((scratch) => scratch.id === id)?.locked;
+    const locked = this.tabStore.get(id)?.locked ?? this.persisted().find((scratch) => scratch.id === id)?.locked;
     if (locked) {
-      this.toasts.error('This scratch is locked to its folder. Unlock it first.');
+      this.toastService.error('This scratch is locked to its folder. Unlock it first.');
       return;
     }
-    const tab = this.tabs.get(id);
+    const tab = this.tabStore.get(id);
     if (tab && (tab.connId !== target.connId || tab.database !== target.database)) {
       if (!(await this.transactionStore.confirmLeave(id))) return;
-      this.tabs.setConnection(id, target.connId, target.database);
+      this.tabStore.setConnection(id, target.connId, target.database);
     }
     try {
       await this.api.linkScratch(id, target.connId, target.database, target.schema, target.table);
       await this.refresh();
     } catch (error) {
-      this.toasts.error(errorText(error));
+      this.toastService.error(errorText(error));
     }
   }
 
@@ -206,46 +206,46 @@ export class ScratchStore {
   public async setLocked(id: string, locked: boolean) {
     try {
       // The backend stores the lock with the scratch: let it see the tab first.
-      await this.tabs.flush(id);
-      await this.tabs.saveLayoutNow();
+      await this.tabStore.flush(id);
+      await this.tabStore.saveLayoutNow();
       await this.api.setScratchLock(id, locked);
-      this.tabs.setLocked(id, locked);
+      this.tabStore.setLocked(id, locked);
       this.persisted.update((scratches) => scratches.map((scratch) => (scratch.id === id ? { ...scratch, locked } : scratch)));
     } catch (error) {
-      this.toasts.error(errorText(error));
+      this.toastService.error(errorText(error));
     }
   }
 
   /** Writes a copy to a .sql file chosen by the user. */
   public async exportFile(id: string) {
-    await this.tabs.flush(id);
+    await this.tabStore.flush(id);
     try {
       const path = await this.api.exportScratch(id);
-      if (path) this.toasts.success(`Saved a copy to ${path}`);
+      if (path) this.toastService.success(`Saved a copy to ${path}`);
     } catch (error) {
-      this.toasts.error(errorText(error));
+      this.toastService.error(errorText(error));
     }
   }
 
   /** Opens a .sql file from disk as a new scratch, linked to the current tab'scratch connection. */
   public async importFile() {
-    const active = this.tabs.active();
+    const active = this.tabStore.active();
     try {
       const tab = await this.api.importScratch(crypto.randomUUID(), active?.connId ?? '', active?.database ?? '');
       if (!tab?.id) return;
-      this.tabs.openScratch(tab);
+      this.tabStore.openScratch(tab);
       await this.refresh();
     } catch (error) {
-      this.toasts.error(errorText(error));
+      this.toastService.error(errorText(error));
     }
   }
 
   /** ⌘S on a SQL tab: write now (content also autosaves). */
   public async save(id: string) {
-    const tab = this.tabs.get(id);
+    const tab = this.tabStore.get(id);
     if (!tab) return;
-    await this.tabs.flush(id);
-    this.toasts.success(`Saved ${tab.name}`);
+    await this.tabStore.flush(id);
+    this.toastService.success(`Saved ${tab.name}`);
     this.refreshSoon(300);
   }
 }

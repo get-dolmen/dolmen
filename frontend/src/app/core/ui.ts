@@ -83,7 +83,7 @@ export class Ui {
   /** Bumped to ask the sidebar to reveal a table. */
   public readonly reveal = signal<{ connId: string; database: string; schema: string; table: string } | null>(null);
 
-  constructor() {
+  public constructor() {
     // Paint the remembered theme as soon as the store exists, then on every change.
     effect(() => applyThemeAttribute(this.theme()));
 

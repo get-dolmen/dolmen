@@ -45,7 +45,7 @@ export class ScratchStore {
 
   public readonly openIds = computed(() => new Set(this.tabStore.tabs().map((tab) => tab.id)));
 
-  constructor() {
+  public constructor() {
     this.tabStore.takenNames = () => this.persisted().map((scratch) => scratch.name);
     // Refresh after tab changes have been written (layout and content saves are debounced).
     effect(() => {

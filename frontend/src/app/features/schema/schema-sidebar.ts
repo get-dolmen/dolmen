@@ -47,27 +47,27 @@ type DragItem = { kind: 'conn'; id: string; name: string } | { kind: 'folder'; i
   styleUrl: './schema-sidebar.scss',
 })
 export class SchemaSidebar {
-  readonly cmds = inject(Commands);
-  readonly conns = inject(ConnectionStore);
-  readonly schema = inject(SchemaStore);
+  public readonly cmds = inject(Commands);
+  public readonly conns = inject(ConnectionStore);
+  public readonly schema = inject(SchemaStore);
   private tabs = inject(TabStore);
-  readonly ui = inject(Ui);
+  public readonly ui = inject(Ui);
   private tx = inject(TxStore);
   private confirm = inject(Confirm);
   private toasts = inject(Toasts);
   private el = inject<ElementRef<HTMLElement>>(ElementRef);
 
-  readonly filter = signal('');
-  readonly expanded = signal<ReadonlySet<string>>(new Set());
-  readonly selected = signal('');
-  readonly highlight = signal('');
-  readonly menu = signal<Menu | null>(null);
-  readonly editingFolder = signal('');
-  readonly dropKey = signal('');
+  public readonly filter = signal('');
+  public readonly expanded = signal<ReadonlySet<string>>(new Set());
+  public readonly selected = signal('');
+  public readonly highlight = signal('');
+  public readonly menu = signal<Menu | null>(null);
+  public readonly editingFolder = signal('');
+  public readonly dropKey = signal('');
   /** The connection or folder being dragged, for drop validation and hints. */
-  readonly drag = signal<DragItem | null>(null);
+  public readonly drag = signal<DragItem | null>(null);
 
-  constructor() {
+  public constructor() {
     // Expand freshly connected connections down to their default schema.
     this.conns.onChange(async (id, connected) => {
       if (!connected) return;
@@ -103,7 +103,7 @@ export class SchemaSidebar {
     });
   }
 
-  readonly rows = computed<Row[]>(() => {
+  public readonly rows = computed<Row[]>(() => {
     const exp = this.expanded();
     const data = this.schema.schemasByScope();
     const dbs = this.schema.databases();
@@ -210,9 +210,9 @@ export class SchemaSidebar {
     return out;
   });
 
-  pad(depth: number) { return 6 + depth * 16; }
+  public pad(depth: number) { return 6 + depth * 16; }
 
-  kindLabel(c: ConnectionView) { return KIND_LABELS[c.kind]; }
+  public kindLabel(c: ConnectionView) { return KIND_LABELS[c.kind]; }
 
   private expand(key: string) {
     if (this.expanded().has(key)) return;
@@ -225,13 +225,13 @@ export class SchemaSidebar {
     this.expanded.set(s);
   }
 
-  toggleFolder(folder: ConnectionFolder) {
+  public toggleFolder(folder: ConnectionFolder) {
     const key = `f:${folder.id}`;
     if (this.expanded().has(key)) this.collapse(key);
     else this.expand(key);
   }
 
-  async newFolder() {
+  public async newFolder() {
     const f = await this.conns.createFolder('New folder');
     if (!f) return;
     this.editingFolder.set(f.id);
@@ -242,13 +242,13 @@ export class SchemaSidebar {
     }, 20);
   }
 
-  async renameFolder(folder: ConnectionFolder, name: string) {
+  public async renameFolder(folder: ConnectionFolder, name: string) {
     if (this.editingFolder() !== folder.id) return;
     this.editingFolder.set('');
     if (name.trim() && name.trim() !== folder.name) await this.conns.renameFolder(folder.id, name);
   }
 
-  async deleteFolder(folder: ConnectionFolder) {
+  public async deleteFolder(folder: ConnectionFolder) {
     if (!(await this.confirm.ask(
       `Delete the folder “${folder.name}”? Its connections and sub-folders move up one level.`,
       { title: 'Delete folder', confirmLabel: 'Delete', danger: true },
@@ -258,11 +258,11 @@ export class SchemaSidebar {
 
   // ---- drag & drop: connections and folders move between folders ----
 
-  onConnDrag(e: DragEvent, conn: ConnectionView) {
+  public onConnDrag(e: DragEvent, conn: ConnectionView) {
     this.startDrag(e, { kind: 'conn', id: conn.id, name: conn.name });
   }
 
-  onFolderDrag(e: DragEvent, f: ConnectionFolder) {
+  public onFolderDrag(e: DragEvent, f: ConnectionFolder) {
     this.startDrag(e, { kind: 'folder', id: f.id, name: f.name });
   }
 
@@ -274,12 +274,12 @@ export class SchemaSidebar {
     if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
   }
 
-  endDrag() {
+  public endDrag() {
     this.drag.set(null);
     this.dropKey.set('');
   }
 
-  onFolderOver(e: DragEvent, folder: ConnectionFolder) {
+  public onFolderOver(e: DragEvent, folder: ConnectionFolder) {
     const item = this.drag();
     if (!item || !this.canDropIn(item, folder)) return;
     e.preventDefault();
@@ -288,13 +288,13 @@ export class SchemaSidebar {
     this.dropKey.set(`f:${folder.id}`);
   }
 
-  onFolderLeave(e: DragEvent, folder: ConnectionFolder) {
+  public onFolderLeave(e: DragEvent, folder: ConnectionFolder) {
     const next = e.relatedTarget as Node | null;
     if (next && (e.currentTarget as Node).contains(next)) return;
     if (this.dropKey() === `f:${folder.id}`) this.dropKey.set('');
   }
 
-  onFolderDrop(e: DragEvent, folder: ConnectionFolder) {
+  public onFolderDrop(e: DragEvent, folder: ConnectionFolder) {
     const item = this.drag();
     if (!item || !this.canDropIn(item, folder)) return;
     e.preventDefault();
@@ -303,7 +303,7 @@ export class SchemaSidebar {
   }
 
   /** The area outside folder rows is the root: drop there to move something out. */
-  onRootOver(e: DragEvent) {
+  public onRootOver(e: DragEvent) {
     if (!this.drag()) return;
     if ((e.target as HTMLElement).closest?.('.row.folder')) return;
     e.preventDefault();
@@ -311,13 +311,13 @@ export class SchemaSidebar {
     this.dropKey.set('root');
   }
 
-  onRootLeave(e: DragEvent) {
+  public onRootLeave(e: DragEvent) {
     const next = e.relatedTarget as Node | null;
     if (next && (e.currentTarget as HTMLElement).contains(next)) return;
     if (this.dropKey() === 'root') this.dropKey.set('');
   }
 
-  onRootDrop(e: DragEvent) {
+  public onRootDrop(e: DragEvent) {
     const item = this.drag();
     if (!item) return;
     if ((e.target as HTMLElement).closest?.('.row.folder')) return;
@@ -344,7 +344,7 @@ export class SchemaSidebar {
     else void this.conns.moveFolder(item.id, folderId);
   }
 
-  async toggleConn(c: ConnectionView) {
+  public async toggleConn(c: ConnectionView) {
     const key = `c:${c.id}`;
     if (!c.connected) {
       await this.conns.connect(c.id); // onChange expands it
@@ -358,7 +358,7 @@ export class SchemaSidebar {
     }
   }
 
-  toggle(r: Row) {
+  public toggle(r: Row) {
     if (!('open' in r) || r.kind === 'conn') return;
     if (r.kind === 'folder') {
       this.toggleFolder(r.folder);
@@ -374,12 +374,12 @@ export class SchemaSidebar {
     if (r.kind === 'table') void this.schema.loadColumns(r.scope, r.table.schema, r.table.name);
   }
 
-  openMenu(e: MouseEvent, m: MenuTarget) {
+  public openMenu(e: MouseEvent, m: MenuTarget) {
     e.preventDefault();
     this.menu.set({ ...m, ...clampMenu(e.clientX, e.clientY, 240, 420) });
   }
 
-  menuAction(action: string) {
+  public menuAction(action: string) {
     const m = this.menu();
     this.menu.set(null);
     if (!m) return;
@@ -434,12 +434,12 @@ export class SchemaSidebar {
   }
 
   /** The database the connection itself is opened on (it cannot be dropped from here). */
-  isMainDb(connId: string, database: string): boolean {
+  public isMainDb(connId: string, database: string): boolean {
     const cur = this.schema.databases()[connId]?.current;
     return !database || database === cur;
   }
 
-  async useInTab(connId: string, database: string) {
+  public async useInTab(connId: string, database: string) {
     const t = this.tabs.active();
     if (!t) return;
     if (t.locked) {
@@ -451,7 +451,7 @@ export class SchemaSidebar {
   }
 
   /** Arrow keys move between rows, Left/Right collapse/expand, Enter toggles. */
-  onTreeKey(e: KeyboardEvent) {
+  public onTreeKey(e: KeyboardEvent) {
     const rows = this.rows().filter((r) => r.kind !== 'note' && r.kind !== 'column');
     const i = rows.findIndex((r) => r.key === this.selected());
     const focus = (k: string) => this.el.nativeElement.querySelector<HTMLElement>(`[id="n-${CSS.escape(k)}"]`)?.focus();

@@ -15,36 +15,36 @@ export class Hotkeys {
   private tabs = inject(TabStore);
   private runs = inject(RunStore);
 
-  install() {
+  public install() {
     window.addEventListener('keydown', (e) => this.handle(e), true);
     window.addEventListener('beforeunload', () => this.tabs.flush());
   }
 
-  private handle(e: KeyboardEvent) {
-    const mod = isMac ? e.metaKey : e.ctrlKey;
-    const key = e.key.toLowerCase();
+  private handle(event: KeyboardEvent) {
+    const mod = isMac ? event.metaKey : event.ctrlKey;
+    const key = event.key.toLowerCase();
     let done = true;
 
-    if (mod && !e.altKey && key === 'p') {
-      this.ui.paletteOpen() ? this.ui.paletteOpen.set(false) : this.ui.openPalette(e.shiftKey ? '>' : '');
+    if (mod && !event.altKey && key === 'p') {
+      this.ui.paletteOpen() ? this.ui.paletteOpen.set(false) : this.ui.openPalette(event.shiftKey ? '>' : '');
     } else if (this.ui.paletteOpen() || document.querySelector('.cdk-overlay-pane')) {
       return; // let the palette or a dialog handle its own keys
     } else if (mod && key === 'enter') {
-      e.shiftKey ? this.cmds.runAll() : this.cmds.run();
-    } else if (mod && !e.shiftKey && key === 't') {
+      event.shiftKey ? this.cmds.runAll() : this.cmds.run();
+    } else if (mod && !event.shiftKey && key === 't') {
       this.cmds.newTab();
-    } else if (mod && !e.shiftKey && key === 'w') {
+    } else if (mod && !event.shiftKey && key === 'w') {
       this.cmds.closeTab();
-    } else if (mod && !e.shiftKey && key === 'b') {
+    } else if (mod && !event.shiftKey && key === 'b') {
       this.ui.sidebarOpen.update((v) => !v);
-    } else if (mod && !e.shiftKey && key === 's') {
+    } else if (mod && !event.shiftKey && key === 's') {
       this.cmds.save();
-    } else if (mod && !e.shiftKey && key === ',') {
+    } else if (mod && !event.shiftKey && key === ',') {
       this.cmds.openSettings();
-    } else if (e.ctrlKey && key === 'tab') {
-      this.tabs.activateRelative(e.shiftKey ? -1 : 1);
-    } else if (mod && e.shiftKey && (e.key === ']' || e.key === '[' || e.key === '}' || e.key === '{')) {
-      this.tabs.activateRelative(e.key === ']' || e.key === '}' ? 1 : -1);
+    } else if (event.ctrlKey && key === 'tab') {
+      this.tabs.activateRelative(event.shiftKey ? -1 : 1);
+    } else if (mod && event.shiftKey && (event.key === ']' || event.key === '[' || event.key === '}' || event.key === '{')) {
+      this.tabs.activateRelative(event.key === ']' || event.key === '}' ? 1 : -1);
     } else if (key === 'escape' && this.runs.get(this.tabs.activeId()).running) {
       this.cmds.cancel();
     } else {
@@ -52,8 +52,8 @@ export class Hotkeys {
     }
 
     if (done) {
-      e.preventDefault();
-      e.stopPropagation();
+      event.preventDefault();
+      event.stopPropagation();
     }
   }
 }

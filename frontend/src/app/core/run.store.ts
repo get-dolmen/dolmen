@@ -43,12 +43,12 @@ const createEmptyRun = (): TabRun => ({ running: false, startedAt: 0, results: [
 @Injectable({ providedIn: 'root' })
 export class RunStore {
   private api = inject(Api);
-  private tabs = inject(TabStore);
-  private conns = inject(ConnectionStore);
-  private editor = inject(EditorBridge);
-  private toasts = inject(Toasts);
+  private tabStore = inject(TabStore);
+  private connectionStore = inject(ConnectionStore);
+  private editorBridge = inject(EditorBridge);
+  private toastService = inject(Toasts);
   private transactionStore = inject(TxStore);
-  private ui = inject(Ui);
+  private uiState = inject(Ui);
 
   public readonly runs = signal<Record<string, TabRun>>({});
 
@@ -67,16 +67,16 @@ export class RunStore {
 
   /** Runs the selection, else the statement under the cursor (`all` = whole script). */
   public async run(mode: 'cursor' | 'all') {
-    const tab = this.tabs.active();
+    const tab = this.tabStore.active();
     if (!tab) return;
     if (this.get(tab.id).running) return;
-    if (!tab.connId || !this.conns.get(tab.connId)) {
-      this.toasts.error('Choose a connection for this tab first.');
+    if (!tab.connId || !this.connectionStore.get(tab.connId)) {
+      this.toastService.error('Choose a connection for this tab first.');
       return;
     }
-    const runTarget = this.editor.runTarget(mode);
+    const runTarget = this.editorBridge.runTarget(mode);
     if (!runTarget || !runTarget.sql.trim()) return;
-    if (!(await this.conns.ensureConnected(tab.connId))) return;
+    if (!(await this.connectionStore.ensureConnected(tab.connId))) return;
 
     const startedAt = Date.now();
     this.patch(tab.id, { running: true, startedAt, finishedMs: undefined });
@@ -90,7 +90,7 @@ export class RunStore {
       const results = response.results.filter((result) => result.isQuery && !result.error);
       const hasFailure = response.results.some((result) => result.error);
       const previous = this.get(tab.id);
-      const inlineResultsEnabled = this.ui.inlineResults();
+      const inlineResultsEnabled = this.uiState.inlineResults();
       this.patch(tab.id, {
         running: false,
         finishedMs: now - startedAt,
@@ -101,13 +101,13 @@ export class RunStore {
         ...(inlineResultsEnabled ? this.inlineFor(previous, response.results, runTarget.base) : {}),
       });
       if (inlineResultsEnabled) {
-        if (response.notice) this.toasts.show(response.notice, response.cancelled ? 'error' : 'info');
+        if (response.notice) this.toastService.show(response.notice, response.cancelled ? 'error' : 'info');
         const executedCount = response.results.filter((result) => !result.error && !result.isQuery).length;
         if (response.results.length > 1 && executedCount) {
-          this.toasts.success(`${executedCount} statement${executedCount === 1 ? '' : 's'} executed.`);
+          this.toastService.success(`${executedCount} statement${executedCount === 1 ? '' : 's'} executed.`);
         }
       }
-      if (hasFailure) this.editor.flashError();
+      if (hasFailure) this.editorBridge.flashError();
     } catch (error) {
       const previous = this.get(tab.id);
       this.patch(tab.id, {
@@ -116,11 +116,11 @@ export class RunStore {
         messages: [{ time: Date.now(), kind: 'error' as const, text: errorText(error) }, ...previous.messages],
         panel: 'messages',
       });
-      if (this.ui.inlineResults()) this.toasts.error(errorText(error));
+      if (this.uiState.inlineResults()) this.toastService.error(errorText(error));
     }
   }
 
-  public cancel(tabId = this.tabs.activeId()) {
+  public cancel(tabId = this.tabStore.activeId()) {
     if (this.get(tabId).running) void this.api.cancel(tabId);
   }
 
@@ -133,9 +133,9 @@ export class RunStore {
         hasMore: page.hasMore,
         canFetchMore: page.hasMore && !page.error,
       }));
-      if (page.error) this.toasts.error(page.error);
+      if (page.error) this.toastService.error(page.error);
     } catch (error) {
-      this.toasts.error(errorText(error));
+      this.toastService.error(errorText(error));
       this.updateResult(tabId, resultId, (current) => ({ ...current, canFetchMore: false }));
     }
   }
@@ -146,9 +146,9 @@ export class RunStore {
       if (!exported.path) return;
       // Exporting drains the server cursor, so no further pages can be fetched.
       this.updateResult(tabId, resultId, (current) => ({ ...current, canFetchMore: false }));
-      this.toasts.success(`Exported ${exported.rows.toLocaleString()} rows to ${exported.path}`);
+      this.toastService.success(`Exported ${exported.rows.toLocaleString()} rows to ${exported.path}`);
     } catch (error) {
-      this.toasts.error(`Export failed: ${errorText(error)}`);
+      this.toastService.error(`Export failed: ${errorText(error)}`);
     }
   }
 

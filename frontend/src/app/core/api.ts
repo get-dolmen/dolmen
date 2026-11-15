@@ -32,7 +32,8 @@ export class Api {
     App.TableDDL(connectionId, database, schema, table, type);
   public dropTable = (connectionId: string, database: string, schema: string, table: string, type: string) =>
     App.DropTable(connectionId, database, schema, table, type);
-  public quoteIdent = (connectionId: string, name: string) => App.QuoteIdent(connectionId, name);
+  public quoteIdentifierForConnection = (connectionId: string, name: string) =>
+    App.QuoteIdent(connectionId, name);
   public createDatabase = (connectionId: string, name: string) => App.CreateDatabase(connectionId, name);
   public dropDatabase = (connectionId: string, name: string) => App.DropDatabase(connectionId, name);
 
@@ -84,9 +85,11 @@ export class Api {
   public linkScratch = (scratchId: string, connectionId: string, database: string, schema: string, table: string) => App.LinkScratch(scratchId, connectionId, database, schema, table);
   public setScratchLock = (scratchId: string, locked: boolean) => App.SetScratchLock(scratchId, locked);
   public deleteScratch = (scratchId: string) => App.DeleteScratch(scratchId);
-  public duplicateScratch = (scratchId: string, newId: string, name: string) => App.DuplicateScratch(scratchId, newId, name) as unknown as Promise<TabState>;
+  public duplicateScratch = (scratchId: string, newScratchId: string, name: string) =>
+    App.DuplicateScratch(scratchId, newScratchId, name) as unknown as Promise<TabState>;
   public exportScratch = (scratchId: string) => App.ExportScratch(scratchId);
-  public importScratch = (newId: string, connectionId: string, database: string) => App.ImportScratch(newId, connectionId, database) as unknown as Promise<TabState>;
+  public importScratch = (newScratchId: string, connectionId: string, database: string) =>
+    App.ImportScratch(newScratchId, connectionId, database) as unknown as Promise<TabState>;
   public releaseTabSession = (tabId: string) => App.ReleaseTabSession(tabId);
 }
 

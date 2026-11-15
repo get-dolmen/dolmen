@@ -16,13 +16,13 @@ const FOLDERS_KEY = 'dolmen.scratches.folders';
 const DRAG_TYPE = 'application/x-dolmen-scratch';
 
 /** Relative time for the scratch list ("just now", "5 min ago", "Mar 3"). */
-export function ago(ms: number, now = Date.now()): string {
-  const s = Math.round((now - ms) / 1000);
-  if (s < 45) return 'just now';
-  if (s < 3600) return `${Math.max(1, Math.round(s / 60))} min ago`;
-  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
-  if (s < 7 * 86400) return `${Math.round(s / 86400)} d ago`;
-  return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+export function relativeTime(timestamp: number, now = Date.now()): string {
+  const seconds = Math.round((now - timestamp) / 1000);
+  if (seconds < 45) return 'just now';
+  if (seconds < 3600) return `${Math.max(1, Math.round(seconds / 60))} min ago`;
+  if (seconds < 86400) return `${Math.round(seconds / 3600)} h ago`;
+  if (seconds < 7 * 86400) return `${Math.round(seconds / 86400)} d ago`;
+  return new Date(timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 function loadSet(key: string): Set<string> {
@@ -33,9 +33,9 @@ function loadSet(key: string): Set<string> {
   }
 }
 
-type Menu =
-  | { x: number; y: number; kind: 'file'; s: ScratchInfo }
-  | { x: number; y: number; kind: 'folder'; f: FolderNode };
+type ContextMenu =
+  | { x: number; y: number; kind: 'file'; scratch: ScratchInfo }
+  | { x: number; y: number; kind: 'folder'; folder: FolderNode };
 
 /** Scratch files, filed in connection → database → table folders, under the explorer. */
 @Component({
@@ -45,138 +45,149 @@ type Menu =
   styleUrl: './scratch-list.scss',
 })
 export class ScratchList {
-  public readonly store = inject(ScratchStore);
-  public readonly tabs = inject(TabStore);
-  public readonly cmds = inject(Commands);
-  public readonly ui = inject(Ui);
-  private conns = inject(ConnectionStore);
-  private schema = inject(SchemaStore);
+  public readonly scratchStore = inject(ScratchStore);
+  public readonly tabStore = inject(TabStore);
+  public readonly commandService = inject(Commands);
+  public readonly uiState = inject(Ui);
+  private connectionStore = inject(ConnectionStore);
+  private schemaStore = inject(SchemaStore);
 
   public readonly filter = input('');
   public readonly collapsed = signal(localStorage.getItem(COLLAPSED_KEY) === '1');
   /** Collapsed folder keys (folders start expanded). */
   public readonly folded = signal<ReadonlySet<string>>(loadSet(FOLDERS_KEY));
-  public readonly editing = signal('');
-  public readonly dropKey = signal('');
-  public readonly menu = signal<Menu | null>(null);
-  public readonly ago = ago;
+  public readonly editingId = signal('');
+  public readonly dropTargetKey = signal('');
+  public readonly contextMenu = signal<ContextMenu | null>(null);
+  public readonly relativeTime = relativeTime;
 
   public readonly tree = computed(() => {
-    const dbs = this.schema.databases();
-    return buildScratchTree(this.store.list(), {
-      connections: this.conns.connections(),
-      currentDb: (id) => dbs[id]?.current,
+    const databases = this.schemaStore.databases();
+    return buildScratchTree(this.scratchStore.list(), {
+      connections: this.connectionStore.connections(),
+      currentDb: (connectionId) => databases[connectionId]?.current,
     });
   });
 
   public readonly rows = computed(() => flattenTree(this.tree(), this.folded(), this.filter()));
   /** Docked on the left, the panel itself is collapsed from the top bar. */
-  public readonly isDockedLeft = computed(() => this.ui.scratchPosition() === 'left');
+  public readonly isDockedLeft = computed(() => this.uiState.scratchPosition() === 'left');
   public readonly showsList = computed(() => this.isDockedLeft() || !this.collapsed());
 
-  public constructor() { void this.store.refresh(); }
+  public constructor() { void this.scratchStore.refresh(); }
 
   public toggle() {
     // In the left dock the whole panel collapses, so there is no header left to click.
-    if (this.isDockedLeft()) return this.ui.scratchOpen.set(false);
+    if (this.isDockedLeft()) return this.uiState.scratchOpen.set(false);
     this.collapsed.update((value) => !value);
     try { localStorage.setItem(COLLAPSED_KEY, this.collapsed() ? '1' : '0'); } catch { /* storage unavailable */ }
   }
 
   public toggleFolder(key: string) {
-    const s = new Set(this.folded());
-    if (s.has(key)) s.delete(key); else s.add(key);
-    this.setFolded(s);
+    const folded = new Set(this.folded());
+    if (folded.has(key)) folded.delete(key); else folded.add(key);
+    this.setFolded(folded);
   }
 
-  private setFolded(s: Set<string>) {
-    this.folded.set(s);
-    try { localStorage.setItem(FOLDERS_KEY, JSON.stringify([...s])); } catch { /* storage unavailable */ }
+  private setFolded(folded: Set<string>) {
+    this.folded.set(folded);
+    try {
+      localStorage.setItem(FOLDERS_KEY, JSON.stringify([...folded]));
+    } catch { /* storage unavailable */ }
   }
 
-  public folderTitle(f: FolderNode) {
-    const what = { conn: 'Connection', db: 'Database', table: 'Table', none: 'Scratches whose connection was deleted' }[f.level];
-    return f.level === 'none' ? what : `${what} ${f.detail ? f.detail + '.' : ''}${f.label}: drop a scratch here to file it`;
+  public folderTitle(folder: FolderNode) {
+    const kind = { conn: 'Connection', db: 'Database', table: 'Table', none: 'Scratches whose connection was deleted' }[folder.level];
+    return folder.level === 'none'
+      ? kind
+      : `${kind} ${folder.detail ? folder.detail + '.' : ''}${folder.label}: drop a scratch here to file it`;
   }
 
   // ---- drag & drop: dropping a scratch on a folder files it there ----
 
-  public onDragStart(e: DragEvent, s: ScratchInfo) {
-    e.dataTransfer?.setData(DRAG_TYPE, s.id);
-    e.dataTransfer?.setData('text/plain', s.name);
-    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+  public onDragStart(event: DragEvent, scratch: ScratchInfo) {
+    event.dataTransfer?.setData(DRAG_TYPE, scratch.id);
+    event.dataTransfer?.setData('text/plain', scratch.name);
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
   }
 
-  public onDragOver(e: DragEvent, f: FolderNode) {
-    if (f.level === 'none' || !e.dataTransfer?.types.includes(DRAG_TYPE)) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    this.dropKey.set(f.key);
+  public onDragOver(event: DragEvent, folder: FolderNode) {
+    if (folder.level === 'none' || !event.dataTransfer?.types.includes(DRAG_TYPE)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    this.dropTargetKey.set(folder.key);
   }
 
-  public onDrop(e: DragEvent, f: FolderNode) {
-    e.preventDefault();
-    this.dropKey.set('');
-    const id = e.dataTransfer?.getData(DRAG_TYPE);
-    if (!id || f.level === 'none') return;
-    void this.store.moveTo(id, { connId: f.connId, database: f.database, schema: f.schema, table: f.table });
+  public onDrop(event: DragEvent, folder: FolderNode) {
+    event.preventDefault();
+    this.dropTargetKey.set('');
+    const scratchId = event.dataTransfer?.getData(DRAG_TYPE);
+    if (!scratchId || folder.level === 'none') return;
+    void this.scratchStore.moveTo(scratchId, {
+      connId: folder.connId, database: folder.database, schema: folder.schema, table: folder.table,
+    });
     // Make sure the destination is visible.
-    const s = new Set(this.folded());
-    for (const k of [f.key, `c:${f.connId}`]) s.delete(k);
-    this.setFolded(s);
+    const folded = new Set(this.folded());
+    for (const key of [folder.key, `c:${folder.connId}`]) folded.delete(key);
+    this.setFolded(folded);
   }
 
   // ---- menus ----
 
-  public openFileMenu(e: MouseEvent, s: ScratchInfo) {
-    e.preventDefault();
-    this.menu.set({ ...clampMenu(e.clientX, e.clientY, 220, 200), kind: 'file', s });
+  public openFileMenu(event: MouseEvent, scratch: ScratchInfo) {
+    event.preventDefault();
+    this.contextMenu.set({ ...clampMenu(event.clientX, event.clientY, 220, 200), kind: 'file', scratch });
   }
 
-  public openFolderMenu(e: MouseEvent, f: FolderNode) {
-    e.preventDefault();
-    this.menu.set({ ...clampMenu(e.clientX, e.clientY, 200, 120), kind: 'folder', f });
+  public openFolderMenu(event: MouseEvent, folder: FolderNode) {
+    event.preventDefault();
+    this.contextMenu.set({ ...clampMenu(event.clientX, event.clientY, 200, 120), kind: 'folder', folder });
   }
 
-  public act(action: string) {
-    const m = this.menu();
-    this.menu.set(null);
-    if (!m) return;
-    if (m.kind === 'folder') {
-      const f = m.f;
+  public runMenuAction(action: string) {
+    const menu = this.contextMenu();
+    this.contextMenu.set(null);
+    if (!menu) return;
+    if (menu.kind === 'folder') {
+      const folder = menu.folder;
       switch (action) {
-        case 'new': return void this.store.createIn({ connId: f.connId, database: f.database, schema: f.schema, table: f.table });
+        case 'new':
+          return void this.scratchStore.createIn({
+            connId: folder.connId, database: folder.database, schema: folder.schema, table: folder.table,
+          });
         case 'collapse': return this.setFolded(new Set(this.allFolderKeys()));
         case 'expand': return this.setFolded(new Set());
       }
       return;
     }
-    const s = m.s;
+    const scratch = menu.scratch;
     switch (action) {
-      case 'open': return void this.store.open(s.id);
-      case 'rename': return this.editing.set(s.id);
-      case 'lock': return void this.store.setLocked(s.id, true);
-      case 'unlock': return void this.store.setLocked(s.id, false);
-      case 'duplicate': return void this.store.duplicate(s.id);
-      case 'export': return void this.store.exportFile(s.id);
-      case 'untable': return void this.store.moveTo(s.id, { connId: s.connId, database: s.database ?? '', schema: '', table: '' });
-      case 'delete': return void this.store.remove(s.id);
+      case 'open': return void this.scratchStore.open(scratch.id);
+      case 'rename': return this.editingId.set(scratch.id);
+      case 'lock': return void this.scratchStore.setLocked(scratch.id, true);
+      case 'unlock': return void this.scratchStore.setLocked(scratch.id, false);
+      case 'duplicate': return void this.scratchStore.duplicate(scratch.id);
+      case 'export': return void this.scratchStore.exportFile(scratch.id);
+      case 'untable': return void this.scratchStore.moveTo(scratch.id, {
+        connId: scratch.connId, database: scratch.database ?? '', schema: '', table: '',
+      });
+      case 'delete': return void this.scratchStore.remove(scratch.id);
     }
   }
 
   private allFolderKeys(): string[] {
     const keys: string[] = [];
-    const walk = (f: FolderNode) => {
-      keys.push(f.key);
-      for (const c of f.children) if (c.kind === 'folder') walk(c);
+    const walk = (folder: FolderNode) => {
+      keys.push(folder.key);
+      for (const child of folder.children) if (child.kind === 'folder') walk(child);
     };
     this.tree().forEach(walk);
     return keys;
   }
 
-  public rename(s: ScratchInfo, name: string) {
-    if (this.editing() !== s.id) return;
-    this.editing.set('');
-    if (name.trim() && name.trim() !== s.name) void this.store.rename(s.id, name);
+  public rename(scratch: ScratchInfo, name: string) {
+    if (this.editingId() !== scratch.id) return;
+    this.editingId.set('');
+    if (name.trim() && name.trim() !== scratch.name) void this.scratchStore.rename(scratch.id, name);
   }
 }

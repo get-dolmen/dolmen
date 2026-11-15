@@ -16,60 +16,60 @@ import type { QueryResult } from '../../core/models';
   styleUrl: './results-panel.scss',
 })
 export class ResultsPanelComponent {
-  public readonly runs = inject(RunStore);
-  private cmds = inject(Commands);
+  public readonly runStore = inject(RunStore);
+  private commandService = inject(Commands);
   public readonly tabId = input.required<string>();
   public readonly connId = input<string>('');
-  public readonly mod = MOD;
+  public readonly modifierKey = MOD;
 
-  private grid = viewChild(ResultGrid);
-  public readonly run = computed(() => this.runs.runs()[this.tabId()] ?? this.runs.get(this.tabId()));
+  private resultGrid = viewChild(ResultGrid);
+  public readonly run = computed(() => this.runStore.runs()[this.tabId()] ?? this.runStore.get(this.tabId()));
   public readonly current = computed(() => this.run().results[this.run().activeResult]);
-  public readonly errorCount = computed(() => this.run().messages.filter((m) => m.kind === 'error').length);
+  public readonly errorCount = computed(() => this.run().messages.filter((message) => message.kind === 'error').length);
   public readonly fetching = signal(false);
   public readonly menu = signal<{ x: number; y: number; kind: 'copy' | 'export' } | null>(null);
   public readonly formats = COPY_FORMATS;
 
-  public setPanel(p: PanelKind) { this.runs.setPanel(this.tabId(), p); }
+  public setPanel(panel: PanelKind) { this.runStore.setPanel(this.tabId(), panel); }
 
-  public label(r: QueryResult, i: number) {
-    const m = /\bfrom\s+([\w$#."`]+)/i.exec(r.statement);
-    const name = m ? m[1].replace(/["`]/g, '').split('.').pop() : '';
-    return name ? `${i + 1} · ${name}` : `Result ${i + 1}`;
+  public label(result: QueryResult, index: number) {
+    const match = /\bfrom\s+([\w$#."`]+)/i.exec(result.statement);
+    const name = match ? match[1].replace(/["`]/g, '').split('.').pop() : '';
+    return name ? `${index + 1} · ${name}` : `Result ${index + 1}`;
   }
 
-  public async fetchMore(r: QueryResult) {
+  public async fetchMore(result: QueryResult) {
     this.fetching.set(true);
-    await this.runs.fetchMore(this.tabId(), r.id);
+    await this.runStore.fetchMore(this.tabId(), result.id);
     this.fetching.set(false);
   }
 
-  public openMenu(e: MouseEvent, kind: 'copy' | 'export') {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    this.menu.set({ ...clampMenu(rect.right - 220, rect.bottom + 4, 220, kind === 'copy' ? 380 : 120), kind });
+  public openMenu(event: MouseEvent, kind: 'copy' | 'export') {
+    const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.menu.set({ ...clampMenu(bounds.right - 220, bounds.bottom + 4, 220, kind === 'copy' ? 380 : 120), kind });
   }
 
   public hint(format: CopyFormat): string {
     return { tsv: 'spreadsheet', csv: 'Excel', json: 'API', markdown: 'docs' }[format];
   }
 
-  public copy(what: 'all' | 'selected', format: CopyFormat) {
+  public copy(scope: 'all' | 'selected', format: CopyFormat) {
     this.menu.set(null);
-    const r = this.current();
-    if (!r) return;
-    const rows = what === 'all' ? r.rows : this.grid()?.selectedRows() ?? [];
-    void this.cmds.copy(formatRows(format, r.columns, rows, true));
+    const result = this.current();
+    if (!result) return;
+    const rows = scope === 'all' ? result.rows : this.resultGrid()?.selectedRows() ?? [];
+    void this.commandService.copy(formatRows(format, result.columns, rows, true));
   }
 
   public copyColumns() {
     this.menu.set(null);
-    const r = this.current();
-    if (r) void this.cmds.copy(r.columns.map((c) => c.name).join(', '));
+    const result = this.current();
+    if (result) void this.commandService.copy(result.columns.map((column) => column.name).join(', '));
   }
 
   public export(format: 'csv' | 'json') {
     this.menu.set(null);
-    const r = this.current();
-    if (r) void this.runs.export(this.tabId(), r.id, format);
+    const result = this.current();
+    if (result) void this.runStore.export(this.tabId(), result.id, format);
   }
 }

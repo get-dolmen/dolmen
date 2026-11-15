@@ -1,0 +1,103 @@
+<div class="tabrow">
+<div class="tabs" role="tablist" cdkDropList cdkDropListOrientation="horizontal" (cdkDropListDropped)="drop($event)">
+  @for (t of tabs.tabs(); track t.id) {
+    <div class="tab" role="tab" cdkDrag cdkDragLockAxis="x" [class.on]="t.id === tabs.activeId()"
+         [attr.aria-selected]="t.id === tabs.activeId()" [style.--conn]="color(t)"
+         (mousedown)="$event.button === 0 && tabs.activate(t.id)" (auxclick)="$event.button === 1 && cmds.closeTab(t.id)"
+         (dblclick)="editing.set(t.id)" (contextmenu)="openMenu($event, t)" [title]="title(t)">
+      @if (running(t)) { <span class="spin" aria-label="Running"></span> }
+      @else if (t.kind === 'table') { <span class="tbl" aria-hidden="true">▦</span> }
+      @if (editing() === t.id) {
+        <input class="rename" [value]="t.name" (keydown.enter)="rename(t, $any($event.target).value)"
+               (keydown.escape)="editing.set('')" (blur)="rename(t, $any($event.target).value)" (mousedown)="$event.stopPropagation()" dmAutofocus />
+      } @else {
+        <span class="name">{{ t.name }}@if (t.kind === 'table') {<span class="where"> [{{ where(t) }}]</span>}</span>
+      }
+      <button class="close" [class.dirty]="t.dirty" (mousedown)="$event.stopPropagation()" (click)="cmds.closeTab(t.id)"
+              [attr.aria-label]="'Close ' + t.name" [title]="'Close (' + mod + 'W)'">
+        <span class="x">×</span><span class="d" aria-hidden="true">●</span>
+      </button>
+    </div>
+  }
+</div>
+<button class="btn ghost icon sm add" (click)="cmds.newTab()" [title]="'New tab (' + mod + 'T)'" aria-label="New tab">＋</button>
+</div>
+@if (menu(); as m) {
+  <div class="menu" [style.left.px]="m.x" [style.top.px]="m.y" (dmClickOutside)="menu.set(null)">
+    <button class="menu-item" (click)="act('rename')">Rename</button>
+    @if (m.t.kind === 'sql') {
+      <button class="menu-item" (click)="act('save')">Save<span class="hint">{{ mod }}S</span></button>
+      <button class="menu-item" (click)="act('export')">Save as file…</button>
+      <button class="menu-item" (click)="act('duplicate')">Duplicate</button>
+    }
+    <div class="menu-sep"></div>
+    <button class="menu-item" (click)="act('close')">Close<span class="hint">{{ mod }}W</span></button>
+    <button class="menu-item" (click)="act('others')">Close other tabs</button>
+    @if (m.t.kind === 'sql') {
+      <div class="menu-sep"></div>
+      <button class="menu-item danger" (click)="act('delete')">Delete scratch file…</button>
+    }
+  </div>
+}
+@if (dbMenu(); as m) {
+  <div class="menu dbmenu" [style.left.px]="m.x" [style.top.px]="m.y" (dmClickOutside)="dbMenu.set(null)">
+    <div class="menu-label">Database for this scratch</div>
+    @for (db of dbInfo()?.databases ?? []; track db) {
+      <button class="menu-item" [class.active]="isCurrentDb(db)" (click)="chooseDb(db)">
+        <span class="ellipsis">{{ db }}</span>
+        @if (db === dbInfo()?.current) { <span class="hint">default</span> }
+      </button>
+    } @empty {
+      <div class="menu-label">No databases reported</div>
+    }
+  </div>
+}
+@if (txMenu(); as m) {
+  <div class="menu txmenu" [style.left.px]="m.x" [style.top.px]="m.y" (dmClickOutside)="txMenu.set(null)">
+    <button class="menu-item" [class.active]="tabs.active()?.txMode !== 'manual'" (click)="setMode('auto')" [disabled]="txState().open">
+      <span><b>Auto-commit</b><small>Each statement is committed immediately.</small></span>
+    </button>
+    <button class="menu-item" [class.active]="tabs.active()?.txMode === 'manual'" (click)="setMode('manual')" [disabled]="txState().open">
+      <span><b>Manual</b><small>Changes stay in a transaction until you commit or roll back.</small></span>
+    </button>
+    @if (txState().open) { <div class="menu-label">Commit or roll back to switch</div> }
+  </div>
+}
+@if (tabs.active(); as t) {
+  <div class="actions" role="toolbar" aria-label="Tab actions">
+    @if (running(t)) {
+      <button class="btn danger sm" (click)="cmds.cancel()" title="Cancel (Esc)">■ Stop</button>
+    } @else {
+      <button class="btn primary sm run" (click)="cmds.run()" [title]="'Run statement at cursor (' + mod + '↵)'">▶ Run</button>
+      <button class="btn sm" (click)="cmds.runAll()" [title]="'Run whole script (' + mod + '⇧↵)'">Run all</button>
+    }
+    <span class="vsep"></span>
+    @if (!readOnly()) {
+      <button class="txmode" (click)="openTxMenu($event)" [class.manual]="t.txMode === 'manual'"
+              title="Transaction mode for this tab">Tx: {{ t.txMode === 'manual' ? 'Manual' : 'Auto' }} <span class="caret">▾</span></button>
+      @if (txState().open) {
+        <span class="txopen" [title]="'Transaction open since ' + since()">
+          <span class="pulse"></span>{{ txState().statements }}
+        </span>
+        <button class="btn sm" (click)="tx.commit()" title="Commit the transaction">✓ Commit</button>
+        <button class="btn sm" (click)="tx.rollback()" title="Roll back the transaction">↶ Rollback</button>
+      }
+    }
+    <button class="txmode" (click)="ui.inlineResults.set(!ui.inlineResults())" [attr.aria-pressed]="ui.inlineResults()"
+            [title]="ui.inlineResults() ? 'Results show under each statement. Click to use the bottom panel.' : 'Results show in the bottom panel. Click to show them under each statement.'">Results: {{ ui.inlineResults() ? 'Inline' : 'Panel' }}</button>
+    @if (t.kind === 'sql') {
+      <span class="spacer"></span>
+      @if (showDb()) {
+        <button class="dbtarget" [disabled]="t.locked" (click)="openDbMenu($event)"
+                [title]="t.locked ? 'Locked to ' + dbLabel() : 'Database used by this scratch'">
+          <span class="dbname">{{ dbLabel() }}</span><span class="caret">▾</span>
+        </button>
+      }
+      <button class="btn ghost icon sm" [class.on]="t.locked" (click)="scratches.setLocked(t.id, !t.locked)"
+              [title]="t.locked ? 'Unlock this scratch' : 'Lock this scratch to its database'"
+              [attr.aria-label]="t.locked ? 'Unlock scratch' : 'Lock scratch'">
+        <dm-icon [name]="t.locked ? 'lock' : 'unlock'" [size]="14" />
+      </button>
+    }
+  </div>
+}

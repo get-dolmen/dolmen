@@ -193,12 +193,13 @@ export class SqlEditor implements EditorHandle, OnDestroy {
     const selection = editor.getSelection();
     if (selection && !selection.isEmpty()) {
       return {
-        sql: model.getValueInRange(selection), cursor: -1, base: model.getOffsetAt(selection.getStartPosition()),
+        sql: model.getValueInRange(selection), cursor: -1,
+        startOffset: model.getOffsetAt(selection.getStartPosition()),
       };
     }
-    if (mode === 'all') return { sql: model.getValue(), cursor: -1, base: 0 };
+    if (mode === 'all') return { sql: model.getValue(), cursor: -1, startOffset: 0 };
     const position = editor.getPosition();
-    return { sql: model.getValue(), cursor: position ? model.getOffsetAt(position) : 0, base: 0 };
+    return { sql: model.getValue(), cursor: position ? model.getOffsetAt(position) : 0, startOffset: 0 };
   }
 
   public insert(text: string) {

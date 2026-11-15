@@ -98,7 +98,7 @@ export class RunStore {
         activeResult: Math.max(0, results.length - 1),
         messages: [...messages, ...previous.messages].slice(0, 500),
         panel: hasFailure || !results.length ? 'messages' : 'results',
-        ...(inlineResultsEnabled ? this.inlineFor(previous, response.results, runTarget.base) : {}),
+        ...(inlineResultsEnabled ? this.inlineFor(previous, response.results, runTarget.startOffset) : {}),
       });
       if (inlineResultsEnabled) {
         if (response.notice) this.toastService.show(response.notice, response.cancelled ? 'error' : 'info');

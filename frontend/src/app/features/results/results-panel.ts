@@ -2,7 +2,7 @@ import { Component, computed, inject, input, signal, viewChild } from '@angular/
 import { DatePipe } from '@angular/common';
 import { Commands } from '../../core/commands';
 import { RunStore, type ResultsPanel as PanelKind } from '../../core/run.store';
-import { ClickOutside, clampMenu } from '../../shared/click-outside';
+import { ClickOutside, clampMenuRight } from '../../shared/click-outside';
 import { HistoryPanel } from '../history/history-panel';
 import { ResultGrid } from './result-grid';
 import { COPY_FORMATS, formatRows, type CopyFormat } from './copy';
@@ -52,10 +52,7 @@ export class ResultsPanelComponent {
 
   public openMenu(event: MouseEvent, kind: 'copy' | 'export') {
     const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    this.menu.set({
-      ...clampMenu(bounds.right - 220, bounds.bottom + 4, 220, kind === 'copy' ? 380 : 120),
-      kind,
-    });
+    this.menu.set({ ...clampMenuRight(bounds, 220, kind === 'copy' ? 380 : 120), kind });
   }
 
   public hint(format: CopyFormat): string {

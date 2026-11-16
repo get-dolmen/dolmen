@@ -1,7 +1,7 @@
 import { Component, inject, input, output, signal, viewChild } from '@angular/core';
 import { Commands } from '../../core/commands';
 import { RunStore, type InlineBlock } from '../../core/run.store';
-import { ClickOutside, clampMenu } from '../../shared/click-outside';
+import { ClickOutside, clampMenuRight } from '../../shared/click-outside';
 import { ResultGrid } from './result-grid';
 import { COPY_FORMATS, formatRows, type CopyFormat } from './copy';
 import { formatAffectedRows, formatDuration } from '../../shared/format';
@@ -69,10 +69,7 @@ export class InlineResult {
 
   public openMenu(event: MouseEvent, kind: 'copy' | 'export') {
     const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    this.menu.set({
-      ...clampMenu(bounds.right - 220, bounds.bottom + 4, 220, kind === 'copy' ? 330 : 80),
-      kind,
-    });
+    this.menu.set({ ...clampMenuRight(bounds, 220, kind === 'copy' ? 330 : 80), kind });
   }
 
   public copy(scope: 'all' | 'selected', format: CopyFormat) {

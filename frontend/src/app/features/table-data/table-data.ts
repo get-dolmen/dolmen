@@ -36,7 +36,7 @@ import { Confirm } from '../../shared/confirm';
 import { Icon } from '../../shared/icon';
 import { ClickOutside, clampMenu } from '../../shared/click-outside';
 import { displayCell } from '../../shared/cell';
-import { gridTheme } from '../results/result-grid';
+import { estimateColumnWidth, gridTheme } from '../../shared/grid';
 import { COPY_FORMATS, formatRows, type CopyFormat } from '../results/copy';
 import { CellRangeSelection, rangeClassRules } from '../../shared/cell-range';
 import {
@@ -373,7 +373,12 @@ export class TableData implements TableHandle, OnDestroy {
           onSort: () => this.sortBy(column.name),
           onFilter: () => this.filterByColumn(column.name),
         } satisfies ColumnHeaderParams,
-        width: this.columnWidth(column.name, page.rows, columnIndex),
+        width: estimateColumnWidth(column.name, page.rows, columnIndex, {
+          headerPadding: 6,
+          sampleSize: 50,
+          minimum: 110,
+          maximum: 360,
+        }),
         valueGetter: (params) => params.data?.cells[columnIndex],
         valueSetter: (params: ValueSetterParams<GridRow>) =>
           this.setCell(params.data, columnIndex, params.newValue),
@@ -401,12 +406,6 @@ export class TableData implements TableHandle, OnDestroy {
             : undefined,
       })),
     ];
-  }
-
-  /** Estimated width of a column from its name and its first values. */
-  private columnWidth(name: string, rows: Cell[][], columnIndex: number): number {
-    const sample = rows.slice(0, 50).map((cells) => String(cells[columnIndex] ?? 'NULL').length);
-    return Math.min(360, Math.max(110, Math.max(name.length + 6, ...sample) * 7.4 + 24));
   }
 
   /** Header sort cycles ascending → descending → none, and sorts in the database. */

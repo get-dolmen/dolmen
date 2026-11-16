@@ -3,7 +3,6 @@ import { AgGridAngular } from 'ag-grid-angular';
 import {
   AllCommunityModule,
   ModuleRegistry,
-  themeQuartz,
   type CellKeyDownEvent,
   type ColDef,
   type FullWidthCellKeyDownEvent,
@@ -14,35 +13,10 @@ import { Commands } from '../../core/commands';
 import { isMac } from '../../core/ui';
 import type { Cell, QueryResult } from '../../core/models';
 import { cellText, displayCell } from '../../shared/cell';
+import { estimateColumnWidth, gridTheme } from '../../shared/grid';
 import { rowsToTSV } from './tsv';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
-
-/** AG Grid themed from the app's CSS tokens, so light/dark follow automatically. */
-export const gridTheme = themeQuartz.withParams({
-  backgroundColor: 'var(--bg-panel)',
-  foregroundColor: 'var(--text)',
-  headerBackgroundColor: 'var(--bg)',
-  headerTextColor: 'var(--text-muted)',
-  borderColor: 'var(--border)',
-  accentColor: 'var(--accent)',
-  chromeBackgroundColor: 'var(--bg)',
-  oddRowBackgroundColor: 'var(--bg-hover)',
-  selectedRowBackgroundColor: 'var(--accent-soft)',
-  rowHoverColor: 'var(--bg-hover)',
-  fontFamily: 'var(--font-mono)',
-  headerFontFamily: 'var(--font-ui)',
-  headerFontWeight: 600,
-  cellFontWeight: 400,
-  fontSize: 12,
-  rowHeight: 26,
-  headerHeight: 30,
-  spacing: 4,
-  cellHorizontalPadding: 10,
-  wrapperBorder: false,
-  wrapperBorderRadius: 0,
-  columnBorder: true,
-});
 
 const ROW_NUMBER_COLUMN: ColDef = {
   colId: '__row',
@@ -55,16 +29,6 @@ const ROW_NUMBER_COLUMN: ColDef = {
   suppressMovable: true,
   cellClass: 'rownum',
 };
-
-/** Estimates a column width from the header and a sample of values. */
-function estimateColumnWidth(name: string, rows: Cell[][], columnIndex: number): number {
-  let characters = name.length + 2;
-  for (let rowIndex = 0; rowIndex < Math.min(rows.length, 60); rowIndex++) {
-    const value = rows[rowIndex][columnIndex];
-    characters = Math.max(characters, value === null ? 4 : String(value).length);
-  }
-  return Math.min(420, Math.max(70, characters * 7.4 + 24));
-}
 
 @Component({
   selector: 'dm-result-grid',

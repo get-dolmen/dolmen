@@ -41,39 +41,39 @@ func (s *Store) List() ([]Folder, error) {
 }
 
 // Save inserts or renames a folder and returns it with an ID.
-func (s *Store) Save(f Folder) (Folder, error) {
-	f.Name = strings.TrimSpace(f.Name)
-	if f.Name == "" {
-		return f, errors.New("folder name is required")
+func (s *Store) Save(folder Folder) (Folder, error) {
+	folder.Name = strings.TrimSpace(folder.Name)
+	if folder.Name == "" {
+		return folder, errors.New("folder name is required")
 	}
-	f.UpdatedAt = time.Now().UnixMilli()
+	folder.UpdatedAt = time.Now().UnixMilli()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	folders, err := s.load()
 	if err != nil {
-		return f, err
+		return folder, err
 	}
-	if f.ID == "" {
-		f.ID = uuid.NewString()
-		if err := checkParent(folders, f.ID, f.ParentID); err != nil {
-			return f, err
+	if folder.ID == "" {
+		folder.ID = uuid.NewString()
+		if err := checkParent(folders, folder.ID, folder.ParentID); err != nil {
+			return folder, err
 		}
-		folders = append(folders, f)
+		folders = append(folders, folder)
 	} else {
-		if err := checkParent(folders, f.ID, f.ParentID); err != nil {
-			return f, err
+		if err := checkParent(folders, folder.ID, folder.ParentID); err != nil {
+			return folder, err
 		}
 		found := false
 		for i := range folders {
-			if folders[i].ID == f.ID {
-				folders[i], found = f, true
+			if folders[i].ID == folder.ID {
+				folders[i], found = folder, true
 			}
 		}
 		if !found {
-			folders = append(folders, f)
+			folders = append(folders, folder)
 		}
 	}
-	return f, s.write(folders)
+	return folder, s.write(folders)
 }
 
 // Delete removes a folder and moves its children (and, at the caller's
@@ -88,27 +88,27 @@ func (s *Store) Delete(id string) (string, error) {
 	}
 	parent := ""
 	found := false
-	for _, f := range folders {
-		if f.ID == id {
-			parent, found = f.ParentID, true
+	for _, folder := range folders {
+		if folder.ID == id {
+			parent, found = folder.ParentID, true
 			break
 		}
 	}
 	if !found {
 		return "", fmt.Errorf("folder %s not found", id)
 	}
-	out := make([]Folder, 0, len(folders)-1)
-	for _, f := range folders {
-		if f.ID == id {
+	kept := make([]Folder, 0, len(folders)-1)
+	for _, folder := range folders {
+		if folder.ID == id {
 			continue
 		}
-		if f.ParentID == id {
-			f.ParentID = parent
-			f.UpdatedAt = time.Now().UnixMilli()
+		if folder.ParentID == id {
+			folder.ParentID = parent
+			folder.UpdatedAt = time.Now().UnixMilli()
 		}
-		out = append(out, f)
+		kept = append(kept, folder)
 	}
-	return parent, s.write(out)
+	return parent, s.write(kept)
 }
 
 // Replace rewrites the whole folder list (used by git sync after merging).
@@ -130,26 +130,26 @@ func checkParent(folders []Folder, id, parent string) error {
 		return errors.New("a folder cannot be its own parent")
 	}
 	byID := make(map[string]Folder, len(folders))
-	for _, f := range folders {
-		byID[f.ID] = f
+	for _, folder := range folders {
+		byID[folder.ID] = folder
 	}
 	seen := map[string]bool{id: true}
-	for cur := parent; cur != ""; {
-		if seen[cur] {
+	for current := parent; current != ""; {
+		if seen[current] {
 			return errors.New("a folder cannot be moved inside itself")
 		}
-		seen[cur] = true
-		p, ok := byID[cur]
+		seen[current] = true
+		parentFolder, ok := byID[current]
 		if !ok {
-			return fmt.Errorf("parent folder %s not found", cur)
+			return fmt.Errorf("parent folder %s not found", current)
 		}
-		cur = p.ParentID
+		current = parentFolder.ParentID
 	}
 	return nil
 }
 
 func (s *Store) load() ([]Folder, error) {
-	b, err := os.ReadFile(s.path)
+	data, err := os.ReadFile(s.path)
 	if errors.Is(err, os.ErrNotExist) {
 		return []Folder{}, nil
 	}
@@ -157,16 +157,16 @@ func (s *Store) load() ([]Folder, error) {
 		return nil, err
 	}
 	var folders []Folder
-	if err := json.Unmarshal(b, &folders); err != nil {
+	if err := json.Unmarshal(data, &folders); err != nil {
 		return nil, fmt.Errorf("reading %s: %w", s.path, err)
 	}
 	return folders, nil
 }
 
 func (s *Store) write(folders []Folder) error {
-	b, err := json.MarshalIndent(folders, "", "  ")
+	data, err := json.MarshalIndent(folders, "", "  ")
 	if err != nil {
 		return err
 	}
-	return atomicfile.Write(s.path, b, 0o600)
+	return atomicfile.Write(s.path, data, 0o600)
 }

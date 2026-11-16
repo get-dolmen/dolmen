@@ -24,117 +24,117 @@ const (
 // Source streams a result: it calls header once, then row for each row.
 type Source func(header func([]query.Column) error, row func([]any) error) error
 
-// ToFile writes src to path and returns the number of rows written.
-func ToFile(path string, f Format, src Source) (int64, error) {
+// ToFile writes source to path and returns the number of rows written.
+func ToFile(path string, format Format, source Source) (int64, error) {
 	file, err := os.Create(path)
 	if err != nil {
 		return 0, err
 	}
-	n, werr := Write(file, f, src)
-	if cerr := file.Close(); werr == nil {
-		werr = cerr
+	rowCount, writeErr := Write(file, format, source)
+	if closeErr := file.Close(); writeErr == nil {
+		writeErr = closeErr
 	}
-	return n, werr
+	return rowCount, writeErr
 }
 
-func Write(w io.Writer, f Format, src Source) (int64, error) {
-	bw := bufio.NewWriterSize(w, 64<<10)
-	var n int64
+func Write(writer io.Writer, format Format, source Source) (int64, error) {
+	buffered := bufio.NewWriterSize(writer, 64<<10)
+	var rowCount int64
 	var err error
-	switch f {
+	switch format {
 	case CSV:
-		n, err = writeCSV(bw, src)
+		rowCount, err = writeCSV(buffered, source)
 	case JSON:
-		n, err = writeJSON(bw, src)
+		rowCount, err = writeJSON(buffered, source)
 	default:
-		return 0, fmt.Errorf("unknown export format %q", f)
+		return 0, fmt.Errorf("unknown export format %q", format)
 	}
-	if ferr := bw.Flush(); err == nil {
-		err = ferr
+	if flushErr := buffered.Flush(); err == nil {
+		err = flushErr
 	}
-	return n, err
+	return rowCount, err
 }
 
-func writeCSV(w io.Writer, src Source) (int64, error) {
-	cw := csv.NewWriter(w)
-	var n int64
+func writeCSV(writer io.Writer, source Source) (int64, error) {
+	csvWriter := csv.NewWriter(writer)
+	var rowCount int64
 	var record []string
-	err := src(func(cols []query.Column) error {
-		for _, c := range cols {
-			record = append(record, c.Name)
+	err := source(func(columns []query.Column) error {
+		for _, column := range columns {
+			record = append(record, column.Name)
 		}
-		return cw.Write(record)
+		return csvWriter.Write(record)
 	}, func(row []any) error {
 		record = record[:0]
-		for _, v := range row {
-			record = append(record, Cell(v))
+		for _, value := range row {
+			record = append(record, Cell(value))
 		}
-		n++
-		return cw.Write(record)
+		rowCount++
+		return csvWriter.Write(record)
 	})
-	cw.Flush()
+	csvWriter.Flush()
 	if err == nil {
-		err = cw.Error()
+		err = csvWriter.Error()
 	}
-	return n, err
+	return rowCount, err
 }
 
 // writeJSON emits an array of objects, keys in column order. Duplicate
 // column names get a numeric suffix so no value is lost.
-func writeJSON(w io.Writer, src Source) (int64, error) {
-	var n int64
-	var keys [][]byte
-	var buf bytes.Buffer
-	io.WriteString(w, "[")
-	err := src(func(cols []query.Column) error {
+func writeJSON(writer io.Writer, source Source) (int64, error) {
+	var rowCount int64
+	var encodedKeys [][]byte
+	var buffer bytes.Buffer
+	io.WriteString(writer, "[")
+	err := source(func(columns []query.Column) error {
 		seen := map[string]int{}
-		for _, c := range cols {
-			name := c.Name
-			if k := seen[name]; k > 0 {
-				name = fmt.Sprintf("%s_%d", name, k+1)
+		for _, column := range columns {
+			name := column.Name
+			if duplicateCount := seen[name]; duplicateCount > 0 {
+				name = fmt.Sprintf("%s_%d", name, duplicateCount+1)
 			}
-			seen[c.Name]++
-			b, _ := json.Marshal(name)
-			keys = append(keys, b)
+			seen[column.Name]++
+			encodedName, _ := json.Marshal(name)
+			encodedKeys = append(encodedKeys, encodedName)
 		}
 		return nil
 	}, func(row []any) error {
-		buf.Reset()
-		if n > 0 {
-			buf.WriteByte(',')
+		buffer.Reset()
+		if rowCount > 0 {
+			buffer.WriteByte(',')
 		}
-		buf.WriteString("\n  {")
-		for i, v := range row {
-			if i > 0 {
-				buf.WriteString(", ")
+		buffer.WriteString("\n  {")
+		for index, value := range row {
+			if index > 0 {
+				buffer.WriteString(", ")
 			}
-			buf.Write(keys[i])
-			buf.WriteString(": ")
-			b, err := json.Marshal(v)
+			buffer.Write(encodedKeys[index])
+			buffer.WriteString(": ")
+			encodedValue, err := json.Marshal(value)
 			if err != nil {
 				return err
 			}
-			buf.Write(b)
+			buffer.Write(encodedValue)
 		}
-		buf.WriteByte('}')
-		n++
-		_, err := w.Write(buf.Bytes())
+		buffer.WriteByte('}')
+		rowCount++
+		_, err := writer.Write(buffer.Bytes())
 		return err
 	})
-	io.WriteString(w, "\n]\n")
-	return n, err
+	io.WriteString(writer, "\n]\n")
+	return rowCount, err
 }
 
 // Cell renders a normalized value as text (NULL becomes empty).
-func Cell(v any) string {
-	switch x := v.(type) {
+func Cell(value any) string {
+	switch typed := value.(type) {
 	case nil:
 		return ""
 	case string:
-		return x
+		return typed
 	case float64:
-		return strconv.FormatFloat(x, 'f', -1, 64)
+		return strconv.FormatFloat(typed, 'f', -1, 64)
 	default:
-		return fmt.Sprint(x)
+		return fmt.Sprint(typed)
 	}
 }

@@ -65,7 +65,7 @@ type Info struct {
 	Preview   string `json:"preview,omitempty"` // first meaningful line
 }
 
-type meta struct {
+type metadata struct {
 	Name      string `json:"name"`
 	ConnID    string `json:"connId"`
 	Database  string `json:"database,omitempty"`
@@ -92,7 +92,7 @@ type Entry struct {
 type Store struct {
 	dir   string
 	mu    sync.Mutex
-	index map[string]*meta
+	index map[string]*metadata
 }
 
 var validID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
@@ -121,44 +121,44 @@ func (s *Store) filePath(id string) (string, error) {
 func now() int64 { return time.Now().UnixMilli() }
 
 // loadIndex reads index.json, and adopts .sql files it does not know about
-// (e.g. scratches created before the index existed) using the open-tab
+// (for example, scratches created before the index existed) using the open-tab
 // manifest for their names and links.
 func (s *Store) loadIndex() error {
-	s.index = map[string]*meta{}
-	if b, err := os.ReadFile(s.indexPath()); err == nil {
-		json.Unmarshal(b, &s.index)
+	s.index = map[string]*metadata{}
+	if data, err := os.ReadFile(s.indexPath()); err == nil {
+		json.Unmarshal(data, &s.index)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	var ws Workspace
-	if b, err := os.ReadFile(s.manifestPath()); err == nil {
-		json.Unmarshal(b, &ws)
+	var workspace Workspace
+	if data, err := os.ReadFile(s.manifestPath()); err == nil {
+		json.Unmarshal(data, &workspace)
 	}
 	tabs := map[string]Tab{}
-	for _, t := range ws.Tabs {
-		tabs[t.ID] = t
+	for _, tab := range workspace.Tabs {
+		tabs[tab.ID] = tab
 	}
 	files, _ := filepath.Glob(filepath.Join(s.dir, "*.sql"))
 	changed := false
-	for _, f := range files {
-		id := strings.TrimSuffix(filepath.Base(f), ".sql")
+	for _, path := range files {
+		id := strings.TrimSuffix(filepath.Base(path), ".sql")
 		if !validID.MatchString(id) || s.index[id] != nil {
 			continue
 		}
-		st, err := os.Stat(f)
+		fileInfo, err := os.Stat(path)
 		if err != nil {
 			continue
 		}
-		m := &meta{Name: id + ".sql", CreatedAt: st.ModTime().UnixMilli(), UpdatedAt: st.ModTime().UnixMilli()}
-		if t, ok := tabs[id]; ok {
-			m.Name, m.ConnID, m.Database, m.Locked = t.Name, t.ConnID, t.Database, t.Locked
+		record := &metadata{Name: id + ".sql", CreatedAt: fileInfo.ModTime().UnixMilli(), UpdatedAt: fileInfo.ModTime().UnixMilli()}
+		if tab, ok := tabs[id]; ok {
+			record.Name, record.ConnID, record.Database, record.Locked = tab.Name, tab.ConnID, tab.Database, tab.Locked
 		}
-		s.index[id] = m
+		s.index[id] = record
 		changed = true
 	}
 	// Forget entries whose file disappeared.
 	for id := range s.index {
-		if p, _ := s.filePath(id); p == "" || !exists(p) {
+		if path, _ := s.filePath(id); path == "" || !exists(path) {
 			delete(s.index, id)
 			changed = true
 		}
@@ -169,122 +169,122 @@ func (s *Store) loadIndex() error {
 	return nil
 }
 
-func exists(p string) bool {
-	_, err := os.Stat(p)
+func exists(path string) bool {
+	_, err := os.Stat(path)
 	return err == nil
 }
 
 func (s *Store) writeIndex() error {
-	b, err := json.MarshalIndent(s.index, "", "  ")
+	data, err := json.MarshalIndent(s.index, "", "  ")
 	if err != nil {
 		return err
 	}
-	return atomicfile.Write(s.indexPath(), b, 0o600)
+	return atomicfile.Write(s.indexPath(), data, 0o600)
 }
 
 // Load returns the open tabs; SQL tabs carry their scratch's content and link.
 func (s *Store) Load() (Workspace, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	ws := Workspace{Tabs: []Tab{}}
-	b, err := os.ReadFile(s.manifestPath())
+	workspace := Workspace{Tabs: []Tab{}}
+	data, err := os.ReadFile(s.manifestPath())
 	if errors.Is(err, os.ErrNotExist) {
-		return ws, nil
+		return workspace, nil
 	}
 	if err != nil {
-		return ws, err
+		return workspace, err
 	}
-	if err := json.Unmarshal(b, &ws); err != nil {
+	if err := json.Unmarshal(data, &workspace); err != nil {
 		return Workspace{Tabs: []Tab{}}, nil // corrupt manifest: start fresh
 	}
-	out := ws.Tabs[:0]
-	for _, t := range ws.Tabs {
-		if t.Kind != "table" {
-			m := s.index[t.ID]
-			if m == nil {
+	tabs := workspace.Tabs[:0]
+	for _, tab := range workspace.Tabs {
+		if tab.Kind != "table" {
+			record := s.index[tab.ID]
+			if record == nil {
 				continue // its scratch was deleted
 			}
-			t.Name, t.ConnID, t.Database, t.Locked = m.Name, m.ConnID, m.Database, m.Locked
-			if p, err := s.filePath(t.ID); err == nil {
-				c, _ := os.ReadFile(p)
-				t.Content = string(c)
+			tab.Name, tab.ConnID, tab.Database, tab.Locked = record.Name, record.ConnID, record.Database, record.Locked
+			if path, err := s.filePath(tab.ID); err == nil {
+				content, _ := os.ReadFile(path)
+				tab.Content = string(content)
 			}
 		}
-		out = append(out, t)
+		tabs = append(tabs, tab)
 	}
-	ws.Tabs = out
-	return ws, nil
+	workspace.Tabs = tabs
+	return workspace, nil
 }
 
 // SaveLayout writes the open tabs and keeps the scratch index in sync with
 // the names and links of open SQL tabs.
-func (s *Store) SaveLayout(ws Workspace) error {
+func (s *Store) SaveLayout(workspace Workspace) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := Workspace{ActiveID: ws.ActiveID, Tabs: make([]Tab, 0, len(ws.Tabs))}
+	saved := Workspace{ActiveID: workspace.ActiveID, Tabs: make([]Tab, 0, len(workspace.Tabs))}
 	changed := false
-	for _, t := range ws.Tabs {
-		p, err := s.filePath(t.ID)
+	for _, tab := range workspace.Tabs {
+		path, err := s.filePath(tab.ID)
 		if err != nil {
 			return err
 		}
-		t.Content = ""
-		if t.Kind != "table" {
-			m := s.index[t.ID]
-			if m == nil {
+		tab.Content = ""
+		if tab.Kind != "table" {
+			record := s.index[tab.ID]
+			if record == nil {
 				// A new scratch is pinned to the link it was created with; only a
 				// scratch with no connection at all stays free to move.
-				m = &meta{ConnID: t.ConnID, Database: t.Database, Locked: t.ConnID != "", CreatedAt: now(), UpdatedAt: now()}
-				s.index[t.ID] = m
-				if !exists(p) {
-					_ = atomicfile.Write(p, nil, 0o600)
+				record = &metadata{ConnID: tab.ConnID, Database: tab.Database, Locked: tab.ConnID != "", CreatedAt: now(), UpdatedAt: now()}
+				s.index[tab.ID] = record
+				if !exists(path) {
+					_ = atomicfile.Write(path, nil, 0o600)
 				}
 			}
-			if m.Locked {
+			if record.Locked {
 				// A locked scratch keeps its link whatever this tab (or a bug) says.
-				t.ConnID, t.Database = m.ConnID, m.Database
-			} else if m.ConnID != t.ConnID || m.Database != t.Database {
+				tab.ConnID, tab.Database = record.ConnID, record.Database
+			} else if record.ConnID != tab.ConnID || record.Database != tab.Database {
 				// Moved to another connection or database: the table link no longer applies.
-				m.Schema, m.Table = "", ""
+				record.Schema, record.Table = "", ""
 			}
-			if m.Name != t.Name || m.ConnID != t.ConnID || m.Database != t.Database {
-				m.Name, m.ConnID, m.Database = t.Name, t.ConnID, t.Database
+			if record.Name != tab.Name || record.ConnID != tab.ConnID || record.Database != tab.Database {
+				record.Name, record.ConnID, record.Database = tab.Name, tab.ConnID, tab.Database
 				changed = true
 			}
-			t.Locked = m.Locked
-			changed = changed || m.CreatedAt == 0
+			tab.Locked = record.Locked
+			changed = changed || record.CreatedAt == 0
 		}
-		out.Tabs = append(out.Tabs, t)
+		saved.Tabs = append(saved.Tabs, tab)
 	}
 	if changed {
 		if err := s.writeIndex(); err != nil {
 			return err
 		}
 	}
-	b, err := json.MarshalIndent(out, "", "  ")
+	data, err := json.MarshalIndent(saved, "", "  ")
 	if err != nil {
 		return err
 	}
-	return atomicfile.Write(s.manifestPath(), b, 0o600)
+	return atomicfile.Write(s.manifestPath(), data, 0o600)
 }
 
 // SaveContent writes a scratch's content.
 func (s *Store) SaveContent(id, content string) error {
-	p, err := s.filePath(id)
+	path, err := s.filePath(id)
 	if err != nil {
 		return err
 	}
-	if err := atomicfile.Write(p, []byte(content), 0o600); err != nil {
+	if err := atomicfile.Write(path, []byte(content), 0o600); err != nil {
 		return err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	m := s.index[id]
-	if m == nil {
-		m = &meta{Name: id + ".sql", CreatedAt: now()}
-		s.index[id] = m
+	record := s.index[id]
+	if record == nil {
+		record = &metadata{Name: id + ".sql", CreatedAt: now()}
+		s.index[id] = record
 	}
-	m.UpdatedAt = now()
+	record.UpdatedAt = now()
 	return s.writeIndex()
 }
 
@@ -292,24 +292,24 @@ func (s *Store) SaveContent(id, content string) error {
 func (s *Store) List() []Info {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := make([]Info, 0, len(s.index))
-	for id, m := range s.index {
-		info := Info{ID: id, Name: m.Name, ConnID: m.ConnID, Database: m.Database, Schema: m.Schema, Table: m.Table, Locked: m.Locked, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}
-		if p, err := s.filePath(id); err == nil {
-			if b, err := os.ReadFile(p); err == nil {
-				info.Size = len(b)
-				info.Preview = preview(string(b))
+	infos := make([]Info, 0, len(s.index))
+	for id, record := range s.index {
+		info := Info{ID: id, Name: record.Name, ConnID: record.ConnID, Database: record.Database, Schema: record.Schema, Table: record.Table, Locked: record.Locked, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
+		if path, err := s.filePath(id); err == nil {
+			if data, err := os.ReadFile(path); err == nil {
+				info.Size = len(data)
+				info.Preview = preview(string(data))
 			}
 		}
-		out = append(out, info)
+		infos = append(infos, info)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].UpdatedAt > out[j].UpdatedAt })
-	return out
+	sort.Slice(infos, func(i, j int) bool { return infos[i].UpdatedAt > infos[j].UpdatedAt })
+	return infos
 }
 
 // preview returns the first line that is not blank or a comment marker only.
-func preview(s string) string {
-	for line := range strings.SplitSeq(s, "\n") {
+func preview(content string) string {
+	for line := range strings.SplitSeq(content, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || line == "--" || line == "/*" {
 			continue
@@ -324,28 +324,28 @@ func preview(s string) string {
 
 // Get returns a scratch as a tab ready to open.
 func (s *Store) Get(id string) (Tab, error) {
-	p, err := s.filePath(id)
+	path, err := s.filePath(id)
 	if err != nil {
 		return Tab{}, err
 	}
 	s.mu.Lock()
-	m := s.index[id]
+	record := s.index[id]
 	s.mu.Unlock()
-	if m == nil {
+	if record == nil {
 		return Tab{}, fmt.Errorf("scratch %s not found", id)
 	}
-	b, err := os.ReadFile(p)
+	data, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return Tab{}, err
 	}
-	return Tab{ID: id, Name: m.Name, ConnID: m.ConnID, Database: m.Database, Kind: "sql", Locked: m.Locked, Content: string(b)}, nil
+	return Tab{ID: id, Name: record.Name, ConnID: record.ConnID, Database: record.Database, Kind: "sql", Locked: record.Locked, Content: string(data)}, nil
 }
 
 // Create adds a scratch file and returns it. Schema and table optionally file
 // it under a table. New scratches are locked to their link unless they have no
 // connection yet.
 func (s *Store) Create(id, name, connID, database, schema, table, content string) (Tab, error) {
-	p, err := s.filePath(id)
+	path, err := s.filePath(id)
 	if err != nil {
 		return Tab{}, err
 	}
@@ -353,13 +353,13 @@ func (s *Store) Create(id, name, connID, database, schema, table, content string
 	if err != nil {
 		return Tab{}, err
 	}
-	if err := atomicfile.Write(p, []byte(content), 0o600); err != nil {
+	if err := atomicfile.Write(path, []byte(content), 0o600); err != nil {
 		return Tab{}, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	locked := connID != ""
-	s.index[id] = &meta{Name: name, ConnID: connID, Database: database, Schema: schema, Table: table, Locked: locked, CreatedAt: now(), UpdatedAt: now()}
+	s.index[id] = &metadata{Name: name, ConnID: connID, Database: database, Schema: schema, Table: table, Locked: locked, CreatedAt: now(), UpdatedAt: now()}
 	return Tab{ID: id, Name: name, ConnID: connID, Database: database, Kind: "sql", Locked: locked, Content: content}, s.writeIndex()
 }
 
@@ -368,18 +368,18 @@ func (s *Store) Create(id, name, connID, database, schema, table, content string
 func (s *Store) Link(id, connID, database, schema, table string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	m := s.index[id]
-	if m == nil {
+	record := s.index[id]
+	if record == nil {
 		return fmt.Errorf("scratch %s not found", id)
 	}
 	if table == "" {
 		schema = ""
 	}
-	if m.Locked && (m.ConnID != connID || m.Database != database || m.Schema != schema || m.Table != table) {
-		return fmt.Errorf("scratch %s is locked to %s; unlock it first", id, m.Name)
+	if record.Locked && (record.ConnID != connID || record.Database != database || record.Schema != schema || record.Table != table) {
+		return fmt.Errorf("scratch %s is locked to %s; unlock it first", id, record.Name)
 	}
-	m.ConnID, m.Database, m.Schema, m.Table = connID, database, schema, table
-	m.UpdatedAt = now()
+	record.ConnID, record.Database, record.Schema, record.Table = connID, database, schema, table
+	record.UpdatedAt = now()
 	return s.writeIndex()
 }
 
@@ -387,11 +387,11 @@ func (s *Store) Link(id, connID, database, schema, table string) error {
 func (s *Store) SetLock(id string, locked bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	m := s.index[id]
-	if m == nil {
+	record := s.index[id]
+	if record == nil {
 		return fmt.Errorf("scratch %s not found", id)
 	}
-	m.Locked = locked
+	record.Locked = locked
 	return s.writeIndex()
 }
 
@@ -403,12 +403,12 @@ func (s *Store) Rename(id, name string) (string, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	m := s.index[id]
-	if m == nil {
+	record := s.index[id]
+	if record == nil {
 		return "", fmt.Errorf("scratch %s not found", id)
 	}
-	m.Name = name
-	m.UpdatedAt = now()
+	record.Name = name
+	record.UpdatedAt = now()
 	return name, s.writeIndex()
 }
 
@@ -416,23 +416,23 @@ func (s *Store) Rename(id, name string) (string, error) {
 func (s *Store) Snapshot() ([]Entry, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := make([]Entry, 0, len(s.index))
-	for id, m := range s.index {
-		p, err := s.filePath(id)
+	entries := make([]Entry, 0, len(s.index))
+	for id, record := range s.index {
+		path, err := s.filePath(id)
 		if err != nil {
 			continue
 		}
-		b, err := os.ReadFile(p)
+		data, err := os.ReadFile(path)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, err
 		}
-		out = append(out, Entry{
-			ID: id, Name: m.Name, ConnID: m.ConnID, Database: m.Database, Schema: m.Schema, Table: m.Table,
-			CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt, Content: string(b),
+		entries = append(entries, Entry{
+			ID: id, Name: record.Name, ConnID: record.ConnID, Database: record.Database, Schema: record.Schema, Table: record.Table,
+			CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt, Content: string(data),
 		})
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
-	return out, nil
+	sort.Slice(entries, func(i, j int) bool { return entries[i].ID < entries[j].ID })
+	return entries, nil
 }
 
 // Replace makes the entries the whole set of scratches, deleting files that
@@ -441,16 +441,16 @@ func (s *Store) Replace(entries []Entry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	keep := make(map[string]bool, len(entries))
-	for _, e := range entries {
-		if !validID.MatchString(e.ID) {
-			return fmt.Errorf("invalid scratch id %q", e.ID)
+	for _, entry := range entries {
+		if !validID.MatchString(entry.ID) {
+			return fmt.Errorf("invalid scratch id %q", entry.ID)
 		}
-		keep[e.ID] = true
+		keep[entry.ID] = true
 	}
 	// Locks are local preferences, not part of the synced entry: keep them.
 	locked := make(map[string]bool, len(s.index))
-	for id, m := range s.index {
-		if m.Locked {
+	for id, record := range s.index {
+		if record.Locked {
 			locked[id] = true
 		}
 	}
@@ -458,30 +458,30 @@ func (s *Store) Replace(entries []Entry) error {
 		if keep[id] {
 			continue
 		}
-		p, err := s.filePath(id)
+		path, err := s.filePath(id)
 		if err != nil {
 			return err
 		}
-		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
 	}
-	index := make(map[string]*meta, len(entries))
-	for _, e := range entries {
-		name, err := CleanName(e.Name)
+	index := make(map[string]*metadata, len(entries))
+	for _, entry := range entries {
+		name, err := CleanName(entry.Name)
 		if err != nil {
 			return err
 		}
-		p, err := s.filePath(e.ID)
+		path, err := s.filePath(entry.ID)
 		if err != nil {
 			return err
 		}
-		if err := atomicfile.Write(p, []byte(e.Content), 0o600); err != nil {
+		if err := atomicfile.Write(path, []byte(entry.Content), 0o600); err != nil {
 			return err
 		}
-		index[e.ID] = &meta{
-			Name: name, ConnID: e.ConnID, Database: e.Database, Schema: e.Schema, Table: e.Table,
-			Locked: locked[e.ID], CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt,
+		index[entry.ID] = &metadata{
+			Name: name, ConnID: entry.ConnID, Database: entry.Database, Schema: entry.Schema, Table: entry.Table,
+			Locked: locked[entry.ID], CreatedAt: entry.CreatedAt, UpdatedAt: entry.UpdatedAt,
 		}
 	}
 	s.index = index
@@ -505,11 +505,11 @@ func CleanName(name string) (string, error) {
 
 // Delete removes a scratch file and its metadata.
 func (s *Store) Delete(id string) error {
-	p, err := s.filePath(id)
+	path, err := s.filePath(id)
 	if err != nil {
 		return err
 	}
-	if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	s.mu.Lock()
@@ -520,10 +520,10 @@ func (s *Store) Delete(id string) error {
 
 // IsBlank reports whether a scratch is empty (only whitespace).
 func (s *Store) IsBlank(id string) bool {
-	p, err := s.filePath(id)
+	path, err := s.filePath(id)
 	if err != nil {
 		return false
 	}
-	b, err := os.ReadFile(p)
-	return err != nil || strings.TrimSpace(string(b)) == ""
+	data, err := os.ReadFile(path)
+	return err != nil || strings.TrimSpace(string(data)) == ""
 }

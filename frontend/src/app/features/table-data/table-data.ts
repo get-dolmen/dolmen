@@ -35,7 +35,7 @@ import type { Cell, DbKind, TablePage } from '../../core/models';
 import { Confirm } from '../../shared/confirm';
 import { Icon } from '../../shared/icon';
 import { ClickOutside, clampMenu } from '../../shared/click-outside';
-import { displayCell } from '../../shared/cell';
+import { displayCell, cellText } from '../../shared/cell';
 import { estimateColumnWidth, gridTheme } from '../../shared/grid';
 import { COPY_FORMATS, formatRows, type CopyFormat } from '../results/copy';
 import { CellRangeSelection, rangeClassRules } from '../../shared/cell-range';
@@ -93,7 +93,7 @@ export class TableData implements TableHandle, OnDestroy {
     x: number;
     y: number;
     row: GridRow;
-    colIndex: number;
+    columnIndex: number;
     value: Cell | undefined;
   } | null>(null);
   public readonly sizeMenu = signal<{ x: number; y: number } | null>(null);
@@ -105,7 +105,7 @@ export class TableData implements TableHandle, OnDestroy {
   public readonly refreshSeconds = signal(REFRESH_SECONDS[0]);
   private refreshTimer?: ReturnType<typeof setInterval>;
   /** Sort chosen from a column header; typing an ORDER BY replaces it. */
-  private sortState = signal<{ col: string; dir: 'asc' | 'desc' } | null>(null);
+  private sortState = signal<{ column: string; direction: 'asc' | 'desc' } | null>(null);
 
   private rows: GridRow[] = [];
   private deletedRowIds = new Set<string>();
@@ -336,7 +336,7 @@ export class TableData implements TableHandle, OnDestroy {
     this.rows = page.rows.map((cells, index) => ({
       id: `o${index}`,
       isNew: false,
-      orig: cells,
+      original: cells,
       cells: [...cells],
     }));
     this.gridApi?.setGridOption('columnDefs', this.columnDefinitions(page));
@@ -369,7 +369,8 @@ export class TableData implements TableHandle, OnDestroy {
         headerComponent: ColumnHeader,
         headerComponentParams: {
           column,
-          sort: () => (this.sortState()?.col === column.name ? this.sortState()!.dir : null),
+          sort: () =>
+            this.sortState()?.column === column.name ? this.sortState()!.direction : null,
           onSort: () => this.sortBy(column.name),
           onFilter: () => this.filterByColumn(column.name),
         } satisfies ColumnHeaderParams,
@@ -412,8 +413,8 @@ export class TableData implements TableHandle, OnDestroy {
   private sortBy(columnName: string) {
     const current = this.sortState();
     const nextDirection =
-      current?.col !== columnName ? 'asc' : current.dir === 'asc' ? 'desc' : null;
-    this.sortState.set(nextDirection ? { col: columnName, dir: nextDirection } : null);
+      current?.column !== columnName ? 'asc' : current.direction === 'asc' ? 'desc' : null;
+    this.sortState.set(nextDirection ? { column: columnName, direction: nextDirection } : null);
     this.orderBy = nextDirection
       ? `${quoteIdentifier(this.connectionKind(), columnName)} ${nextDirection.toUpperCase()}`
       : '';
@@ -447,7 +448,7 @@ export class TableData implements TableHandle, OnDestroy {
     const row: GridRow = {
       id: `n${++this.newRowSequence}`,
       isNew: true,
-      orig: [],
+      original: [],
       cells: page.columns.map(() => undefined),
     };
     // New rows go on top, where they are visible, and editing starts right away.
@@ -577,7 +578,7 @@ export class TableData implements TableHandle, OnDestroy {
     this.cellMenu.set({
       ...clampMenu(pointerX, pointerY, 230, 300),
       row: event.data,
-      colIndex: columnIndex,
+      columnIndex: columnIndex,
       value: columnIndex >= 0 ? event.data.cells[columnIndex] : undefined,
     });
   }
@@ -638,11 +639,9 @@ export class TableData implements TableHandle, OnDestroy {
     keyboardEvent.preventDefault();
     const block = this.selectedBlock();
     if (!block) {
-      const value = event.value as Cell;
-      void this.commandService.copy(value === null || value === undefined ? '' : String(value));
+      void this.commandService.copy(cellText(event.value as Cell));
     } else if (block.rows.length === 1 && block.columns.length === 1) {
-      const value = block.rows[0][0];
-      void this.commandService.copy(value === null ? '' : String(value));
+      void this.commandService.copy(cellText(block.rows[0][0]));
     } else {
       void this.commandService.copy(formatRows('tsv', block.columns, block.rows, true));
     }
@@ -650,7 +649,7 @@ export class TableData implements TableHandle, OnDestroy {
 
   private contextMenuColumn() {
     const menu = this.cellMenu();
-    return menu && menu.colIndex >= 0 ? this.page()?.columns[menu.colIndex] : undefined;
+    return menu && menu.columnIndex >= 0 ? this.page()?.columns[menu.columnIndex] : undefined;
   }
 
   /** Whether the cell under the menu can be edited right now. */
@@ -673,7 +672,9 @@ export class TableData implements TableHandle, OnDestroy {
 
   public isCellChanged() {
     const menu = this.cellMenu();
-    return !!menu && menu.colIndex >= 0 && !menu.row.isNew && isChanged(menu.row, menu.colIndex);
+    return (
+      !!menu && menu.columnIndex >= 0 && !menu.row.isNew && isChanged(menu.row, menu.columnIndex)
+    );
   }
 
   public isCellRowDeleted() {
@@ -683,11 +684,9 @@ export class TableData implements TableHandle, OnDestroy {
 
   public copyCellValue() {
     const menu = this.cellMenu();
-    if (!menu || menu.colIndex < 0) return;
+    if (!menu || menu.columnIndex < 0) return;
     this.cellMenu.set(null);
-    void this.commandService.copy(
-      menu.value === null || menu.value === undefined ? '' : String(menu.value),
-    );
+    void this.commandService.copy(cellText(menu.value));
   }
 
   public copyCellColumn() {
@@ -731,14 +730,14 @@ export class TableData implements TableHandle, OnDestroy {
     const menu = this.cellMenu();
     if (!menu || !this.isCellEditable()) return;
     this.cellMenu.set(null);
-    this.gridApi?.getRowNode(menu.row.id)?.setDataValue(`c${menu.colIndex}`, null);
+    this.gridApi?.getRowNode(menu.row.id)?.setDataValue(`c${menu.columnIndex}`, null);
   }
 
   public revertCell() {
     const menu = this.cellMenu();
     if (!menu || !this.isCellChanged()) return;
     this.cellMenu.set(null);
-    this.setCell(menu.row, menu.colIndex, menu.row.orig[menu.colIndex]);
+    this.setCell(menu.row, menu.columnIndex, menu.row.original[menu.columnIndex]);
     const node = this.gridApi?.getRowNode(menu.row.id);
     if (node) this.gridApi?.refreshCells({ rowNodes: [node] });
   }

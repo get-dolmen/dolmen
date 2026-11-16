@@ -243,8 +243,7 @@
 
 @if (error(); as errorMessage) {
   <div class="error" role="alert">
-    <span>{{ errorMessage }}</span
-    ><button class="ib" (click)="error.set('')" aria-label="Dismiss">
+    <span>{{ errorMessage }}</span><button class="ib" (click)="error.set('')" aria-label="Dismiss">
       <dm-icon name="x" [size]="14" />
     </button>
   </div>
@@ -311,7 +310,7 @@
       <button
         class="menu-item"
         role="menuitem"
-        [disabled]="menuPosition.colIndex < 0 || menuPosition.value === undefined"
+        [disabled]="menuPosition.columnIndex < 0 || menuPosition.value === undefined"
         (click)="copyCellValue()"
       >
         Copy value<span class="hint">{{ modifierKey }}C</span>
@@ -319,7 +318,7 @@
       <button
         class="menu-item"
         role="menuitem"
-        [disabled]="menuPosition.colIndex < 0"
+        [disabled]="menuPosition.columnIndex < 0"
         (click)="copyCellColumn()"
       >
         Copy column name
@@ -337,7 +336,7 @@
       <button
         class="menu-item"
         role="menuitem"
-        [disabled]="menuPosition.colIndex < 0 || menuPosition.value === undefined"
+        [disabled]="menuPosition.columnIndex < 0 || menuPosition.value === undefined"
         (click)="filterByCell()"
       >
         Filter by this value

@@ -4,7 +4,7 @@ import type { Cell, TableChange, TableColumn } from '../../core/models';
 export interface GridRow {
   id: string;
   isNew: boolean;
-  orig: Cell[];
+  original: Cell[];
   cells: (Cell | undefined)[];
 }
 
@@ -15,12 +15,12 @@ export function normalizeEdit(
   value: Cell | undefined,
 ): Cell | undefined {
   if (row.isNew || value === null || value === undefined) return value;
-  const original = row.orig[columnIndex];
+  const original = row.original[columnIndex];
   return original !== null && String(original) === String(value) ? original : value;
 }
 
 export function isChanged(row: GridRow, columnIndex: number): boolean {
-  return !row.isNew && !Object.is(row.cells[columnIndex], row.orig[columnIndex]);
+  return !row.isNew && !Object.is(row.cells[columnIndex], row.original[columnIndex]);
 }
 
 export function rowChanged(row: GridRow): boolean {
@@ -31,7 +31,7 @@ export function rowChanged(row: GridRow): boolean {
 function primaryKey(columns: TableColumn[], row: GridRow): Record<string, Cell> {
   return Object.fromEntries(
     columns.flatMap((column, columnIndex) =>
-      column.pk ? [[column.name, row.orig[columnIndex]]] : [],
+      column.pk ? [[column.name, row.original[columnIndex]]] : [],
     ),
   );
 }

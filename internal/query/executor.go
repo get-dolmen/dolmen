@@ -222,7 +222,9 @@ func (e *Executor) CloseTab(tabID string) {
 }
 
 // CloseConnection releases every session bound to a connection.
-func (e *Executor) CloseConnection(connID string) { e.closeWhere(func(s *session) bool { return s.connID == connID }) }
+func (e *Executor) CloseConnection(connID string) {
+	e.closeWhere(func(s *session) bool { return s.connID == connID })
+}
 
 // CloseDatabase releases the sessions bound to one database of a connection
 // (not its main one), before that database is dropped.
@@ -607,7 +609,7 @@ func fetch(rows *sql.Rows, ncols, n int) ([][]any, bool, error) {
 		if !rows.Next() {
 			return out, false, rows.Err()
 		}
-		row, err := scanRow(rows, ncols)
+		row, err := ScanRow(rows, ncols)
 		if err != nil {
 			return out, false, err
 		}
@@ -618,21 +620,6 @@ func fetch(rows *sql.Rows, ncols, n int) ([][]any, bool, error) {
 		return out, false, rows.Err()
 	}
 	return out, true, nil
-}
-
-func scanRow(rows *sql.Rows, ncols int) ([]any, error) {
-	vals := make([]any, ncols)
-	ptrs := make([]any, ncols)
-	for i := range vals {
-		ptrs[i] = &vals[i]
-	}
-	if err := rows.Scan(ptrs...); err != nil {
-		return nil, err
-	}
-	for i, v := range vals {
-		vals[i] = Normalize(v)
-	}
-	return vals, nil
 }
 
 type FetchResult struct {
@@ -652,7 +639,7 @@ func (e *Executor) FetchMore(tabID, resultID string, n int) (*FetchResult, error
 		n = DefaultMaxRows
 	}
 	// The pending row was already advanced to by the previous peek.
-	first, err := scanRow(cur.rows, cur.ncols)
+	first, err := ScanRow(cur.rows, cur.ncols)
 	if err != nil {
 		s.closeCursor()
 		return &FetchResult{Rows: [][]any{}, Error: err.Error()}, nil
@@ -720,7 +707,7 @@ func (e *Executor) Rows(tabID, resultID string, header func([]Column) error, emi
 	defer s.closeCursor()
 	cur := s.cursor
 	for {
-		row, err := scanRow(cur.rows, cur.ncols) // starts with the peeked row
+		row, err := ScanRow(cur.rows, cur.ncols) // starts with the peeked row
 		if err != nil {
 			return err
 		}

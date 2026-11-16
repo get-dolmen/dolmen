@@ -140,18 +140,11 @@ func Read(ctx context.Context, o *conn.Open, q Querier, req PageRequest) (*Page,
 			page.HasMore = true
 			break
 		}
-		vals := make([]any, len(cols))
-		ptrs := make([]any, len(cols))
-		for i := range vals {
-			ptrs[i] = &vals[i]
-		}
-		if err := rows.Scan(ptrs...); err != nil {
+		row, err := query.ScanRow(rows, len(cols))
+		if err != nil {
 			return nil, err
 		}
-		for i, v := range vals {
-			vals[i] = query.Normalize(v)
-		}
-		page.Rows = append(page.Rows, vals)
+		page.Rows = append(page.Rows, row)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

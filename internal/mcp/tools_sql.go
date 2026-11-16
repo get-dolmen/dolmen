@@ -319,7 +319,7 @@ func runStatement(ctx context.Context, q querier, d sqlsplit.Dialect, stmt strin
 			}
 			return res
 		}
-		row, err := scanValues(rows, len(types))
+		row, err := query.ScanRow(rows, len(types))
 		if err != nil {
 			res.Error = err.Error()
 			return res
@@ -334,21 +334,6 @@ func runStatement(ctx context.Context, q querier, d sqlsplit.Dialect, stmt strin
 		res.Error = err.Error()
 	}
 	return res
-}
-
-func scanValues(rows *sql.Rows, n int) ([]any, error) {
-	vals := make([]any, n)
-	ptrs := make([]any, n)
-	for i := range vals {
-		ptrs[i] = &vals[i]
-	}
-	if err := rows.Scan(ptrs...); err != nil {
-		return nil, err
-	}
-	for i, v := range vals {
-		vals[i] = query.Normalize(v)
-	}
-	return vals, nil
 }
 
 func (t *Tools) record(connID string, res statementResult) {

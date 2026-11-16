@@ -35,7 +35,7 @@ export class ScratchStore {
         .map((tab) => [tab.id, tab]),
     );
     const seen = new Set<string>();
-    const out = this.persisted().map((scratch) => {
+    const entries = this.persisted().map((scratch) => {
       seen.add(scratch.id);
       const tab = open.get(scratch.id);
       return tab
@@ -50,7 +50,7 @@ export class ScratchStore {
     });
     for (const tab of open.values()) {
       if (!seen.has(tab.id) && tab.content.trim()) {
-        out.unshift({
+        entries.unshift({
           id: tab.id,
           name: tab.name,
           connId: tab.connId,
@@ -62,7 +62,7 @@ export class ScratchStore {
         });
       }
     }
-    return out;
+    return entries;
   });
 
   public readonly openIds = computed(() => new Set(this.tabStore.tabs().map((tab) => tab.id)));

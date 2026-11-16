@@ -6,6 +6,7 @@ import { TabStore } from './tab.store';
 import { Toasts } from './toast';
 import { TxStore } from './tx.store';
 import { Ui } from './ui';
+import { formatAffectedRows, formatCount, formatDuration } from '../shared/format';
 import type { QueryResult } from './models';
 
 export interface RunMessage {
@@ -189,9 +190,7 @@ export class RunStore {
       if (!exported.path) return;
       // Exporting drains the server cursor, so no further pages can be fetched.
       this.updateResult(tabId, resultId, (current) => ({ ...current, canFetchMore: false }));
-      this.toastService.success(
-        `Exported ${exported.rows.toLocaleString()} rows to ${exported.path}`,
-      );
+      this.toastService.success(`Exported ${formatCount(exported.rows)} rows to ${exported.path}`);
     } catch (error) {
       this.toastService.error(`Export failed: ${errorText(error)}`);
     }
@@ -245,12 +244,12 @@ export class RunStore {
 }
 
 function describeResult(result: QueryResult, time: number): RunMessage {
-  const elapsed = `${result.durationMs.toLocaleString()} ms`;
+  const elapsed = formatDuration(result.durationMs);
   if (result.error) return { time, kind: 'error', text: result.error, statement: result.statement };
   if (result.message)
     return { time, kind: 'info', text: result.message, statement: result.statement };
   if (result.isQuery) {
-    const count = result.rows.length.toLocaleString();
+    const count = formatCount(result.rows.length);
     return {
       time,
       kind: 'ok',
@@ -258,9 +257,6 @@ function describeResult(result: QueryResult, time: number): RunMessage {
       statement: result.statement,
     };
   }
-  const affected =
-    result.rowsAffected >= 0
-      ? `${result.rowsAffected.toLocaleString()} row${result.rowsAffected === 1 ? '' : 's'} affected`
-      : 'Done';
+  const affected = formatAffectedRows(result.rowsAffected);
   return { time, kind: 'ok', text: `${affected} in ${elapsed}`, statement: result.statement };
 }

@@ -4,6 +4,7 @@ import { RunStore, type InlineBlock } from '../../core/run.store';
 import { ClickOutside, clampMenu } from '../../shared/click-outside';
 import { ResultGrid } from './result-grid';
 import { COPY_FORMATS, formatRows, type CopyFormat } from './copy';
+import { formatAffectedRows, formatDuration } from '../../shared/format';
 import type { QueryResult } from '../../core/models';
 
 /** Header height, and the grid's header and row heights (see gridTheme). */
@@ -57,11 +58,7 @@ export class InlineResult {
 
   public summary(result: QueryResult): string {
     if (result.message) return result.message;
-    const affected =
-      result.rowsAffected >= 0
-        ? `${result.rowsAffected.toLocaleString()} row${result.rowsAffected === 1 ? '' : 's'} affected`
-        : 'Done';
-    return `${affected} · ${result.durationMs.toLocaleString()} ms`;
+    return `${formatAffectedRows(result.rowsAffected)} · ${formatDuration(result.durationMs)}`;
   }
 
   public async fetchMore() {

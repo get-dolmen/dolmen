@@ -36,6 +36,7 @@ import { Confirm } from '../../shared/confirm';
 import { Icon } from '../../shared/icon';
 import { ClickOutside, clampMenu } from '../../shared/click-outside';
 import { displayCell, cellText } from '../../shared/cell';
+import { formatCount } from '../../shared/format';
 import { estimateColumnWidth, gridTheme } from '../../shared/grid';
 import { COPY_FORMATS, formatRows, type CopyFormat } from '../results/copy';
 import { CellRangeSelection, rangeClassRules } from '../../shared/cell-range';
@@ -140,10 +141,10 @@ export class TableData implements TableHandle, OnDestroy {
     const page = this.page();
     if (!page) return '';
     if (!page.rows.length) return 'No rows';
-    const firstRow = (this.offset() + 1).toLocaleString();
-    const lastRow = (this.offset() + page.rows.length).toLocaleString();
+    const firstRow = formatCount(this.offset() + 1);
+    const lastRow = formatCount(this.offset() + page.rows.length);
     const total = this.totalCount();
-    if (total !== null) return `${firstRow}–${lastRow} of ${total.toLocaleString()}`;
+    if (total !== null) return `${firstRow}–${lastRow} of ${formatCount(total)}`;
     return `${firstRow}–${lastRow}${page.hasMore ? '+' : ''}`;
   });
 

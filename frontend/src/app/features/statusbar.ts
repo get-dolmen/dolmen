@@ -11,6 +11,7 @@ import { KIND_LABELS } from '../core/models';
 import { MOD } from '../core/ui';
 import { Api, errorText } from '../core/api';
 import { ClickOutside } from '../shared/click-outside';
+import { formatCount, formatDuration } from '../shared/format';
 import { EventsOn } from '../../../wailsjs/runtime';
 
 export type UpdateState =
@@ -205,8 +206,8 @@ export class Statusbar implements OnDestroy {
     if (run.finishedMs === undefined) return '';
     const result = run.results[run.activeResult];
     const rows = result
-      ? ` · ${result.rows.length.toLocaleString()}${result.hasMore ? '+' : ''} rows`
+      ? ` · ${formatCount(result.rows.length)}${result.hasMore ? '+' : ''} rows`
       : '';
-    return `Done in ${run.finishedMs.toLocaleString()} ms${rows}`;
+    return `Done in ${formatDuration(run.finishedMs)}${rows}`;
   });
 }

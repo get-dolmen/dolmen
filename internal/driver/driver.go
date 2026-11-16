@@ -92,20 +92,20 @@ type DatabaseLister interface {
 
 var registry = map[Kind]Driver{}
 
-func register(d Driver) { registry[d.Kind()] = d }
+func register(databaseDriver Driver) { registry[databaseDriver.Kind()] = databaseDriver }
 
 // Get returns the driver for a kind.
-func Get(k Kind) (Driver, error) {
-	d, ok := registry[k]
+func Get(kind Kind) (Driver, error) {
+	databaseDriver, ok := registry[kind]
 	if !ok {
-		return nil, fmt.Errorf("unsupported database kind %q", k)
+		return nil, fmt.Errorf("unsupported database kind %q", kind)
 	}
-	return d, nil
+	return databaseDriver, nil
 }
 
 // DefaultPort returns the port a config uses when it leaves Port empty.
-func DefaultPort(k Kind) int {
-	switch k {
+func DefaultPort(kind Kind) int {
+	switch kind {
 	case Postgres:
 		return 5432
 	case MySQL:
@@ -118,77 +118,77 @@ func DefaultPort(k Kind) int {
 
 // --- helpers shared by implementations ---
 
-func queryStrings(ctx context.Context, db *sql.DB, q string, args ...any) ([]string, error) {
-	rows, err := db.QueryContext(ctx, q, args...)
+func queryStrings(ctx context.Context, db *sql.DB, query string, args ...any) ([]string, error) {
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []string
+	var names []string
 	for rows.Next() {
-		var s string
-		if err := rows.Scan(&s); err != nil {
+		var name string
+		if err := rows.Scan(&name); err != nil {
 			return nil, err
 		}
-		out = append(out, s)
+		names = append(names, name)
 	}
-	return out, rows.Err()
+	return names, rows.Err()
 }
 
-func queryTables(ctx context.Context, db *sql.DB, schema, q string, args ...any) ([]Table, error) {
-	rows, err := db.QueryContext(ctx, q, args...)
+func queryTables(ctx context.Context, db *sql.DB, schema, query string, args ...any) ([]Table, error) {
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []Table
+	var tables []Table
 	for rows.Next() {
-		var name, typ string
-		if err := rows.Scan(&name, &typ); err != nil {
+		var name, typeName string
+		if err := rows.Scan(&name, &typeName); err != nil {
 			return nil, err
 		}
-		t := "table"
-		if strings.Contains(strings.ToUpper(typ), "VIEW") {
-			t = "view"
+		tableType := "table"
+		if strings.Contains(strings.ToUpper(typeName), "VIEW") {
+			tableType = "view"
 		}
-		out = append(out, Table{Schema: schema, Name: name, Type: t})
+		tables = append(tables, Table{Schema: schema, Name: name, Type: tableType})
 	}
-	return out, rows.Err()
+	return tables, rows.Err()
 }
 
 // queryColumns expects rows of (table, column, type, nullable bool-ish, pk bool-ish).
-func queryColumns(ctx context.Context, db *sql.DB, q string, args ...any) ([]Column, error) {
-	rows, err := db.QueryContext(ctx, q, args...)
+func queryColumns(ctx context.Context, db *sql.DB, query string, args ...any) ([]Column, error) {
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []Column
+	var columns []Column
 	for rows.Next() {
-		var c Column
-		var nullable, pk any
-		if err := rows.Scan(&c.Table, &c.Name, &c.Type, &nullable, &pk); err != nil {
+		var column Column
+		var nullable, primaryKey any
+		if err := rows.Scan(&column.Table, &column.Name, &column.Type, &nullable, &primaryKey); err != nil {
 			return nil, err
 		}
-		c.Nullable = truthy(nullable)
-		c.PK = truthy(pk)
-		out = append(out, c)
+		column.Nullable = truthy(nullable)
+		column.PK = truthy(primaryKey)
+		columns = append(columns, column)
 	}
-	return out, rows.Err()
+	return columns, rows.Err()
 }
 
-func truthy(v any) bool {
-	switch x := v.(type) {
+func truthy(value any) bool {
+	switch typed := value.(type) {
 	case bool:
-		return x
+		return typed
 	case int64:
-		return x != 0
+		return typed != 0
 	case float64:
-		return x != 0
+		return typed != 0
 	case []byte:
-		return truthy(string(x))
+		return truthy(string(typed))
 	case string:
-		switch strings.ToUpper(strings.TrimSpace(x)) {
+		switch strings.ToUpper(strings.TrimSpace(typed)) {
 		case "1", "Y", "YES", "TRUE", "T":
 			return true
 		}
@@ -197,28 +197,28 @@ func truthy(v any) bool {
 }
 
 // buildTableDDL renders a basic CREATE TABLE for engines without a native DDL export.
-func buildTableDDL(d Driver, schema, table string, cols []Column) string {
-	var lines, pks []string
-	for _, c := range cols {
-		l := "    " + d.QuoteIdent(c.Name) + " " + c.Type
-		if !c.Nullable {
-			l += " NOT NULL"
+func buildTableDDL(databaseDriver Driver, schema, table string, columns []Column) string {
+	var lines, primaryKeys []string
+	for _, column := range columns {
+		line := "    " + databaseDriver.QuoteIdent(column.Name) + " " + column.Type
+		if !column.Nullable {
+			line += " NOT NULL"
 		}
-		lines = append(lines, l)
-		if c.PK {
-			pks = append(pks, d.QuoteIdent(c.Name))
+		lines = append(lines, line)
+		if column.PK {
+			primaryKeys = append(primaryKeys, databaseDriver.QuoteIdent(column.Name))
 		}
 	}
-	if len(pks) > 0 {
-		lines = append(lines, "    PRIMARY KEY ("+strings.Join(pks, ", ")+")")
+	if len(primaryKeys) > 0 {
+		lines = append(lines, "    PRIMARY KEY ("+strings.Join(primaryKeys, ", ")+")")
 	}
-	return fmt.Sprintf("CREATE TABLE %s.%s (\n%s\n);", d.QuoteIdent(schema), d.QuoteIdent(table), strings.Join(lines, ",\n"))
+	return fmt.Sprintf("CREATE TABLE %s.%s (\n%s\n);", databaseDriver.QuoteIdent(schema), databaseDriver.QuoteIdent(table), strings.Join(lines, ",\n"))
 }
 
-func sortTables(ts []Table) {
-	sort.Slice(ts, func(i, j int) bool { return strings.ToLower(ts[i].Name) < strings.ToLower(ts[j].Name) })
+func sortTables(tables []Table) {
+	sort.Slice(tables, func(i, j int) bool { return strings.ToLower(tables[i].Name) < strings.ToLower(tables[j].Name) })
 }
 
-func quoteWith(name, q string) string {
-	return q + strings.ReplaceAll(name, q, q+q) + q
+func quoteWith(name, quote string) string {
+	return quote + strings.ReplaceAll(name, quote, quote+quote) + quote
 }

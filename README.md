@@ -15,6 +15,7 @@ A desktop SQL client for **PostgreSQL, MySQL, Oracle and SQLite**, built with Go
 - **Query history** per connection, searchable.
 - **Appearance:** light, dark or system theme; the scratch files sit under the explorer (bottom right) or in a dedicated, resizable left panel. Both choices live in *Settings* (⌘,) and are remembered per machine.
 - **Git sync (optional):** keep saved connections, their folders and every scratch file in a small git repository and exchange it with a remote. Each sync merges both sides by item (newest edit wins), propagates deletions, and pushes after pulling when the remote moved. Turning on the master password encrypts the bundle with AES-256-GCM (key derived with PBKDF2); without it, the repository holds connection passwords in plain text.
+- **MCP server (optional):** expose saved connections to Model Context Protocol clients over a local HTTP endpoint. Read and write access are separate, database and schema allow-lists narrow what clients can touch, and every request needs a generated bearer token. Tools cover connection/schema metadata, table descriptions and DDL, read-only SQL and (when allowed) writes.
 - **Updates in place:** the version button in the status bar checks GitHub for a newer release and installs it without leaving the app: the build for the platform is downloaded, checked against the release's `SHA256SUMS.txt`, and swapped in over the running app, which then restarts itself. On Windows the downloaded NSIS installer finishes the upgrade, since replacing a per-machine install needs its elevation.
 
 ## Install
@@ -44,6 +45,33 @@ The macOS build is not signed or notarized. The install script clears the quaran
 | Next / previous tab | Ctrl+Tab, ⌘⇧] / ⌘⇧[ | Ctrl+Tab |
 | Toggle explorer | ⌘B | Ctrl+B |
 | Settings | ⌘, | Ctrl+, |
+
+## MCP server
+
+Dolmen can expose its saved connections to [Model Context Protocol](https://modelcontextprotocol.io) clients. Turn it on in *Settings* (⌘,): Dolmen listens on `http://127.0.0.1:8770/mcp` (the port is configurable) and every request must carry the generated bearer token. *Copy* in the client configuration box gives a ready-to-paste entry:
+
+```json
+{
+  "mcpServers": {
+    "dolmen": {
+      "type": "http",
+      "url": "http://127.0.0.1:8770/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+The tools are `list_connections`, `list_databases`, `list_schemas`, `list_tables`, `describe_table`, `get_table_ddl`, `read_query` and `write_query`. Connections are opened on demand, and statements run by clients appear in the connection's query history.
+
+Permissions are enforced by the app, not merely advertised:
+
+- **Read** allows the metadata tools and `read_query`. Read statements go through the same guard as read-only connections, and run on a connection with the engine's read-only protection on.
+- **Write** allows `write_query`, which runs all its statements in one transaction (or refuses the call when one fails); typed transaction control is refused. Write implies Read.
+- **Allowed databases** and **allowed schemas** are allow-lists: an empty list allows everything. Metadata is filtered, SQL that names a hidden schema explicitly is refused, and on Postgres the session's `search_path` is pinned to the allowed schemas. On engines whose default schema cannot be swapped (Oracle, SQLite), SQL is refused when the connection's default schema is outside the list.
+- The access token can be regenerated from the dialog; old tokens stop working on the next request.
+
+The endpoint binds to `127.0.0.1` only. Settings and the token live in `mcp.json` (mode 0600) in the app data directory.
 
 ## Development
 
@@ -90,6 +118,7 @@ internal/sshtunnel       jump-host tunnels (password, key or ssh-agent) for conn
 internal/history         query history (SQLite)
 internal/scratch         tab files + manifest
 internal/gitsync         git bundle, merge, tombstone and master-password encryption
+internal/mcp             local MCP server: permissions, tools and JSON-RPC transport
 internal/selfupdate      release download, checksum check and in-place install
 internal/export          CSV / JSON writers
 frontend/src/app/core    stores (signals), API wrapper, commands, hotkeys

@@ -114,6 +114,24 @@ export interface ApplyResult { inserted: number; updated: number; deleted: numbe
 export interface DatabaseList { supported: boolean; databases: string[]; current: string; }
 export interface Workspace { tabs: TabState[]; activeId: string; }
 
+/** MCP server settings. Databases and schemas are allow-lists; empty means all. */
+export interface McpConfig {
+  enabled: boolean;
+  port: number;
+  /** Bearer token local MCP clients must send. */
+  token: string;
+  read: boolean;
+  write: boolean;
+  databases: string[];
+  schemas: string[];
+}
+
+export interface McpStatus extends McpConfig {
+  running: boolean;
+  url: string;
+  lastError?: string;
+}
+
 /** Git sync settings; the master password is never part of them. */
 export interface SyncConfig {
   enabled: boolean;

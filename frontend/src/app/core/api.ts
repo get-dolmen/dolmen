@@ -3,7 +3,7 @@ import * as App from '../../../wailsjs/go/main/App';
 import type {
   ConnectionConfig, ConnectionFolder, ConnectionView, DbColumn, DbTable, ExecResponse, FetchResult,
   ApplyResult, DatabaseList, TxStatus, ScratchInfo, TabState, HistoryEntry, SchemaList, TableChange, TablePage, Workspace,
-  SyncConfig, SyncResult, SyncStatus,
+  SyncConfig, SyncResult, SyncStatus, McpConfig, McpStatus,
 } from './models';
 
 /** Thin typed wrapper over the generated Wails bindings. */
@@ -72,6 +72,10 @@ export class Api {
   public saveWorkspaceLayout = (workspace: Workspace) => App.SaveWorkspaceLayout(workspace as any);
   public saveTabContent = (tabId: string, content: string) => App.SaveTabContent(tabId, content);
   public closeTab = (tabId: string) => App.CloseTab(tabId);
+
+  public mcpStatus = () => App.MCPStatus() as unknown as Promise<McpStatus>;
+  public saveMcpConfig = (config: McpConfig) => App.SaveMCPConfig(config as any) as unknown as Promise<McpStatus>;
+  public regenerateMcpToken = () => App.RegenerateMCPToken() as unknown as Promise<McpStatus>;
 
   public syncStatus = () => App.SyncStatus() as unknown as Promise<SyncStatus>;
   public saveSyncConfig = (config: SyncConfig) => App.SaveSyncConfig(config as any) as unknown as Promise<SyncConfig>;

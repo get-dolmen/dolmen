@@ -132,65 +132,65 @@ func (t *Tools) Call(ctx context.Context, name string, raw json.RawMessage) (any
 		if err := requireRead(config); err != nil {
 			return nil, err
 		}
-		var args targetArgs
-		if err := decodeArgs(raw, &args); err != nil {
+		var arguments targetArguments
+		if err := decodeArguments(raw, &arguments); err != nil {
 			return nil, err
 		}
-		return t.listDatabases(ctx, config, args)
+		return t.listDatabases(ctx, config, arguments)
 	case "list_schemas":
 		if err := requireRead(config); err != nil {
 			return nil, err
 		}
-		var args targetArgs
-		if err := decodeArgs(raw, &args); err != nil {
+		var arguments targetArguments
+		if err := decodeArguments(raw, &arguments); err != nil {
 			return nil, err
 		}
-		return t.listSchemas(ctx, config, args)
+		return t.listSchemas(ctx, config, arguments)
 	case "list_tables":
 		if err := requireRead(config); err != nil {
 			return nil, err
 		}
-		var args schemaArgs
-		if err := decodeArgs(raw, &args); err != nil {
+		var arguments schemaArguments
+		if err := decodeArguments(raw, &arguments); err != nil {
 			return nil, err
 		}
-		return t.listTables(ctx, config, args)
+		return t.listTables(ctx, config, arguments)
 	case "describe_table":
 		if err := requireRead(config); err != nil {
 			return nil, err
 		}
-		var args tableArgs
-		if err := decodeArgs(raw, &args); err != nil {
+		var arguments tableArguments
+		if err := decodeArguments(raw, &arguments); err != nil {
 			return nil, err
 		}
-		return t.describeTable(ctx, config, args)
+		return t.describeTable(ctx, config, arguments)
 	case "get_table_ddl":
 		if err := requireRead(config); err != nil {
 			return nil, err
 		}
-		var args ddlArgs
-		if err := decodeArgs(raw, &args); err != nil {
+		var arguments ddlArguments
+		if err := decodeArguments(raw, &arguments); err != nil {
 			return nil, err
 		}
-		return t.tableDDL(ctx, config, args)
+		return t.tableDDL(ctx, config, arguments)
 	case "read_query":
 		if err := requireRead(config); err != nil {
 			return nil, err
 		}
-		var args queryArgs
-		if err := decodeArgs(raw, &args); err != nil {
+		var arguments queryArguments
+		if err := decodeArguments(raw, &arguments); err != nil {
 			return nil, err
 		}
-		return t.readQuery(ctx, config, args)
+		return t.readQuery(ctx, config, arguments)
 	case "write_query":
 		if err := requireWrite(config); err != nil {
 			return nil, err
 		}
-		var args queryArgs
-		if err := decodeArgs(raw, &args); err != nil {
+		var arguments queryArguments
+		if err := decodeArguments(raw, &arguments); err != nil {
 			return nil, err
 		}
-		return t.writeQuery(ctx, config, args)
+		return t.writeQuery(ctx, config, arguments)
 	}
 	return nil, fmt.Errorf("unknown tool %q", name)
 }
@@ -216,23 +216,23 @@ func requireWrite(config Config) error {
 	return nil
 }
 
-type targetArgs struct {
+type targetArguments struct {
 	Connection string `json:"connection"`
 	Database   string `json:"database"`
 }
 
-type schemaArgs struct {
-	targetArgs
+type schemaArguments struct {
+	targetArguments
 	Schema string `json:"schema"`
 }
 
-type tableArgs struct {
-	schemaArgs
+type tableArguments struct {
+	schemaArguments
 	Table string `json:"table"`
 }
 
-type ddlArgs struct {
-	tableArgs
+type ddlArguments struct {
+	tableArguments
 	Type string `json:"type"`
 }
 
@@ -357,8 +357,8 @@ type databaseList struct {
 	Current   string   `json:"current,omitempty"`
 }
 
-func (t *Tools) listDatabases(ctx context.Context, config Config, args targetArgs) (databaseList, error) {
-	connection, err := t.target(ctx, args.Connection, args.Database)
+func (t *Tools) listDatabases(ctx context.Context, config Config, arguments targetArguments) (databaseList, error) {
+	connection, err := t.target(ctx, arguments.Connection, arguments.Database)
 	if err != nil {
 		return databaseList{}, err
 	}
@@ -384,8 +384,8 @@ type schemaList struct {
 	Default string   `json:"default,omitempty"`
 }
 
-func (t *Tools) listSchemas(ctx context.Context, config Config, args targetArgs) (schemaList, error) {
-	connection, err := t.target(ctx, args.Connection, args.Database)
+func (t *Tools) listSchemas(ctx context.Context, config Config, arguments targetArguments) (schemaList, error) {
+	connection, err := t.target(ctx, arguments.Connection, arguments.Database)
 	if err != nil {
 		return schemaList{}, err
 	}
@@ -406,8 +406,8 @@ func (t *Tools) listSchemas(ctx context.Context, config Config, args targetArgs)
 	return schemaList{Schemas: allowed, Default: defaultSchema}, nil
 }
 
-func (t *Tools) listTables(ctx context.Context, config Config, args schemaArgs) ([]driver.Table, error) {
-	schema, connection, err := t.schemaTarget(ctx, config, args)
+func (t *Tools) listTables(ctx context.Context, config Config, arguments schemaArguments) ([]driver.Table, error) {
+	schema, connection, err := t.schemaTarget(ctx, config, arguments)
 	if err != nil {
 		return nil, err
 	}
@@ -421,15 +421,15 @@ func (t *Tools) listTables(ctx context.Context, config Config, args schemaArgs) 
 	return tables, nil
 }
 
-func (t *Tools) describeTable(ctx context.Context, config Config, args tableArgs) ([]driver.Column, error) {
-	if strings.TrimSpace(args.Table) == "" {
+func (t *Tools) describeTable(ctx context.Context, config Config, arguments tableArguments) ([]driver.Column, error) {
+	if strings.TrimSpace(arguments.Table) == "" {
 		return nil, errors.New("a table name is required")
 	}
-	schema, connection, err := t.schemaTarget(ctx, config, args.schemaArgs)
+	schema, connection, err := t.schemaTarget(ctx, config, arguments.schemaArguments)
 	if err != nil {
 		return nil, err
 	}
-	columns, err := connection.opened.Driver.Columns(ctx, connection.opened.DB, schema, args.Table)
+	columns, err := connection.opened.Driver.Columns(ctx, connection.opened.DB, schema, arguments.Table)
 	if err != nil {
 		return nil, err
 	}
@@ -439,32 +439,32 @@ func (t *Tools) describeTable(ctx context.Context, config Config, args tableArgs
 	return columns, nil
 }
 
-func (t *Tools) tableDDL(ctx context.Context, config Config, args ddlArgs) (string, error) {
-	if strings.TrimSpace(args.Table) == "" {
+func (t *Tools) tableDDL(ctx context.Context, config Config, arguments ddlArguments) (string, error) {
+	if strings.TrimSpace(arguments.Table) == "" {
 		return "", errors.New("a table name is required")
 	}
-	kind := args.Type
+	kind := arguments.Type
 	if kind == "" {
 		kind = "table"
 	}
 	if kind != "table" && kind != "view" {
 		return "", fmt.Errorf("unknown object kind %q", kind)
 	}
-	schema, connection, err := t.schemaTarget(ctx, config, args.schemaArgs)
+	schema, connection, err := t.schemaTarget(ctx, config, arguments.schemaArguments)
 	if err != nil {
 		return "", err
 	}
-	return connection.opened.Driver.TableDDL(ctx, connection.opened.DB, schema, args.Table, kind)
+	return connection.opened.Driver.TableDDL(ctx, connection.opened.DB, schema, arguments.Table, kind)
 }
 
 // schemaTarget resolves the connection and the schema, defaulting it and
 // enforcing the schema allow-list.
-func (t *Tools) schemaTarget(ctx context.Context, config Config, args schemaArgs) (string, *target, error) {
-	connection, err := t.target(ctx, args.Connection, args.Database)
+func (t *Tools) schemaTarget(ctx context.Context, config Config, arguments schemaArguments) (string, *target, error) {
+	connection, err := t.target(ctx, arguments.Connection, arguments.Database)
 	if err != nil {
 		return "", nil, err
 	}
-	schema := strings.TrimSpace(args.Schema)
+	schema := strings.TrimSpace(arguments.Schema)
 	if schema == "" {
 		var err error
 		if schema, err = connection.opened.Driver.DefaultSchema(ctx, connection.opened.DB); err != nil {
@@ -477,7 +477,7 @@ func (t *Tools) schemaTarget(ctx context.Context, config Config, args schemaArgs
 	return schema, connection, nil
 }
 
-func decodeArgs(raw json.RawMessage, destination any) error {
+func decodeArguments(raw json.RawMessage, destination any) error {
 	if len(raw) == 0 || string(raw) == "null" {
 		return nil
 	}

@@ -127,11 +127,11 @@ func (s *server) handle(ctx context.Context, message rpcRequest) rpcResponse {
 	return response
 }
 
-func (s *server) initialize(params json.RawMessage) map[string]any {
+func (s *server) initialize(parameters json.RawMessage) map[string]any {
 	var payload struct {
 		ProtocolVersion string `json:"protocolVersion"`
 	}
-	_ = json.Unmarshal(params, &payload)
+	_ = json.Unmarshal(parameters, &payload)
 	version := latestProtocolVersion
 	if supportedProtocols[payload.ProtocolVersion] {
 		version = payload.ProtocolVersion
@@ -151,12 +151,12 @@ func (s *server) initialize(params json.RawMessage) map[string]any {
 	}
 }
 
-func (s *server) callTool(ctx context.Context, params json.RawMessage) callResult {
+func (s *server) callTool(ctx context.Context, parameters json.RawMessage) callResult {
 	var payload struct {
 		Name      string          `json:"name"`
 		Arguments json.RawMessage `json:"arguments"`
 	}
-	if err := json.Unmarshal(params, &payload); err != nil || strings.TrimSpace(payload.Name) == "" {
+	if err := json.Unmarshal(parameters, &payload); err != nil || strings.TrimSpace(payload.Name) == "" {
 		return toolError("tools/call needs a tool name")
 	}
 	result, err := s.tools.Call(ctx, payload.Name, payload.Arguments)

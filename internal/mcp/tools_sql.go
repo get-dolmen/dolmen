@@ -20,8 +20,8 @@ const (
 	maxQueryRows     = 1000
 )
 
-type queryArgs struct {
-	targetArgs
+type queryArguments struct {
+	targetArguments
 	SQL     string `json:"sql"`
 	MaxRows int    `json:"maxRows"`
 }
@@ -49,12 +49,12 @@ type queryResult struct {
 
 // querier runs statements on a dedicated connection or transaction.
 type querier interface {
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, arguments ...any) (*sql.Rows, error)
+	ExecContext(ctx context.Context, query string, arguments ...any) (sql.Result, error)
 }
 
-func (t *Tools) readQuery(ctx context.Context, config Config, args queryArgs) (queryResult, error) {
-	connection, dialect, statements, err := t.statements(ctx, args.Connection, args.Database, args.SQL)
+func (t *Tools) readQuery(ctx context.Context, config Config, arguments queryArguments) (queryResult, error) {
+	connection, dialect, statements, err := t.statements(ctx, arguments.Connection, arguments.Database, arguments.SQL)
 	if err != nil {
 		return queryResult{}, err
 	}
@@ -70,7 +70,7 @@ func (t *Tools) readQuery(ctx context.Context, config Config, args queryArgs) (q
 		return queryResult{}, err
 	}
 
-	maxRows := args.MaxRows
+	maxRows := arguments.MaxRows
 	if maxRows <= 0 {
 		maxRows = defaultQueryRows
 	}
@@ -99,8 +99,8 @@ func (t *Tools) readQuery(ctx context.Context, config Config, args queryArgs) (q
 	return output, nil
 }
 
-func (t *Tools) writeQuery(ctx context.Context, config Config, args queryArgs) (queryResult, error) {
-	connection, dialect, statements, err := t.statements(ctx, args.Connection, args.Database, args.SQL)
+func (t *Tools) writeQuery(ctx context.Context, config Config, arguments queryArguments) (queryResult, error) {
+	connection, dialect, statements, err := t.statements(ctx, arguments.Connection, arguments.Database, arguments.SQL)
 	if err != nil {
 		return queryResult{}, err
 	}
@@ -217,9 +217,9 @@ func (t *Tools) checkDefaultSchema(ctx context.Context, config Config, connectio
 	return nil
 }
 
-// withReadOnly runs fn on a dedicated connection with the engine's read-only
+// withReadOnly runs operation on a dedicated connection with the engine's read-only
 // protection on top of the statement guard.
-func (t *Tools) withReadOnly(ctx context.Context, opened *conn.Open, fn func(context.Context, querier) error) error {
+func (t *Tools) withReadOnly(ctx context.Context, opened *conn.Open, operation func(context.Context, querier) error) error {
 	session, err := opened.DB.Conn(ctx)
 	if err != nil {
 		return err
@@ -234,7 +234,7 @@ func (t *Tools) withReadOnly(ctx context.Context, opened *conn.Open, fn func(con
 		if _, err := tx.ExecContext(ctx, opened.Driver.ReadOnlyTxStatement()); err != nil {
 			return err
 		}
-		return fn(ctx, tx)
+		return operation(ctx, tx)
 	}
 	if readOnlyStatement, reset := readOnlySession(opened.Config.Kind); readOnlyStatement != "" {
 		if _, err := session.ExecContext(ctx, readOnlyStatement); err != nil {
@@ -242,7 +242,7 @@ func (t *Tools) withReadOnly(ctx context.Context, opened *conn.Open, fn func(con
 		}
 		defer session.ExecContext(context.Background(), reset)
 	}
-	return fn(ctx, session)
+	return operation(ctx, session)
 }
 
 // readOnlySession returns the statements that make one connection read-only,

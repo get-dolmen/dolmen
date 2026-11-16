@@ -21,18 +21,18 @@ type Entry struct {
 	Error      string `json:"error,omitempty"`
 }
 
-type Store struct{ db *sql.DB }
+type Store struct{ database *sql.DB }
 
 // maxEntries caps the history size; older rows are pruned on insert.
 const maxEntries = 20000
 
 func Open(path string) (*Store, error) {
-	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
+	database, err := sql.Open("sqlite", "file:"+path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
 	if err != nil {
 		return nil, err
 	}
-	db.SetMaxOpenConns(1)
-	_, err = db.Exec(`
+	database.SetMaxOpenConns(1)
+	_, err = database.Exec(`
 		create table if not exists history (
 			id integer primary key autoincrement,
 			conn_id text not null,
@@ -45,25 +45,25 @@ func Open(path string) (*Store, error) {
 		);
 		create index if not exists history_conn_time on history (conn_id, started_at desc);`)
 	if err != nil {
-		db.Close()
+		database.Close()
 		return nil, err
 	}
-	return &Store{db: db}, nil
+	return &Store{database: database}, nil
 }
 
-func (s *Store) Close() error { return s.db.Close() }
+func (s *Store) Close() error { return s.database.Close() }
 
-func (s *Store) Record(e Entry) {
-	if e.StartedAt == 0 {
-		e.StartedAt = time.Now().UnixMilli()
+func (s *Store) Record(entry Entry) {
+	if entry.StartedAt == 0 {
+		entry.StartedAt = time.Now().UnixMilli()
 	}
-	res, err := s.db.Exec(`insert into history (conn_id, sql, started_at, duration_ms, rows, status, error)
-		values (?, ?, ?, ?, ?, ?, ?)`, e.ConnID, e.SQL, e.StartedAt, e.DurationMs, e.Rows, e.Status, e.Error)
+	execution, err := s.database.Exec(`insert into history (conn_id, sql, started_at, duration_ms, rows, status, error)
+		values (?, ?, ?, ?, ?, ?, ?)`, entry.ConnID, entry.SQL, entry.StartedAt, entry.DurationMs, entry.Rows, entry.Status, entry.Error)
 	if err != nil {
 		return
 	}
-	if id, _ := res.LastInsertId(); id%500 == 0 {
-		s.db.Exec(`delete from history where id <= ?`, id-maxEntries)
+	if id, _ := execution.LastInsertId(); id%500 == 0 {
+		s.database.Exec(`delete from history where id <= ?`, id-maxEntries)
 	}
 }
 
@@ -73,40 +73,40 @@ func (s *Store) List(ctx context.Context, connID, search string, limit int) ([]E
 	if limit <= 0 || limit > 1000 {
 		limit = 200
 	}
-	q := `select id, conn_id, sql, started_at, duration_ms, rows, status, coalesce(error, '') from history where 1 = 1`
+	query := `select id, conn_id, sql, started_at, duration_ms, rows, status, coalesce(error, '') from history where 1 = 1`
 	var args []any
 	if connID != "" {
-		q += ` and conn_id = ?`
+		query += ` and conn_id = ?`
 		args = append(args, connID)
 	}
 	if search = strings.TrimSpace(search); search != "" {
-		q += ` and sql like ? escape '\'`
-		r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
-		args = append(args, "%"+r.Replace(search)+"%")
+		query += ` and sql like ? escape '\'`
+		wildcardEscaper := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+		args = append(args, "%"+wildcardEscaper.Replace(search)+"%")
 	}
-	q += ` order by started_at desc limit ?`
+	query += ` order by started_at desc limit ?`
 	args = append(args, limit)
-	rows, err := s.db.QueryContext(ctx, q, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := []Entry{}
+	entries := []Entry{}
 	for rows.Next() {
-		var e Entry
-		if err := rows.Scan(&e.ID, &e.ConnID, &e.SQL, &e.StartedAt, &e.DurationMs, &e.Rows, &e.Status, &e.Error); err != nil {
+		var entry Entry
+		if err := rows.Scan(&entry.ID, &entry.ConnID, &entry.SQL, &entry.StartedAt, &entry.DurationMs, &entry.Rows, &entry.Status, &entry.Error); err != nil {
 			return nil, err
 		}
-		out = append(out, e)
+		entries = append(entries, entry)
 	}
-	return out, rows.Err()
+	return entries, rows.Err()
 }
 
 func (s *Store) Clear(connID string) error {
 	if connID == "" {
-		_, err := s.db.Exec(`delete from history`)
+		_, err := s.database.Exec(`delete from history`)
 		return err
 	}
-	_, err := s.db.Exec(`delete from history where conn_id = ?`, connID)
+	_, err := s.database.Exec(`delete from history where conn_id = ?`, connID)
 	return err
 }

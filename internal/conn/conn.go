@@ -39,58 +39,58 @@ func (s *Store) List() ([]driver.Config, error) {
 }
 
 func (s *Store) Get(id string) (driver.Config, error) {
-	cfgs, err := s.List()
+	configs, err := s.List()
 	if err != nil {
 		return driver.Config{}, err
 	}
-	for _, c := range cfgs {
-		if c.ID == id {
-			return c, nil
+	for _, config := range configs {
+		if config.ID == id {
+			return config, nil
 		}
 	}
 	return driver.Config{}, fmt.Errorf("connection %s not found", id)
 }
 
 // Save inserts or replaces a connection and returns it (with an ID).
-func (s *Store) Save(cfg driver.Config) (driver.Config, error) {
-	if err := validate(cfg); err != nil {
-		return cfg, err
+func (s *Store) Save(config driver.Config) (driver.Config, error) {
+	if err := validate(config); err != nil {
+		return config, err
 	}
-	cfg.UpdatedAt = time.Now().UnixMilli()
+	config.UpdatedAt = time.Now().UnixMilli()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	cfgs, err := s.load()
+	configs, err := s.load()
 	if err != nil {
-		return cfg, err
+		return config, err
 	}
-	if cfg.ID == "" {
-		cfg.ID = uuid.NewString()
-		cfgs = append(cfgs, cfg)
+	if config.ID == "" {
+		config.ID = uuid.NewString()
+		configs = append(configs, config)
 	} else {
 		found := false
-		for i := range cfgs {
-			if cfgs[i].ID == cfg.ID {
-				cfgs[i], found = cfg, true
+		for i := range configs {
+			if configs[i].ID == config.ID {
+				configs[i], found = config, true
 			}
 		}
 		if !found {
-			cfgs = append(cfgs, cfg)
+			configs = append(configs, config)
 		}
 	}
-	return cfg, s.write(cfgs)
+	return config, s.write(configs)
 }
 
 func (s *Store) Delete(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	cfgs, err := s.load()
+	configs, err := s.load()
 	if err != nil {
 		return err
 	}
-	out := cfgs[:0]
-	for _, c := range cfgs {
-		if c.ID != id {
-			out = append(out, c)
+	out := configs[:0]
+	for _, config := range configs {
+		if config.ID != id {
+			out = append(out, config)
 		}
 	}
 	return s.write(out)
@@ -100,15 +100,15 @@ func (s *Store) Delete(id string) error {
 func (s *Store) SetFolder(id, folderID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	cfgs, err := s.load()
+	configs, err := s.load()
 	if err != nil {
 		return err
 	}
-	for i := range cfgs {
-		if cfgs[i].ID == id {
-			cfgs[i].FolderID = folderID
-			cfgs[i].UpdatedAt = time.Now().UnixMilli()
-			return s.write(cfgs)
+	for i := range configs {
+		if configs[i].ID == id {
+			configs[i].FolderID = folderID
+			configs[i].UpdatedAt = time.Now().UnixMilli()
+			return s.write(configs)
 		}
 	}
 	return fmt.Errorf("connection %s not found", id)
@@ -116,72 +116,79 @@ func (s *Store) SetFolder(id, folderID string) error {
 
 // Replace rewrites the whole connection list (used by git sync, which
 // already merged the copies of every machine).
-func (s *Store) Replace(cfgs []driver.Config) error {
-	if cfgs == nil {
-		cfgs = []driver.Config{}
+func (s *Store) Replace(configs []driver.Config) error {
+	if configs == nil {
+		configs = []driver.Config{}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	sort.SliceStable(cfgs, func(i, j int) bool { return strings.ToLower(cfgs[i].Name) < strings.ToLower(cfgs[j].Name) })
-	return s.write(cfgs)
+	sortConfigs(configs)
+	return s.write(configs)
 }
 
 func (s *Store) load() ([]driver.Config, error) {
-	b, err := os.ReadFile(s.path)
+	data, err := os.ReadFile(s.path)
 	if errors.Is(err, os.ErrNotExist) {
 		return []driver.Config{}, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	var cfgs []driver.Config
-	if err := json.Unmarshal(b, &cfgs); err != nil {
+	var configs []driver.Config
+	if err := json.Unmarshal(data, &configs); err != nil {
 		return nil, fmt.Errorf("reading %s: %w", s.path, err)
 	}
-	sort.SliceStable(cfgs, func(i, j int) bool { return strings.ToLower(cfgs[i].Name) < strings.ToLower(cfgs[j].Name) })
-	return cfgs, nil
+	sortConfigs(configs)
+	return configs, nil
 }
 
-func (s *Store) write(cfgs []driver.Config) error {
-	b, err := json.MarshalIndent(cfgs, "", "  ")
+// sortConfigs orders connections by name, case-insensitively.
+func sortConfigs(configs []driver.Config) {
+	sort.SliceStable(configs, func(i, j int) bool {
+		return strings.ToLower(configs[i].Name) < strings.ToLower(configs[j].Name)
+	})
+}
+
+func (s *Store) write(configs []driver.Config) error {
+	data, err := json.MarshalIndent(configs, "", "  ")
 	if err != nil {
 		return err
 	}
-	return atomicfile.Write(s.path, b, 0o600)
+	return atomicfile.Write(s.path, data, 0o600)
 }
 
-func validate(c driver.Config) error {
-	if strings.TrimSpace(c.Name) == "" {
+func validate(config driver.Config) error {
+	if strings.TrimSpace(config.Name) == "" {
 		return errors.New("name is required")
 	}
-	if _, err := driver.Get(c.Kind); err != nil {
+	if _, err := driver.Get(config.Kind); err != nil {
 		return err
 	}
-	if c.Kind == driver.SQLite && c.FilePath == "" {
+	if config.Kind == driver.SQLite && config.FilePath == "" {
 		return errors.New("a database file is required")
 	}
-	if c.SSH != nil && c.SSH.Enabled {
-		if c.Kind == driver.SQLite {
+	if config.SSH != nil && config.SSH.Enabled {
+		if config.Kind == driver.SQLite {
 			return errors.New("SQLite files cannot be reached through SSH")
 		}
-		if strings.TrimSpace(c.SSH.Host) == "" {
+		if strings.TrimSpace(config.SSH.Host) == "" {
 			return errors.New("an SSH host is required")
 		}
-		if strings.TrimSpace(c.SSH.User) == "" {
+		if strings.TrimSpace(config.SSH.User) == "" {
 			return errors.New("an SSH user is required")
 		}
-		switch c.SSH.Method {
+		switch config.SSH.Method {
 		case "", "password":
-			if c.SSH.Password == "" {
+			if config.SSH.Password == "" {
 				return errors.New("an SSH password is required")
 			}
 		case "key":
-			if strings.TrimSpace(c.SSH.KeyPath) == "" {
+			if strings.TrimSpace(config.SSH.KeyPath) == "" {
 				return errors.New("an SSH private key is required")
 			}
 		case "agent":
 		default:
-			return fmt.Errorf("unknown SSH authentication method %q", c.SSH.Method)
+			return fmt.Errorf("unknown SSH authentication method %q", config.SSH.Method)
 		}
 	}
 	return nil
@@ -200,10 +207,10 @@ type Open struct {
 }
 
 // Close releases the pool and, when one was used, the SSH tunnel.
-func (o *Open) Close() error {
-	err := o.DB.Close()
-	if o.tunnel != nil {
-		o.tunnel.Close()
+func (connection *Open) Close() error {
+	err := connection.DB.Close()
+	if connection.tunnel != nil {
+		connection.tunnel.Close()
 	}
 	return err
 }
@@ -224,26 +231,26 @@ type Manager struct {
 func NewManager() *Manager { return &Manager{open: map[string]*entry{}} }
 
 // Dial opens and pings a pool without registering it.
-func Dial(ctx context.Context, cfg driver.Config) (*Open, error) {
-	d, err := driver.Get(cfg.Kind)
+func Dial(ctx context.Context, config driver.Config) (*Open, error) {
+	databaseDriver, err := driver.Get(config.Kind)
 	if err != nil {
 		return nil, err
 	}
-	target := cfg
+	target := config
 	var tunnel *sshtunnel.Tunnel
-	if cfg.SSH != nil && cfg.SSH.Enabled {
-		tunnel, err = sshTunnel(ctx, cfg)
+	if config.SSH != nil && config.SSH.Enabled {
+		tunnel, err = sshTunnel(ctx, config)
 		if err != nil {
 			return nil, err
 		}
 		target.Host, target.Port = tunnel.Host(), tunnel.Port()
 	}
-	dsn, err := d.DSN(target)
+	dsn, err := databaseDriver.DSN(target)
 	if err != nil {
 		closeTunnel(tunnel)
 		return nil, err
 	}
-	db, err := sql.Open(d.SQLDriverName(), dsn)
+	db, err := sql.Open(databaseDriver.SQLDriverName(), dsn)
 	if err != nil {
 		closeTunnel(tunnel)
 		return nil, err
@@ -258,137 +265,137 @@ func Dial(ctx context.Context, cfg driver.Config) (*Open, error) {
 		closeTunnel(tunnel)
 		return nil, err
 	}
-	o := &Open{Config: cfg, Driver: d, DB: db, tunnel: tunnel}
-	if l, ok := d.(driver.DatabaseLister); ok {
-		o.CurrentDB, _ = l.CurrentDatabase(ctx, db)
+	opened := &Open{Config: config, Driver: databaseDriver, DB: db, tunnel: tunnel}
+	if lister, ok := databaseDriver.(driver.DatabaseLister); ok {
+		opened.CurrentDB, _ = lister.CurrentDatabase(ctx, db)
 	}
-	return o, nil
+	return opened, nil
 }
 
 // sshTunnel forwards a local port to the connection's server. The DSN then
 // points at that port, so every driver keeps working unchanged.
-func sshTunnel(ctx context.Context, cfg driver.Config) (*sshtunnel.Tunnel, error) {
-	host := cfg.Host
+func sshTunnel(ctx context.Context, config driver.Config) (*sshtunnel.Tunnel, error) {
+	host := config.Host
 	if host == "" {
 		host = "localhost"
 	}
-	port := cfg.Port
+	port := config.Port
 	if port == 0 {
-		port = driver.DefaultPort(cfg.Kind)
+		port = driver.DefaultPort(config.Kind)
 	}
 	if port == 0 {
 		return nil, fmt.Errorf("an SSH tunnel needs the database port")
 	}
-	t, err := sshtunnel.Open(ctx, *cfg.SSH, net.JoinHostPort(host, strconv.Itoa(port)))
+	tunnel, err := sshtunnel.Open(ctx, *config.SSH, net.JoinHostPort(host, strconv.Itoa(port)))
 	if err != nil {
 		return nil, fmt.Errorf("SSH tunnel: %w", err)
 	}
-	return t, nil
+	return tunnel, nil
 }
 
-func closeTunnel(t *sshtunnel.Tunnel) {
-	if t != nil {
-		t.Close()
+func closeTunnel(tunnel *sshtunnel.Tunnel) {
+	if tunnel != nil {
+		tunnel.Close()
 	}
 }
 
-// Connect opens (or reopens) the pool for cfg.
-func (m *Manager) Connect(ctx context.Context, cfg driver.Config) (*Open, error) {
-	o, err := Dial(ctx, cfg)
+// Connect opens (or reopens) the pool for config.
+func (m *Manager) Connect(ctx context.Context, config driver.Config) (*Open, error) {
+	opened, err := Dial(ctx, config)
 	if err != nil {
 		return nil, err
 	}
 	m.mu.Lock()
-	old := m.open[cfg.ID]
-	m.open[cfg.ID] = &entry{main: o, extra: map[string]*Open{}}
+	previous := m.open[config.ID]
+	m.open[config.ID] = &entry{main: opened, extra: map[string]*Open{}}
 	m.mu.Unlock()
-	old.close()
-	return o, nil
+	previous.close()
+	return opened, nil
 }
 
 // Get returns the main pool of a connection.
 func (m *Manager) Get(id string) (*Open, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	e, ok := m.open[id]
+	pool, ok := m.open[id]
 	if !ok {
 		return nil, errors.New("not connected")
 	}
-	return e.main, nil
+	return pool.main, nil
 }
 
 // GetDB returns the pool for another database of the same server, opening
 // it on first use. "" or the main pool's database return the main pool.
 func (m *Manager) GetDB(ctx context.Context, id, database string) (*Open, error) {
 	m.mu.RLock()
-	e, ok := m.open[id]
-	var x *Open
+	pool, ok := m.open[id]
+	var extra *Open
 	if ok {
-		x = e.extra[database]
+		extra = pool.extra[database]
 	}
 	m.mu.RUnlock()
 	if !ok {
 		return nil, errors.New("not connected")
 	}
-	if database == "" || database == e.main.CurrentDB {
-		return e.main, nil
+	if database == "" || database == pool.main.CurrentDB {
+		return pool.main, nil
 	}
-	if x != nil {
-		return x, nil
+	if extra != nil {
+		return extra, nil
 	}
-	if _, ok := e.main.Driver.(driver.DatabaseLister); !ok {
-		return nil, fmt.Errorf("%s connections have no database level", e.main.Config.Kind)
+	if _, isLister := pool.main.Driver.(driver.DatabaseLister); !isLister {
+		return nil, fmt.Errorf("%s connections have no database level", pool.main.Config.Kind)
 	}
-	cfg := e.main.Config
-	cfg.Database = database
-	o, err := Dial(ctx, cfg)
+	config := pool.main.Config
+	config.Database = database
+	opened, err := Dial(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("database %s: %w", database, err)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	cur, ok := m.open[id]
-	if !ok || cur != e {
-		o.Close() // disconnected or reconnected meanwhile
+	current, ok := m.open[id]
+	if !ok || current != pool {
+		opened.Close() // disconnected or reconnected meanwhile
 		return nil, errors.New("not connected")
 	}
-	if existing := e.extra[database]; existing != nil {
-		o.Close() // lost a race with another caller
+	if existing := pool.extra[database]; existing != nil {
+		opened.Close() // lost a race with another caller
 		return existing, nil
 	}
-	e.extra[database] = o
-	return o, nil
+	pool.extra[database] = opened
+	return opened, nil
 }
 
 // CloseDB closes the pool opened for another database of the connection.
 func (m *Manager) CloseDB(id, database string) {
 	m.mu.Lock()
-	var x *Open
-	if e := m.open[id]; e != nil {
-		x = e.extra[database]
-		delete(e.extra, database)
+	var extra *Open
+	if pool := m.open[id]; pool != nil {
+		extra = pool.extra[database]
+		delete(pool.extra, database)
 	}
 	m.mu.Unlock()
-	if x != nil {
-		x.Close()
+	if extra != nil {
+		extra.Close()
 	}
 }
 
 func (m *Manager) Disconnect(id string) {
 	m.mu.Lock()
-	e := m.open[id]
+	pool := m.open[id]
 	delete(m.open, id)
 	m.mu.Unlock()
-	e.close()
+	pool.close()
 }
 
-func (e *entry) close() {
-	if e == nil {
+func (pool *entry) close() {
+	if pool == nil {
 		return
 	}
-	e.main.Close()
-	for _, x := range e.extra {
-		x.Close()
+	pool.main.Close()
+	for _, extra := range pool.extra {
+		extra.Close()
 	}
 }
 

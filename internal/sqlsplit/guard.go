@@ -1,6 +1,9 @@
 package sqlsplit
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 var readOnlyLeads = map[string]bool{
 	"SELECT": true, "WITH": true, "EXPLAIN": true, "SHOW": true,
@@ -14,21 +17,44 @@ var writeWords = map[string]bool{
 	"CREATE": true, "DROP": true, "ALTER": true, "TRUNCATE": true, "GRANT": true, "REVOKE": true,
 }
 
-// CheckReadOnly returns an error when a statement may modify data. It is the
-// second line of defence; read-only connections are also protected at the
-// session level by the driver.
-func CheckReadOnly(d Dialect, stmt string) error {
-	toks := lex(d, stmt)
-	var lead string
-	for _, t := range toks {
-		if t.kind == tPunct && stmt[t.start] == '(' {
+// Words signalling that a statement produces rows: RETURNING for DML, and the
+// data-modifying keywords allowed inside a WITH.
+var (
+	returningWords = map[string]bool{"RETURNING": true}
+	cteWriteWords  = map[string]bool{"INSERT": true, "UPDATE": true, "DELETE": true, "MERGE": true}
+)
+
+// leadingWord returns the first keyword of a statement, ignoring opening
+// parentheses, or "" when the statement does not start with a word.
+func leadingWord(tokens []token, statement string) string {
+	for _, token := range tokens {
+		if token.kind == tokenPunctuation && statement[token.start] == '(' {
 			continue
 		}
-		if t.kind == tWord {
-			lead = t.word
+		if token.kind == tokenWord {
+			return token.word
 		}
 		break
 	}
+	return ""
+}
+
+// containsWord reports whether one of the statement's keywords is in set.
+func containsWord(tokens []token, set map[string]bool) bool {
+	for _, token := range tokens {
+		if token.kind == tokenWord && set[token.word] {
+			return true
+		}
+	}
+	return false
+}
+
+// CheckReadOnly returns an error when a statement may modify data. It is the
+// second line of defence; read-only connections are also protected at the
+// session level by the driver.
+func CheckReadOnly(dialect Dialect, statement string) error {
+	tokens := lex(dialect, statement)
+	lead := leadingWord(tokens, statement)
 	if lead == "" {
 		return fmt.Errorf("read-only connection: statement not allowed")
 	}
@@ -37,14 +63,14 @@ func CheckReadOnly(d Dialect, stmt string) error {
 	}
 	switch lead {
 	case "WITH":
-		for _, t := range toks {
-			if t.kind == tWord && writeWords[t.word] {
-				return fmt.Errorf("read-only connection: WITH ... %s is not allowed", t.word)
+		for _, token := range tokens {
+			if token.kind == tokenWord && writeWords[token.word] {
+				return fmt.Errorf("read-only connection: WITH ... %s is not allowed", token.word)
 			}
 		}
 	case "PRAGMA":
-		for _, t := range toks {
-			if t.kind == tPunct && stmt[t.start] == '=' {
+		for _, token := range tokens {
+			if token.kind == tokenPunctuation && statement[token.start] == '=' {
 				return fmt.Errorf("read-only connection: setting a PRAGMA is not allowed")
 			}
 		}
@@ -54,28 +80,11 @@ func CheckReadOnly(d Dialect, stmt string) error {
 
 // ReturnsRows guesses whether a statement produces a result set, so DML can
 // go through Exec and report affected rows.
-func ReturnsRows(d Dialect, stmt string) bool {
-	toks := lex(d, stmt)
-	var lead string
-	for _, t := range toks {
-		if t.kind == tPunct && stmt[t.start] == '(' {
-			continue
-		}
-		if t.kind == tWord {
-			lead = t.word
-		}
-		break
-	}
-	hasWord := func(set map[string]bool) bool {
-		for _, t := range toks {
-			if t.kind == tWord && set[t.word] {
-				return true
-			}
-		}
-		return false
-	}
-	returning := d != Oracle && hasWord(map[string]bool{"RETURNING": true})
-	if lead == "WITH" && hasWord(map[string]bool{"INSERT": true, "UPDATE": true, "DELETE": true, "MERGE": true}) {
+func ReturnsRows(dialect Dialect, statement string) bool {
+	tokens := lex(dialect, statement)
+	lead := leadingWord(tokens, statement)
+	returning := dialect != Oracle && containsWord(tokens, returningWords)
+	if lead == "WITH" && containsWord(tokens, cteWriteWords) {
 		return returning
 	}
 	switch lead {
@@ -90,25 +99,21 @@ func ReturnsRows(d Dialect, stmt string) bool {
 // session can route them to its own transaction: "begin", "commit",
 // "rollback", or "" for anything else (including ROLLBACK TO SAVEPOINT and
 // Oracle PL/SQL blocks that start with BEGIN).
-func TxControl(d Dialect, stmt string) string {
+func TxControl(dialect Dialect, statement string) string {
 	var words []string
-	for _, t := range lex(d, stmt) {
-		if t.kind != tWord {
+	for _, token := range lex(dialect, statement) {
+		if token.kind != tokenWord {
 			return ""
 		}
-		words = append(words, t.word)
+		words = append(words, token.word)
 	}
 	if len(words) == 0 {
 		return ""
 	}
 	rest := words[1:]
 	only := func(allowed ...string) bool {
-		for _, w := range rest {
-			ok := false
-			for _, a := range allowed {
-				ok = ok || w == a
-			}
-			if !ok {
+		for _, word := range rest {
+			if !slices.Contains(allowed, word) {
 				return false
 			}
 		}
@@ -120,7 +125,7 @@ func TxControl(d Dialect, stmt string) string {
 			return "commit"
 		}
 	case "END":
-		if d == Postgres && only("WORK", "TRANSACTION") {
+		if dialect == Postgres && only("WORK", "TRANSACTION") {
 			return "commit"
 		}
 	case "ROLLBACK":
@@ -128,7 +133,7 @@ func TxControl(d Dialect, stmt string) string {
 			return "rollback"
 		}
 	case "BEGIN":
-		if d != Oracle && only("WORK", "TRANSACTION", "DEFERRED", "IMMEDIATE", "EXCLUSIVE") {
+		if dialect != Oracle && only("WORK", "TRANSACTION", "DEFERRED", "IMMEDIATE", "EXCLUSIVE") {
 			return "begin"
 		}
 	case "START":

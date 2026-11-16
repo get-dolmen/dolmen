@@ -15,72 +15,72 @@ const (
 	modeTrigger           // SQLite CREATE TRIGGER: ends at "END;"
 )
 
-// Split breaks src into statements. Terminators are not part of Text, except
+// Split breaks source into statements. Terminators are not part of Text, except
 // that PL/SQL blocks keep their final "END;".
-func Split(d Dialect, src string) []Statement {
-	toks := lex(d, src)
-	var out []Statement
-	first, last := -1, -1 // token indexes of the current statement
-	var words []string    // leading words, used to detect block statements
+func Split(dialect Dialect, source string) []Statement {
+	tokens := lex(dialect, source)
+	var statements []Statement
+	first, last := -1, -1     // token indexes of the current statement
+	var leadingWords []string // leading words, used to detect block statements
 	mode := modeNormal
 
-	emit := func(termEnd int) {
+	emit := func(terminatorEnd int) {
 		if first >= 0 {
-			out = append(out, Statement{
-				Text:  src[toks[first].start:toks[last].end],
-				Start: toks[first].start,
-				End:   termEnd,
+			statements = append(statements, Statement{
+				Text:  source[tokens[first].start:tokens[last].end],
+				Start: tokens[first].start,
+				End:   terminatorEnd,
 			})
 		}
-		first, last, words, mode = -1, -1, nil, modeNormal
+		first, last, leadingWords, mode = -1, -1, nil, modeNormal
 	}
 
-	for i, t := range toks {
-		switch t.kind {
-		case tSlashLine:
-			emit(t.end)
+	for index, token := range tokens {
+		switch token.kind {
+		case tokenSlashLine:
+			emit(token.end)
 			continue
-		case tSemi:
+		case tokenSemicolon:
 			switch mode {
 			case modeNormal:
-				emit(t.end)
+				emit(token.end)
 				continue
 			case modeTrigger:
-				if last >= 0 && toks[last].kind == tWord && toks[last].word == "END" {
-					emit(t.end)
+				if last >= 0 && tokens[last].kind == tokenWord && tokens[last].word == "END" {
+					emit(token.end)
 					continue
 				}
 			}
 		}
 		if first < 0 {
-			first = i
+			first = index
 		}
-		last = i
-		if t.kind == tWord && len(words) < 6 {
-			words = append(words, t.word)
-			mode = detectMode(d, words, mode)
+		last = index
+		if token.kind == tokenWord && len(leadingWords) < 6 {
+			leadingWords = append(leadingWords, token.word)
+			mode = detectMode(dialect, leadingWords, mode)
 		}
 	}
 	if first >= 0 {
-		emit(toks[last].end)
+		emit(tokens[last].end)
 	}
-	return out
+	return statements
 }
 
-func detectMode(d Dialect, w []string, cur blockMode) blockMode {
-	if cur != modeNormal {
-		return cur
+func detectMode(dialect Dialect, leadingWords []string, current blockMode) blockMode {
+	if current != modeNormal {
+		return current
 	}
-	switch d {
+	switch dialect {
 	case Oracle:
-		if w[0] == "DECLARE" || w[0] == "BEGIN" {
+		if leadingWords[0] == "DECLARE" || leadingWords[0] == "BEGIN" {
 			return modePLSQL
 		}
-		if w[0] != "CREATE" {
+		if leadingWords[0] != "CREATE" {
 			return modeNormal
 		}
-		for _, x := range w[1:] {
-			switch x {
+		for _, word := range leadingWords[1:] {
+			switch word {
 			case "OR", "REPLACE", "EDITIONABLE", "NONEDITIONABLE", "EDITIONING":
 				continue
 			case "PROCEDURE", "FUNCTION", "PACKAGE", "TRIGGER", "TYPE", "LIBRARY", "JAVA":
@@ -89,11 +89,11 @@ func detectMode(d Dialect, w []string, cur blockMode) blockMode {
 			return modeNormal
 		}
 	case SQLite:
-		if w[0] != "CREATE" {
+		if leadingWords[0] != "CREATE" {
 			return modeNormal
 		}
-		for _, x := range w[1:] {
-			switch x {
+		for _, word := range leadingWords[1:] {
+			switch word {
 			case "TEMP", "TEMPORARY":
 				continue
 			case "TRIGGER":
@@ -107,50 +107,50 @@ func detectMode(d Dialect, w []string, cur blockMode) blockMode {
 
 // AtCursor picks the statement containing the cursor (a byte offset), or
 // else the closest one before it, or else the first one after it.
-func AtCursor(stmts []Statement, cursor int) (Statement, bool) {
-	var prev *Statement
-	for i := range stmts {
-		s := &stmts[i]
-		if cursor >= s.Start && cursor <= s.End {
-			return *s, true
+func AtCursor(statements []Statement, cursor int) (Statement, bool) {
+	var previous *Statement
+	for index := range statements {
+		statement := &statements[index]
+		if cursor >= statement.Start && cursor <= statement.End {
+			return *statement, true
 		}
-		if s.End < cursor {
-			prev = s
+		if statement.End < cursor {
+			previous = statement
 		}
 	}
-	if prev != nil {
-		return *prev, true
+	if previous != nil {
+		return *previous, true
 	}
-	if len(stmts) > 0 {
-		return stmts[0], true
+	if len(statements) > 0 {
+		return statements[0], true
 	}
 	return Statement{}, false
 }
 
 // UTF16ToByteOffset converts a JavaScript string offset into a byte offset.
-func UTF16ToByteOffset(s string, u16 int) int {
+func UTF16ToByteOffset(source string, offset int) int {
 	units := 0
-	for i, r := range s {
-		if units >= u16 {
-			return i
+	for index, character := range source {
+		if units >= offset {
+			return index
 		}
-		if r >= 0x10000 {
+		if character >= 0x10000 {
 			units += 2
 		} else {
 			units++
 		}
 	}
-	return len(s)
+	return len(source)
 }
 
 // ByteToUTF16Offset converts a byte offset into a JavaScript string offset.
-func ByteToUTF16Offset(s string, b int) int {
+func ByteToUTF16Offset(source string, byteOffset int) int {
 	units := 0
-	for i, r := range s {
-		if i >= b {
+	for index, character := range source {
+		if index >= byteOffset {
 			break
 		}
-		if r >= 0x10000 {
+		if character >= 0x10000 {
 			units += 2
 		} else {
 			units++

@@ -6,8 +6,13 @@ import { ConnectionStore } from '../../core/connection.store';
 import { Confirm } from '../../shared/confirm';
 import { Select } from '../../shared/select';
 import {
-  CONNECTION_COLORS, DEFAULT_PORTS, KIND_LABELS,
-  type ConnectionConfig, type ConnectionView, type DbKind, type SSHConfig,
+  CONNECTION_COLORS,
+  DEFAULT_PORTS,
+  KIND_LABELS,
+  type ConnectionConfig,
+  type ConnectionView,
+  type DbKind,
+  type SSHConfig,
 } from '../../core/models';
 
 @Component({
@@ -44,7 +49,14 @@ export class ConnectionDialog {
 
   public form: ConnectionConfig = this.connection
     ? { ...this.connection, password: '' }
-    : { id: '', name: '', kind: 'postgres', host: 'localhost', readOnly: false, color: CONNECTION_COLORS[0] };
+    : {
+        id: '',
+        name: '',
+        kind: 'postgres',
+        host: 'localhost',
+        readOnly: false,
+        color: CONNECTION_COLORS[0],
+      };
 
   /** Oracle service names live in `database`; the mode only changes the options. */
   public oracleMode: 'service' | 'sid' = this.form.options?.['SID'] ? 'sid' : 'service';
@@ -119,7 +131,11 @@ export class ConnectionDialog {
     config.options = Object.keys(options).length ? options : undefined;
 
     config.ssh = this.ssh.enabled
-      ? { ...this.ssh, port: this.ssh.port ? Number(this.ssh.port) : 22, method: this.ssh.method || 'password' }
+      ? {
+          ...this.ssh,
+          port: this.ssh.port ? Number(this.ssh.port) : 22,
+          method: this.ssh.method || 'password',
+        }
       : undefined;
     return config;
   }
@@ -152,8 +168,14 @@ export class ConnectionDialog {
   public async remove() {
     const connection = this.connection;
     if (!connection) return;
-    if (!(await this.confirmDialog.ask(`Delete the connection “${connection.name}”?`,
-      { title: 'Delete connection', confirmLabel: 'Delete', danger: true }))) return;
+    if (
+      !(await this.confirmDialog.ask(`Delete the connection “${connection.name}”?`, {
+        title: 'Delete connection',
+        confirmLabel: 'Delete',
+        danger: true,
+      }))
+    )
+      return;
     await this.connectionStore.remove(connection.id);
     this.dialogRef.close(undefined);
   }

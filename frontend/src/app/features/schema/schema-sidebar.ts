@@ -12,17 +12,67 @@ import { Confirm } from '../../shared/confirm';
 import { Autofocus } from '../../shared/autofocus';
 import { Icon } from '../../shared/icon';
 import { ScratchList } from '../scratches/scratch-list';
-import { KIND_LABELS, type ConnectionFolder, type ConnectionView, type DbColumn, type DbTable } from '../../core/models';
+import {
+  KIND_LABELS,
+  type ConnectionFolder,
+  type ConnectionView,
+  type DbColumn,
+  type DbTable,
+} from '../../core/models';
 
 /** Where a node's metadata comes from: a connection and, for Postgres, one of its databases. */
-interface NodePlace { connId: string; database: string; scope: string; }
+interface NodePlace {
+  connId: string;
+  database: string;
+  scope: string;
+}
 
 type TreeRow =
-  | { kind: 'folder'; key: string; depth: number; folder: ConnectionFolder; open: boolean; count: number; match: boolean }
-  | { kind: 'conn'; key: string; depth: number; connection: ConnectionView; open: boolean; loading: boolean; count?: number }
-  | ({ kind: 'db'; key: string; depth: number; open: boolean; loading: boolean; isCurrent: boolean; count?: number } & NodePlace)
-  | ({ kind: 'schema'; key: string; depth: number; schema: string; open: boolean; loading: boolean; isDefault: boolean; count?: number } & NodePlace)
-  | ({ kind: 'table'; key: string; depth: number; table: DbTable; open: boolean; loading: boolean } & NodePlace)
+  | {
+      kind: 'folder';
+      key: string;
+      depth: number;
+      folder: ConnectionFolder;
+      open: boolean;
+      count: number;
+      match: boolean;
+    }
+  | {
+      kind: 'conn';
+      key: string;
+      depth: number;
+      connection: ConnectionView;
+      open: boolean;
+      loading: boolean;
+      count?: number;
+    }
+  | ({
+      kind: 'db';
+      key: string;
+      depth: number;
+      open: boolean;
+      loading: boolean;
+      isCurrent: boolean;
+      count?: number;
+    } & NodePlace)
+  | ({
+      kind: 'schema';
+      key: string;
+      depth: number;
+      schema: string;
+      open: boolean;
+      loading: boolean;
+      isDefault: boolean;
+      count?: number;
+    } & NodePlace)
+  | ({
+      kind: 'table';
+      key: string;
+      depth: number;
+      table: DbTable;
+      open: boolean;
+      loading: boolean;
+    } & NodePlace)
   | { kind: 'column'; key: string; depth: number; column: DbColumn }
   | { kind: 'note'; key: string; depth: number; text: string };
 
@@ -38,7 +88,8 @@ const MAX_TABLES_UNFILTERED = 2000;
 const CONNECTION_DRAG_TYPE = 'application/x-dolmen-connection';
 const FOLDER_DRAG_TYPE = 'application/x-dolmen-folder';
 
-type DraggedItem = { kind: 'conn'; id: string; name: string } | { kind: 'folder'; id: string; name: string };
+type DraggedItem =
+  { kind: 'conn'; id: string; name: string } | { kind: 'folder'; id: string; name: string };
 
 @Component({
   selector: 'dm-schema-sidebar',
@@ -119,7 +170,7 @@ export class SchemaSidebar {
     const folders = this.connectionStore.folders();
     const rootFolderIds = new Set(folders.map((folder) => folder.id));
     const parentIdOf = (folder: ConnectionFolder) =>
-      (folder.parentId && rootFolderIds.has(folder.parentId) ? folder.parentId : '');
+      folder.parentId && rootFolderIds.has(folder.parentId) ? folder.parentId : '';
     const byFolderName = (first: { name: string }, second: { name: string }) =>
       first.name.localeCompare(second.name, undefined, { sensitivity: 'base' });
 
@@ -133,7 +184,8 @@ export class SchemaSidebar {
     for (const siblings of foldersByParent.values()) siblings.sort(byFolderName);
     const connectionsByFolder = new Map<string, ConnectionView[]>();
     for (const connection of this.connectionStore.connections()) {
-      const parentId = connection.folderId && rootFolderIds.has(connection.folderId) ? connection.folderId : '';
+      const parentId =
+        connection.folderId && rootFolderIds.has(connection.folderId) ? connection.folderId : '';
       const siblings = connectionsByFolder.get(parentId) ?? [];
       siblings.push(connection);
       connectionsByFolder.set(parentId, siblings);
@@ -141,47 +193,76 @@ export class SchemaSidebar {
     for (const siblings of connectionsByFolder.values()) siblings.sort(byFolderName);
 
     /** Appends the schemas → tables → columns of one scope. Returns false when the filter hides it all. */
-    const addSchemas = (place: NodePlace, cachedSchema: ConnectionSchema | undefined, depth: number): boolean => {
+    const addSchemas = (
+      place: NodePlace,
+      cachedSchema: ConnectionSchema | undefined,
+      depth: number,
+    ): boolean => {
       if (!cachedSchema) return !searchText;
       let anyMatch = false;
       for (const schemaName of cachedSchema.schemas) {
         const schemaKey = `s:${place.scope}:${schemaName}`;
         const tables = cachedSchema.tables[schemaName];
-        const matchingTables = searchText && tables
-          ? tables.filter((table) => table.name.toLowerCase().includes(searchText))
-          : tables;
+        const matchingTables =
+          searchText && tables
+            ? tables.filter((table) => table.name.toLowerCase().includes(searchText))
+            : tables;
         // The filter hides schemas without matches.
         if (searchText && (!matchingTables || !matchingTables.length)) continue;
         anyMatch = true;
         const open = expandedKeys.has(schemaKey) || !!searchText;
         rows.push({
-          kind: 'schema', key: schemaKey, depth, ...place, schema: schemaName, open,
+          kind: 'schema',
+          key: schemaKey,
+          depth,
+          ...place,
+          schema: schemaName,
+          open,
           loading: loadingKeys.has(`${place.scope}|tables|${schemaName}`),
           isDefault: schemaName === cachedSchema.defaultSchema,
           count: tables?.length,
         });
         if (!open || !matchingTables) continue;
-        const shownTables = searchText ? matchingTables : matchingTables.slice(0, MAX_TABLES_UNFILTERED);
+        const shownTables = searchText
+          ? matchingTables
+          : matchingTables.slice(0, MAX_TABLES_UNFILTERED);
         for (const table of shownTables) {
           const tableKey = `t:${place.scope}:${schemaName}:${table.name}`;
           const tableOpen = expandedKeys.has(tableKey);
           rows.push({
-            kind: 'table', key: tableKey, depth: depth + 1, ...place, table, open: tableOpen,
+            kind: 'table',
+            key: tableKey,
+            depth: depth + 1,
+            ...place,
+            table,
+            open: tableOpen,
             loading: loadingKeys.has(`${place.scope}|cols|${schemaName}.${table.name}`),
           });
           if (!tableOpen) continue;
           for (const column of cachedSchema.columns[`${schemaName}.${table.name}`] ?? []) {
-            rows.push({ kind: 'column', key: `${tableKey}:${column.name}`, depth: depth + 2, column });
+            rows.push({
+              kind: 'column',
+              key: `${tableKey}:${column.name}`,
+              depth: depth + 2,
+              column,
+            });
           }
         }
         if (shownTables.length < matchingTables.length) {
           rows.push({
-            kind: 'note', key: `${schemaKey}:more`, depth: depth + 1,
+            kind: 'note',
+            key: `${schemaKey}:more`,
+            depth: depth + 1,
             text: `${matchingTables.length - shownTables.length} more; use the filter`,
           });
         }
         if (!matchingTables.length) {
-          rows.push({ kind: 'note', key: `${schemaKey}:none`, depth: depth + 1, text: 'No tables' });
+          rows.push({
+            kind: 'note',
+            key: `${schemaKey}:none`,
+            depth: depth + 1,
+            text: 'No tables',
+          });
         }
       }
       return anyMatch || !searchText;
@@ -190,18 +271,28 @@ export class SchemaSidebar {
     const addConnection = (connection: ConnectionView, depth: number) => {
       const connectionKey = `c:${connection.id}`;
       const databaseList = databaseLists[connection.id];
-      const connectionOpen = connection.connected && (expandedKeys.has(connectionKey) || !!searchText);
+      const connectionOpen =
+        connection.connected && (expandedKeys.has(connectionKey) || !!searchText);
       rows.push({
-        kind: 'conn', key: connectionKey, depth, connection, open: connectionOpen,
-        loading: this.connectionStore.pending().has(connection.id)
-          || loadingKeys.has(`${connection.id}|schemas`)
-          || loadingKeys.has(`${connection.id}|databases`),
+        kind: 'conn',
+        key: connectionKey,
+        depth,
+        connection,
+        open: connectionOpen,
+        loading:
+          this.connectionStore.pending().has(connection.id) ||
+          loadingKeys.has(`${connection.id}|schemas`) ||
+          loadingKeys.has(`${connection.id}|databases`),
         count: databaseList?.supported ? databaseList.databases.length : undefined,
       });
       if (!connectionOpen || !databaseList) return;
 
       if (!databaseList.supported) {
-        addSchemas({ connId: connection.id, database: '', scope: connection.id }, schemasByScope[connection.id], depth + 1);
+        addSchemas(
+          { connId: connection.id, database: '', scope: connection.id },
+          schemasByScope[connection.id],
+          depth + 1,
+        );
         return;
       }
       for (const databaseName of databaseList.databases) {
@@ -216,8 +307,14 @@ export class SchemaSidebar {
         const open = expandedKeys.has(databaseKey) || (!!searchText && !!cachedSchema);
         const rowStart = rows.length;
         rows.push({
-          kind: 'db', key: databaseKey, depth: depth + 1, ...place, database: databaseName, open,
-          loading: loadingKeys.has(`${place.scope}|schemas`), isCurrent,
+          kind: 'db',
+          key: databaseKey,
+          depth: depth + 1,
+          ...place,
+          database: databaseName,
+          open,
+          loading: loadingKeys.has(`${place.scope}|schemas`),
+          isCurrent,
           count: cachedSchema?.schemas.length,
         });
         // Filtered out entirely.
@@ -235,12 +332,18 @@ export class SchemaSidebar {
       const key = `f:${folder.id}`;
       const open = expandedKeys.has(key) || !!searchText;
       rows.push({
-        kind: 'folder', key, depth, folder, open, count: countConnections(folder.id),
+        kind: 'folder',
+        key,
+        depth,
+        folder,
+        open,
+        count: countConnections(folder.id),
         match: !!searchText && folder.name.toLowerCase().includes(searchText),
       });
       if (!open) return;
       for (const child of foldersByParent.get(folder.id) ?? []) addFolder(child, depth + 1);
-      for (const connection of connectionsByFolder.get(folder.id) ?? []) addConnection(connection, depth + 1);
+      for (const connection of connectionsByFolder.get(folder.id) ?? [])
+        addConnection(connection, depth + 1);
     };
 
     for (const folder of foldersByParent.get('') ?? []) addFolder(folder, 0);
@@ -248,9 +351,13 @@ export class SchemaSidebar {
     return rows;
   });
 
-  public indent(depth: number) { return 6 + depth * 16; }
+  public indent(depth: number) {
+    return 6 + depth * 16;
+  }
 
-  public kindLabel(connection: ConnectionView) { return KIND_LABELS[connection.kind]; }
+  public kindLabel(connection: ConnectionView) {
+    return KIND_LABELS[connection.kind];
+  }
 
   private expandKey(key: string) {
     if (this.expandedKeys().has(key)) return;
@@ -285,14 +392,18 @@ export class SchemaSidebar {
   public async renameFolder(folder: ConnectionFolder, name: string) {
     if (this.editingFolderId() !== folder.id) return;
     this.editingFolderId.set('');
-    if (name.trim() && name.trim() !== folder.name) await this.connectionStore.renameFolder(folder.id, name);
+    if (name.trim() && name.trim() !== folder.name)
+      await this.connectionStore.renameFolder(folder.id, name);
   }
 
   public async deleteFolder(folder: ConnectionFolder) {
-    if (!(await this.confirmDialog.ask(
-      `Delete the folder “${folder.name}”? Its connections and sub-folders move up one level.`,
-      { title: 'Delete folder', confirmLabel: 'Delete', danger: true },
-    ))) return;
+    if (
+      !(await this.confirmDialog.ask(
+        `Delete the folder “${folder.name}”? Its connections and sub-folders move up one level.`,
+        { title: 'Delete folder', confirmLabel: 'Delete', danger: true },
+      ))
+    )
+      return;
     await this.connectionStore.deleteFolder(folder.id);
   }
 
@@ -309,7 +420,10 @@ export class SchemaSidebar {
   private startDrag(event: DragEvent, item: DraggedItem) {
     this.draggedItem.set(item);
     this.dropTargetKey.set('');
-    event.dataTransfer?.setData(item.kind === 'conn' ? CONNECTION_DRAG_TYPE : FOLDER_DRAG_TYPE, item.id);
+    event.dataTransfer?.setData(
+      item.kind === 'conn' ? CONNECTION_DRAG_TYPE : FOLDER_DRAG_TYPE,
+      item.id,
+    );
     event.dataTransfer?.setData('text/plain', item.name);
     if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
   }
@@ -369,7 +483,9 @@ export class SchemaSidebar {
   private canDropInto(item: DraggedItem, folder: ConnectionFolder): boolean {
     if (item.kind === 'conn') return true;
     if (item.id === folder.id) return false;
-    const foldersById = new Map(this.connectionStore.folders().map((candidate) => [candidate.id, candidate]));
+    const foldersById = new Map(
+      this.connectionStore.folders().map((candidate) => [candidate.id, candidate]),
+    );
     for (let parentId = folder.parentId; parentId; parentId = foldersById.get(parentId)?.parentId) {
       if (parentId === item.id) return false;
     }
@@ -412,7 +528,8 @@ export class SchemaSidebar {
     this.expandKey(row.key);
     if (row.kind === 'db') void this.schemaStore.loadSchemas(row.scope);
     if (row.kind === 'schema') void this.schemaStore.loadTables(row.scope, row.schema);
-    if (row.kind === 'table') void this.schemaStore.loadColumns(row.scope, row.table.schema, row.table.name);
+    if (row.kind === 'table')
+      void this.schemaStore.loadColumns(row.scope, row.table.schema, row.table.name);
   }
 
   public openContextMenu(event: MouseEvent, target: MenuTarget) {
@@ -427,48 +544,73 @@ export class SchemaSidebar {
     switch (menu.kind) {
       case 'folder': {
         switch (action) {
-          case 'rename': return this.editingFolderId.set(menu.folder.id);
-          case 'delete': return void this.deleteFolder(menu.folder);
+          case 'rename':
+            return this.editingFolderId.set(menu.folder.id);
+          case 'delete':
+            return void this.deleteFolder(menu.folder);
         }
         return;
       }
       case 'table': {
         const { connId, database, table } = menu;
         switch (action) {
-          case 'data': return this.commandService.openTableData(connId, database, table);
-          case 'select': return void this.commandService.selectTop(connId, table, database);
-          case 'scratch': return this.commandService.newScratchFor(connId, table, database);
-          case 'insert': return this.commandService.insertName(connId, table.schema, table.name, database);
-          case 'copy': return void this.commandService.copy(table.name);
-          case 'ddl': return void this.commandService.showDDL(connId, table, database);
-          case 'copyddl': return void this.commandService.copyDDL(connId, table, database);
-          case 'newtable': return void this.commandService.newTable(connId, table.schema, database);
-          case 'drop': return void this.commandService.dropTable(connId, table, database);
+          case 'data':
+            return this.commandService.openTableData(connId, database, table);
+          case 'select':
+            return void this.commandService.selectTop(connId, table, database);
+          case 'scratch':
+            return this.commandService.newScratchFor(connId, table, database);
+          case 'insert':
+            return this.commandService.insertName(connId, table.schema, table.name, database);
+          case 'copy':
+            return void this.commandService.copy(table.name);
+          case 'ddl':
+            return void this.commandService.showDDL(connId, table, database);
+          case 'copyddl':
+            return void this.commandService.copyDDL(connId, table, database);
+          case 'newtable':
+            return void this.commandService.newTable(connId, table.schema, database);
+          case 'drop':
+            return void this.commandService.dropTable(connId, table, database);
         }
         return;
       }
       case 'db': {
-        const databaseName = menu.database || this.schemaStore.databases()[menu.connId]?.current || '';
+        const databaseName =
+          menu.database || this.schemaStore.databases()[menu.connId]?.current || '';
         switch (action) {
-          case 'newtab': return this.commandService.newTab(menu.connId, menu.database);
-          case 'use': return this.useInCurrentTab(menu.connId, menu.database);
-          case 'copy': return void this.commandService.copy(databaseName);
-          case 'refresh': return void this.schemaStore.refreshScope(menu.scope);
-          case 'newdb': return void this.commandService.createDatabase(menu.connId);
-          case 'dropdb': return void this.commandService.dropDatabase(menu.connId, databaseName);
+          case 'newtab':
+            return this.commandService.newTab(menu.connId, menu.database);
+          case 'use':
+            return this.useInCurrentTab(menu.connId, menu.database);
+          case 'copy':
+            return void this.commandService.copy(databaseName);
+          case 'refresh':
+            return void this.schemaStore.refreshScope(menu.scope);
+          case 'newdb':
+            return void this.commandService.createDatabase(menu.connId);
+          case 'dropdb':
+            return void this.commandService.dropDatabase(menu.connId, databaseName);
         }
         return;
       }
       case 'conn': {
         const connection = menu.connection;
         switch (action) {
-          case 'newtab': return this.commandService.newTab(connection.id, '');
-          case 'use': return this.useInCurrentTab(connection.id, '');
-          case 'refresh': return void this.schemaStore.refresh(connection.id);
-          case 'disconnect': return void this.connectionStore.disconnect(connection.id);
-          case 'connect': return void this.connectionStore.connect(connection.id);
-          case 'readonly': return void this.commandService.toggleReadOnly(connection);
-          case 'edit': return this.commandService.editConnection(connection);
+          case 'newtab':
+            return this.commandService.newTab(connection.id, '');
+          case 'use':
+            return this.useInCurrentTab(connection.id, '');
+          case 'refresh':
+            return void this.schemaStore.refresh(connection.id);
+          case 'disconnect':
+            return void this.connectionStore.disconnect(connection.id);
+          case 'connect':
+            return void this.connectionStore.connect(connection.id);
+          case 'readonly':
+            return void this.commandService.toggleReadOnly(connection);
+          case 'edit':
+            return this.commandService.editConnection(connection);
         }
       }
     }
@@ -496,7 +638,9 @@ export class SchemaSidebar {
     const rows = this.rows().filter((row) => row.kind !== 'note' && row.kind !== 'column');
     const selectedIndex = rows.findIndex((row) => row.key === this.selectedKey());
     const focusRow = (key: string) =>
-      this.hostElement.nativeElement.querySelector<HTMLElement>(`[id="n-${CSS.escape(key)}"]`)?.focus();
+      this.hostElement.nativeElement
+        .querySelector<HTMLElement>(`[id="n-${CSS.escape(key)}"]`)
+        ?.focus();
     const row = rows[selectedIndex];
     switch (event.key) {
       case 'ArrowDown':

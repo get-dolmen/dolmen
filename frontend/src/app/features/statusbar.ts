@@ -13,7 +13,8 @@ import { Api, errorText } from '../core/api';
 import { ClickOutside } from '../shared/click-outside';
 import { EventsOn } from '../../../wailsjs/runtime';
 
-export type UpdateState = 'checking' | 'latest' | 'newer' | 'downloading' | 'installing' | 'installed' | 'error';
+export type UpdateState =
+  'checking' | 'latest' | 'newer' | 'downloading' | 'installing' | 'installed' | 'error';
 
 export interface UpdateView {
   state: UpdateState;
@@ -87,12 +88,18 @@ export class Statusbar implements OnDestroy {
     this.update.set({ state: 'checking' });
     try {
       const release = await this.api.checkForUpdate();
-      this.update.set(release.newer
-        ? {
-          state: 'newer', latest: release.latest, url: release.url, notes: release.notes,
-          canInstall: !!release.asset, size: release.asset?.size,
-        }
-        : { state: 'latest' });
+      this.update.set(
+        release.newer
+          ? {
+              state: 'newer',
+              latest: release.latest,
+              url: release.url,
+              notes: release.notes,
+              canInstall: !!release.asset,
+              size: release.asset?.size,
+            }
+          : { state: 'latest' },
+      );
     } catch (error) {
       this.update.set({ state: 'error', error: errorText(error) });
     }
@@ -123,14 +130,17 @@ export class Statusbar implements OnDestroy {
 
   public openRelease() {
     const url = this.update().url;
-    if (url) this.api.openReleasePage(url).catch((error) => this.toastService.error(errorText(error)));
+    if (url)
+      this.api.openReleasePage(url).catch((error) => this.toastService.error(errorText(error)));
   }
 
   public ngOnDestroy() {
     this.stopProgress?.();
   }
 
-  public readonly connection = computed(() => this.connectionStore.get(this.tabStore.active()?.connId));
+  public readonly connection = computed(() =>
+    this.connectionStore.get(this.tabStore.active()?.connId),
+  );
   public readonly kindLabel = computed(() => {
     const connection = this.connection();
     return connection ? KIND_LABELS[connection.kind] : '';
@@ -139,7 +149,10 @@ export class Statusbar implements OnDestroy {
   public readonly schemaName = computed(() => {
     const connection = this.connection();
     if (!connection) return '';
-    return this.schemaStore.get(this.schemaStore.scopeFor(connection.id, this.database()))?.defaultSchema ?? '';
+    return (
+      this.schemaStore.get(this.schemaStore.scopeFor(connection.id, this.database()))
+        ?.defaultSchema ?? ''
+    );
   });
 
   public readonly transaction = computed(() => this.transactionStore.get(this.tabStore.activeId()));
@@ -147,29 +160,38 @@ export class Statusbar implements OnDestroy {
 
   private currentTime = signal(Date.now());
   public constructor() {
-    this.api.version()
+    this.api
+      .version()
       .then((version) => this.info.set(version))
       .catch(() => this.info.set({ version: 'dev', repo: '', commit: '' }));
-    this.stopProgress = EventsOn('update:progress', (progressEvent: { phase: string; received: number; total: number }) => {
-      const update = this.update();
-      if (update.state !== 'downloading' && update.state !== 'installing') return;
-      if (progressEvent.phase === 'download') {
-        const percent = progressEvent.total > 0
-          ? Math.min(100, Math.floor((progressEvent.received / progressEvent.total) * 100))
-          : undefined;
-        this.update.set({ ...update, progress: percent });
-      } else {
-        this.update.set({ ...update, state: 'installing', progress: undefined });
-      }
-    });
+    this.stopProgress = EventsOn(
+      'update:progress',
+      (progressEvent: { phase: string; received: number; total: number }) => {
+        const update = this.update();
+        if (update.state !== 'downloading' && update.state !== 'installing') return;
+        if (progressEvent.phase === 'download') {
+          const percent =
+            progressEvent.total > 0
+              ? Math.min(100, Math.floor((progressEvent.received / progressEvent.total) * 100))
+              : undefined;
+          this.update.set({ ...update, progress: percent });
+        } else {
+          this.update.set({ ...update, state: 'installing', progress: undefined });
+        }
+      },
+    );
     void this.syncStore.refresh();
     setInterval(() => {
-      if (this.runStore.get(this.tabStore.activeId()).running || this.transaction().open) this.currentTime.set(Date.now());
+      if (this.runStore.get(this.tabStore.activeId()).running || this.transaction().open)
+        this.currentTime.set(Date.now());
     }, 250);
   }
 
   public readonly transactionAge = computed(() => {
-    const seconds = Math.max(0, Math.round((this.currentTime() - this.transaction().startedAt) / 1000));
+    const seconds = Math.max(
+      0,
+      Math.round((this.currentTime() - this.transaction().startedAt) / 1000),
+    );
     if (seconds < 60) return `${seconds}s`;
     const minutes = Math.floor(seconds / 60);
     return `${minutes}m ${String(seconds % 60).padStart(2, '0')}s`;
@@ -178,10 +200,13 @@ export class Statusbar implements OnDestroy {
   public readonly runStatusText = computed(() => {
     const run = this.runStore.runs()[this.tabStore.activeId()];
     if (!run) return '';
-    if (run.running) return `Running… ${((this.currentTime() - run.startedAt) / 1000).toFixed(1)} s`;
+    if (run.running)
+      return `Running… ${((this.currentTime() - run.startedAt) / 1000).toFixed(1)} s`;
     if (run.finishedMs === undefined) return '';
     const result = run.results[run.activeResult];
-    const rows = result ? ` · ${result.rows.length.toLocaleString()}${result.hasMore ? '+' : ''} rows` : '';
+    const rows = result
+      ? ` · ${result.rows.length.toLocaleString()}${result.hasMore ? '+' : ''} rows`
+      : '';
     return `Done in ${run.finishedMs.toLocaleString()} ms${rows}`;
   });
 }

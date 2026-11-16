@@ -6,10 +6,35 @@ export interface TableReference {
   alias?: string;
 }
 
-const CLAUSE_END = /\b(where|group|order|having|limit|offset|fetch|union|intersect|except|window|returning|set|values|on|using|join|inner|left|right|full|cross|natural|lateral)\b|[;)]/i;
+const CLAUSE_END =
+  /\b(where|group|order|having|limit|offset|fetch|union|intersect|except|window|returning|set|values|on|using|join|inner|left|right|full|cross|natural|lateral)\b|[;)]/i;
 const NOT_ALIAS = new Set([
-  'where', 'group', 'order', 'having', 'limit', 'offset', 'fetch', 'union', 'intersect', 'except', 'on', 'using',
-  'join', 'inner', 'left', 'right', 'full', 'cross', 'natural', 'outer', 'set', 'values', 'as', 'window', 'returning', 'lateral',
+  'where',
+  'group',
+  'order',
+  'having',
+  'limit',
+  'offset',
+  'fetch',
+  'union',
+  'intersect',
+  'except',
+  'on',
+  'using',
+  'join',
+  'inner',
+  'left',
+  'right',
+  'full',
+  'cross',
+  'natural',
+  'outer',
+  'set',
+  'values',
+  'as',
+  'window',
+  'returning',
+  'lateral',
 ]);
 
 /** Removes surrounding identifier quotes. */
@@ -31,7 +56,10 @@ const NAME = String.raw`(?:"(?:[^"]|"")*"|\x60(?:[^\x60]|\x60\x60)*\x60|[\w$#]+)
 const QUALIFIED_NAME = String.raw`${NAME}(?:\s*\.\s*${NAME})*`;
 const REFERENCE = new RegExp(String.raw`(${QUALIFIED_NAME})(?:\s+(?:as\s+)?(${NAME}))?`, 'iy');
 
-function parseReference(text: string, offset: number): { reference: TableReference; end: number } | null {
+function parseReference(
+  text: string,
+  offset: number,
+): { reference: TableReference; end: number } | null {
   REFERENCE.lastIndex = offset;
   const match = REFERENCE.exec(text);
   if (!match) return null;
@@ -62,7 +90,12 @@ export function parseTableReferences(statement: string): TableReference[] {
       references.push(parsed.reference);
       const rest = statement.slice(parsed.end);
       const comma = /^\s*,\s*/.exec(rest);
-      if (match[1].toLowerCase() !== 'from' || !comma || CLAUSE_END.test(rest.slice(0, comma[0].length))) break;
+      if (
+        match[1].toLowerCase() !== 'from' ||
+        !comma ||
+        CLAUSE_END.test(rest.slice(0, comma[0].length))
+      )
+        break;
       position = parsed.end + comma[0].length;
     }
   }
@@ -79,12 +112,16 @@ export interface CompletionContext {
 }
 
 export function completionContext(textBeforeCursor: string): CompletionContext {
-  const match = /((?:(?:"(?:[^"]|"")*"|`(?:[^`]|``)*`|[\w$#]+)\s*\.\s*)*)("?[\w$#]*)$/.exec(textBeforeCursor);
+  const match = /((?:(?:"(?:[^"]|"")*"|`(?:[^`]|``)*`|[\w$#]+)\s*\.\s*)*)("?[\w$#]*)$/.exec(
+    textBeforeCursor,
+  );
   const chain = match?.[1] ?? '';
   const word = (match?.[2] ?? '').replace(/^"/, '');
   const qualifier = chain ? splitName(chain.trim().replace(/\.$/, '')) : [];
   const head = textBeforeCursor.slice(0, textBeforeCursor.length - (match?.[0].length ?? 0));
-  const keywords = head.match(/\b(select|from|join|where|and|or|on|by|having|update|into|set|table|values|returning|as)\b/gi);
+  const keywords = head.match(
+    /\b(select|from|join|where|and|or|on|by|having|update|into|set|table|values|returning|as)\b/gi,
+  );
   return {
     qualifier,
     word,

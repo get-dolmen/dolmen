@@ -8,7 +8,12 @@ import { TxStore } from './tx.store';
 import { Ui } from './ui';
 import type { QueryResult } from './models';
 
-export interface RunMessage { time: number; kind: 'ok' | 'error' | 'info'; text: string; statement?: string; }
+export interface RunMessage {
+  time: number;
+  kind: 'ok' | 'error' | 'info';
+  text: string;
+  statement?: string;
+}
 export type ResultsPanel = 'results' | 'messages' | 'history';
 
 /** A result shown in the editor under the statement that produced it. */
@@ -38,7 +43,16 @@ export interface TabRun {
 
 export const PAGE_SIZE = 1000;
 
-const createEmptyRun = (): TabRun => ({ running: false, startedAt: 0, results: [], activeResult: 0, messages: [], panel: 'results', inline: [], seq: 0 });
+const createEmptyRun = (): TabRun => ({
+  running: false,
+  startedAt: 0,
+  results: [],
+  activeResult: 0,
+  messages: [],
+  panel: 'results',
+  inline: [],
+  seq: 0,
+});
 
 @Injectable({ providedIn: 'root' })
 export class RunStore {
@@ -52,10 +66,16 @@ export class RunStore {
 
   public readonly runs = signal<Record<string, TabRun>>({});
 
-  public get(tabId: string): TabRun { return this.runs()[tabId] ?? createEmptyRun(); }
+  public get(tabId: string): TabRun {
+    return this.runs()[tabId] ?? createEmptyRun();
+  }
 
-  public setPanel(tabId: string, panel: ResultsPanel) { this.patch(tabId, { panel }); }
-  public setActiveResult(tabId: string, index: number) { this.patch(tabId, { activeResult: index, panel: 'results' }); }
+  public setPanel(tabId: string, panel: ResultsPanel) {
+    this.patch(tabId, { panel });
+  }
+  public setActiveResult(tabId: string, index: number) {
+    this.patch(tabId, { activeResult: index, panel: 'results' });
+  }
 
   /** Removes inline results from a tab (all of them when `ids` is omitted). */
   public dismissInline(tabId: string, resultIds?: readonly string[]) {
@@ -81,11 +101,24 @@ export class RunStore {
     const startedAt = Date.now();
     this.patch(tab.id, { running: true, startedAt, finishedMs: undefined });
     try {
-      const response = await this.api.execute({ tabId: tab.id, connId: tab.connId, database: tab.database, sql: runTarget.sql, cursor: runTarget.cursor, maxRows: PAGE_SIZE, manual: tab.txMode === 'manual' });
+      const response = await this.api.execute({
+        tabId: tab.id,
+        connId: tab.connId,
+        database: tab.database,
+        sql: runTarget.sql,
+        cursor: runTarget.cursor,
+        maxRows: PAGE_SIZE,
+        manual: tab.txMode === 'manual',
+      });
       this.transactionStore.set(tab.id, response.tx);
       const now = Date.now();
       const messages: RunMessage[] = [];
-      if (response.notice) messages.push({ time: now, kind: response.cancelled ? 'error' : 'info', text: response.notice });
+      if (response.notice)
+        messages.push({
+          time: now,
+          kind: response.cancelled ? 'error' : 'info',
+          text: response.notice,
+        });
       for (const result of response.results) messages.push(describeResult(result, now));
       const results = response.results.filter((result) => result.isQuery && !result.error);
       const hasFailure = response.results.some((result) => result.error);
@@ -98,13 +131,20 @@ export class RunStore {
         activeResult: Math.max(0, results.length - 1),
         messages: [...messages, ...previous.messages].slice(0, 500),
         panel: hasFailure || !results.length ? 'messages' : 'results',
-        ...(inlineResultsEnabled ? this.inlineFor(previous, response.results, runTarget.startOffset) : {}),
+        ...(inlineResultsEnabled
+          ? this.inlineFor(previous, response.results, runTarget.startOffset)
+          : {}),
       });
       if (inlineResultsEnabled) {
-        if (response.notice) this.toastService.show(response.notice, response.cancelled ? 'error' : 'info');
-        const executedCount = response.results.filter((result) => !result.error && !result.isQuery).length;
+        if (response.notice)
+          this.toastService.show(response.notice, response.cancelled ? 'error' : 'info');
+        const executedCount = response.results.filter(
+          (result) => !result.error && !result.isQuery,
+        ).length;
         if (response.results.length > 1 && executedCount) {
-          this.toastService.success(`${executedCount} statement${executedCount === 1 ? '' : 's'} executed.`);
+          this.toastService.success(
+            `${executedCount} statement${executedCount === 1 ? '' : 's'} executed.`,
+          );
         }
       }
       if (hasFailure) this.editorBridge.flashError();
@@ -113,7 +153,10 @@ export class RunStore {
       this.patch(tab.id, {
         running: false,
         finishedMs: Date.now() - startedAt,
-        messages: [{ time: Date.now(), kind: 'error' as const, text: errorText(error) }, ...previous.messages],
+        messages: [
+          { time: Date.now(), kind: 'error' as const, text: errorText(error) },
+          ...previous.messages,
+        ],
         panel: 'messages',
       });
       if (this.uiState.inlineResults()) this.toastService.error(errorText(error));
@@ -146,7 +189,9 @@ export class RunStore {
       if (!exported.path) return;
       // Exporting drains the server cursor, so no further pages can be fetched.
       this.updateResult(tabId, resultId, (current) => ({ ...current, canFetchMore: false }));
-      this.toastService.success(`Exported ${exported.rows.toLocaleString()} rows to ${exported.path}`);
+      this.toastService.success(
+        `Exported ${exported.rows.toLocaleString()} rows to ${exported.path}`,
+      );
     } catch (error) {
       this.toastService.error(`Export failed: ${errorText(error)}`);
     }
@@ -163,22 +208,34 @@ export class RunStore {
    * statements only when a single one ran (a script would flood the editor).
    * Earlier results lose their server cursor, so they cannot fetch more.
    */
-  private inlineFor(previous: TabRun, results: QueryResult[], baseOffset: number): Pick<TabRun, 'inline' | 'seq'> {
+  private inlineFor(
+    previous: TabRun,
+    results: QueryResult[],
+    baseOffset: number,
+  ): Pick<TabRun, 'inline' | 'seq'> {
     const seq = previous.seq + 1;
     const older = previous.inline.map((block) =>
-      (block.result.canFetchMore ? { ...block, result: { ...block.result, canFetchMore: false } } : block));
+      block.result.canFetchMore
+        ? { ...block, result: { ...block.result, canFetchMore: false } }
+        : block,
+    );
     const added = results
       .filter((result) => result.error || result.isQuery || results.length === 1)
       .map((result) => ({ id: result.id, seq, offset: baseOffset + result.end, result }));
     return { seq, inline: [...older, ...added].slice(-MAX_INLINE_BLOCKS) };
   }
 
-  private updateResult(tabId: string, resultId: string, transform: (result: QueryResult) => QueryResult) {
+  private updateResult(
+    tabId: string,
+    resultId: string,
+    transform: (result: QueryResult) => QueryResult,
+  ) {
     const run = this.get(tabId);
     this.patch(tabId, {
       results: run.results.map((result) => (result.id === resultId ? transform(result) : result)),
       inline: run.inline.map((block) =>
-        (block.id === resultId ? { ...block, result: transform(block.result) } : block)),
+        block.id === resultId ? { ...block, result: transform(block.result) } : block,
+      ),
     });
   }
 
@@ -190,13 +247,20 @@ export class RunStore {
 function describeResult(result: QueryResult, time: number): RunMessage {
   const elapsed = `${result.durationMs.toLocaleString()} ms`;
   if (result.error) return { time, kind: 'error', text: result.error, statement: result.statement };
-  if (result.message) return { time, kind: 'info', text: result.message, statement: result.statement };
+  if (result.message)
+    return { time, kind: 'info', text: result.message, statement: result.statement };
   if (result.isQuery) {
     const count = result.rows.length.toLocaleString();
-    return { time, kind: 'ok', text: `${count}${result.hasMore ? '+' : ''} row${result.rows.length === 1 ? '' : 's'} fetched in ${elapsed}`, statement: result.statement };
+    return {
+      time,
+      kind: 'ok',
+      text: `${count}${result.hasMore ? '+' : ''} row${result.rows.length === 1 ? '' : 's'} fetched in ${elapsed}`,
+      statement: result.statement,
+    };
   }
-  const affected = result.rowsAffected >= 0
-    ? `${result.rowsAffected.toLocaleString()} row${result.rowsAffected === 1 ? '' : 's'} affected`
-    : 'Done';
+  const affected =
+    result.rowsAffected >= 0
+      ? `${result.rowsAffected.toLocaleString()} row${result.rowsAffected === 1 ? '' : 's'} affected`
+      : 'Done';
   return { time, kind: 'ok', text: `${affected} in ${elapsed}`, statement: result.statement };
 }

@@ -1,4 +1,16 @@
-import { ApplicationRef, Component, ElementRef, EnvironmentInjector, OnDestroy, afterNextRender, effect, inject, signal, untracked, viewChild } from '@angular/core';
+import {
+  ApplicationRef,
+  Component,
+  ElementRef,
+  EnvironmentInjector,
+  OnDestroy,
+  afterNextRender,
+  effect,
+  inject,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import { ConnectionStore } from '../../core/connection.store';
 import { EditorBridge, type EditorHandle, type RunTarget } from '../../core/editor-bridge';
 import { RunStore } from '../../core/run.store';
@@ -14,9 +26,20 @@ import { applyTheme, initMonaco, monaco, setCompletionSource } from './monaco-se
   selector: 'dm-sql-editor',
   template: `<div class="host" #host [class.flash]="flash()"></div>`,
   styles: `
-    :host { display: block; position: relative; min-height: 0; background: var(--bg-panel); }
-    .host { position: absolute; inset: 0; transition: box-shadow 0.2s; }
-    .host.flash { box-shadow: inset 0 0 0 2px var(--danger); }
+    :host {
+      display: block;
+      position: relative;
+      min-height: 0;
+      background: var(--bg-panel);
+    }
+    .host {
+      position: absolute;
+      inset: 0;
+      transition: box-shadow 0.2s;
+    }
+    .host.flash {
+      box-shadow: inset 0 0 0 2px var(--danger);
+    }
   `,
 })
 export class SqlEditor implements EditorHandle, OnDestroy {
@@ -54,7 +77,12 @@ export class SqlEditor implements EditorHandle, OnDestroy {
     effect(() => {
       const sqlTabs = this.tabStore.tabs().filter((tab) => tab.kind === 'sql');
       const activeTab = this.tabStore.active();
-      untracked(() => this.syncModels(sqlTabs.map((tab) => tab.id), activeTab?.kind === 'sql' ? activeTab.id : undefined));
+      untracked(() =>
+        this.syncModels(
+          sqlTabs.map((tab) => tab.id),
+          activeTab?.kind === 'sql' ? activeTab.id : undefined,
+        ),
+      );
     });
 
     // Inline results: follow runs, the setting and the shown tab.
@@ -71,7 +99,8 @@ export class SqlEditor implements EditorHandle, OnDestroy {
       for (const tab of this.tabStore.tabs()) {
         const model = this.models.get(tab.id);
         const language = monacoLanguage(connectionsById.get(tab.connId)?.kind);
-        if (model && model.getLanguageId() !== language) monaco.editor.setModelLanguage(model, language);
+        if (model && model.getLanguageId() !== language)
+          monaco.editor.setModelLanguage(model, language);
       }
     });
   }
@@ -100,7 +129,13 @@ export class SqlEditor implements EditorHandle, OnDestroy {
     applyTheme();
     this.resizeObserver = new ResizeObserver(() => this.editor?.layout());
     this.resizeObserver.observe(this.hostElement().nativeElement);
-    this.inlineZones = new InlineZones(this.editor, this.runStore, this.applicationRef, this.environmentInjector, this.models);
+    this.inlineZones = new InlineZones(
+      this.editor,
+      this.runStore,
+      this.applicationRef,
+      this.environmentInjector,
+      this.models,
+    );
 
     setCompletionSource(async (model) => {
       const tabId = [...this.models].find(([, candidate]) => candidate === model)?.[0];
@@ -126,8 +161,11 @@ export class SqlEditor implements EditorHandle, OnDestroy {
           if (!columns) {
             // Unquoted names may differ in case from the catalogue (e.g. Oracle upper-case).
             const tables = this.schemaStore.get(scope)?.tables[schema] ?? [];
-            const actualTable = tables.find((candidate) => candidate.name.toLowerCase() === table.toLowerCase());
-            if (actualTable) columns = this.schemaStore.get(scope)?.columns[`${schema}.${actualTable.name}`];
+            const actualTable = tables.find(
+              (candidate) => candidate.name.toLowerCase() === table.toLowerCase(),
+            );
+            if (actualTable)
+              columns = this.schemaStore.get(scope)?.columns[`${schema}.${actualTable.name}`];
           }
           return columns ?? [];
         },
@@ -137,7 +175,10 @@ export class SqlEditor implements EditorHandle, OnDestroy {
     this.editorBridge.attach(this);
     const activeTab = this.tabStore.active();
     this.syncModels(
-      this.tabStore.tabs().filter((tab) => tab.kind === 'sql').map((tab) => tab.id),
+      this.tabStore
+        .tabs()
+        .filter((tab) => tab.kind === 'sql')
+        .map((tab) => tab.id),
       activeTab?.kind === 'sql' ? activeTab.id : undefined,
     );
   }
@@ -155,7 +196,8 @@ export class SqlEditor implements EditorHandle, OnDestroy {
     if (!activeTabId) {
       this.inlineZones?.clear();
       if (this.currentTabId) {
-        if (this.models.has(this.currentTabId)) this.viewStates.set(this.currentTabId, this.editor.saveViewState());
+        if (this.models.has(this.currentTabId))
+          this.viewStates.set(this.currentTabId, this.editor.saveViewState());
         this.currentTabId = '';
       }
       if (this.editor.getModel()) this.editor.setModel(null);
@@ -178,7 +220,10 @@ export class SqlEditor implements EditorHandle, OnDestroy {
     const existing = this.models.get(tabId);
     if (existing) return existing;
     const tab = this.tabStore.get(tabId)!;
-    const model = monaco.editor.createModel(tab.content, monacoLanguage(this.connectionStore.get(tab.connId)?.kind));
+    const model = monaco.editor.createModel(
+      tab.content,
+      monacoLanguage(this.connectionStore.get(tab.connId)?.kind),
+    );
     model.onDidChangeContent(() => this.tabStore.setContent(tabId, model.getValue()));
     this.models.set(tabId, model);
     return model;
@@ -193,13 +238,18 @@ export class SqlEditor implements EditorHandle, OnDestroy {
     const selection = editor.getSelection();
     if (selection && !selection.isEmpty()) {
       return {
-        sql: model.getValueInRange(selection), cursor: -1,
+        sql: model.getValueInRange(selection),
+        cursor: -1,
         startOffset: model.getOffsetAt(selection.getStartPosition()),
       };
     }
     if (mode === 'all') return { sql: model.getValue(), cursor: -1, startOffset: 0 };
     const position = editor.getPosition();
-    return { sql: model.getValue(), cursor: position ? model.getOffsetAt(position) : 0, startOffset: 0 };
+    return {
+      sql: model.getValue(),
+      cursor: position ? model.getOffsetAt(position) : 0,
+      startOffset: 0,
+    };
   }
 
   public insert(text: string) {
@@ -214,7 +264,9 @@ export class SqlEditor implements EditorHandle, OnDestroy {
     if (model && model.getValue() !== content) model.setValue(content);
   }
 
-  public focus() { this.editor?.focus(); }
+  public focus() {
+    this.editor?.focus();
+  }
 
   public flashError() {
     this.flash.set(true);

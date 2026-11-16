@@ -28,6 +28,11 @@ export function clampMenu(x: number, y: number, width = 220, height = 260): Menu
 }
 
 /** Places a menu under its trigger, or closes it when it is already open. */
-export function toggleMenuAt(current: MenuPos | null, trigger: DOMRect, width = 220, height = 260): MenuPos | null {
+export function toggleMenuAt(
+  current: MenuPos | null,
+  trigger: DOMRect,
+  width = 220,
+  height = 260,
+): MenuPos | null {
   return current ? null : clampMenu(trigger.left, trigger.bottom + 4, width, height);
 }

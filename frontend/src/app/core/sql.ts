@@ -16,7 +16,12 @@ export function quoteIdentifier(kind: DbKind, name: string): string {
 }
 
 /** schema.table, omitting the schema when it is the connection's default. */
-export function qualified(kind: DbKind, schema: string, table: string, defaultSchema?: string): string {
+export function qualified(
+  kind: DbKind,
+  schema: string,
+  table: string,
+  defaultSchema?: string,
+): string {
   if (!schema || schema === defaultSchema) return quoteIdentifier(kind, table);
   return `${quoteIdentifier(kind, schema)}.${quoteIdentifier(kind, table)}`;
 }
@@ -41,25 +46,122 @@ export function createTableTemplate(kind: DbKind, target: string): string {
 /** Monaco language id for a dialect. */
 export function monacoLanguage(kind: DbKind | undefined): string {
   switch (kind) {
-    case 'postgres': return 'pgsql';
-    case 'mysql': return 'mysql';
-    default: return 'sql';
+    case 'postgres':
+      return 'pgsql';
+    case 'mysql':
+      return 'mysql';
+    default:
+      return 'sql';
   }
 }
 
 export const KEYWORDS = [
-  'SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'NOT', 'IN', 'IS', 'NULL', 'LIKE', 'ILIKE', 'BETWEEN', 'EXISTS',
-  'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN', 'CROSS JOIN', 'ON', 'USING',
-  'GROUP BY', 'ORDER BY', 'HAVING', 'LIMIT', 'OFFSET', 'FETCH FIRST', 'ROWS ONLY', 'DISTINCT', 'AS', 'ASC', 'DESC',
-  'UNION', 'UNION ALL', 'INTERSECT', 'EXCEPT', 'WITH', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END',
-  'INSERT INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE FROM', 'RETURNING', 'MERGE INTO',
-  'CREATE TABLE', 'CREATE VIEW', 'CREATE INDEX', 'ALTER TABLE', 'DROP TABLE', 'TRUNCATE',
-  'BEGIN', 'COMMIT', 'ROLLBACK', 'EXPLAIN',
-  'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'COALESCE', 'CAST', 'NULLIF',
+  'SELECT',
+  'FROM',
+  'WHERE',
+  'AND',
+  'OR',
+  'NOT',
+  'IN',
+  'IS',
+  'NULL',
+  'LIKE',
+  'ILIKE',
+  'BETWEEN',
+  'EXISTS',
+  'JOIN',
+  'INNER JOIN',
+  'LEFT JOIN',
+  'RIGHT JOIN',
+  'FULL JOIN',
+  'CROSS JOIN',
+  'ON',
+  'USING',
+  'GROUP BY',
+  'ORDER BY',
+  'HAVING',
+  'LIMIT',
+  'OFFSET',
+  'FETCH FIRST',
+  'ROWS ONLY',
+  'DISTINCT',
+  'AS',
+  'ASC',
+  'DESC',
+  'UNION',
+  'UNION ALL',
+  'INTERSECT',
+  'EXCEPT',
+  'WITH',
+  'CASE',
+  'WHEN',
+  'THEN',
+  'ELSE',
+  'END',
+  'INSERT INTO',
+  'VALUES',
+  'UPDATE',
+  'SET',
+  'DELETE FROM',
+  'RETURNING',
+  'MERGE INTO',
+  'CREATE TABLE',
+  'CREATE VIEW',
+  'CREATE INDEX',
+  'ALTER TABLE',
+  'DROP TABLE',
+  'TRUNCATE',
+  'BEGIN',
+  'COMMIT',
+  'ROLLBACK',
+  'EXPLAIN',
+  'COUNT',
+  'SUM',
+  'AVG',
+  'MIN',
+  'MAX',
+  'COALESCE',
+  'CAST',
+  'NULLIF',
 ];
 
 const RESERVED_WORDS = new Set([
-  'SELECT', 'FROM', 'WHERE', 'TABLE', 'ORDER', 'GROUP', 'USER', 'INDEX', 'KEY', 'LIMIT', 'OFFSET', 'DESC',
-  'ASC', 'BY', 'TO', 'AS', 'ON', 'IN', 'IS', 'OR', 'AND', 'NOT', 'NULL', 'CHECK', 'COLUMN', 'DEFAULT',
-  'GRANT', 'UNION', 'UNIQUE', 'VALUES', 'VIEW', 'WITH', 'JOIN', 'LEVEL', 'SIZE', 'COMMENT', 'DATE', 'NUMBER',
+  'SELECT',
+  'FROM',
+  'WHERE',
+  'TABLE',
+  'ORDER',
+  'GROUP',
+  'USER',
+  'INDEX',
+  'KEY',
+  'LIMIT',
+  'OFFSET',
+  'DESC',
+  'ASC',
+  'BY',
+  'TO',
+  'AS',
+  'ON',
+  'IN',
+  'IS',
+  'OR',
+  'AND',
+  'NOT',
+  'NULL',
+  'CHECK',
+  'COLUMN',
+  'DEFAULT',
+  'GRANT',
+  'UNION',
+  'UNIQUE',
+  'VALUES',
+  'VIEW',
+  'WITH',
+  'JOIN',
+  'LEVEL',
+  'SIZE',
+  'COMMENT',
+  'DATE',
+  'NUMBER',
 ]);

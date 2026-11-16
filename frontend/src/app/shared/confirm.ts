@@ -20,9 +20,16 @@ export interface ConfirmOptions {
   selector: 'dm-confirm-dialog',
   templateUrl: './confirm.html',
   styles: `
-    .confirm { width: 100%; }
-    .message { margin: 2px 0 4px; white-space: pre-line; }
-    .spacer { flex: 1; }
+    .confirm {
+      width: 100%;
+    }
+    .message {
+      margin: 2px 0 4px;
+      white-space: pre-line;
+    }
+    .spacer {
+      flex: 1;
+    }
   `,
 })
 export class ConfirmDialog {
@@ -41,6 +48,8 @@ export class Confirm {
       width: '420px',
       maxWidth: '92vw',
     });
-    return new Promise((resolve) => dialogRef.closed.subscribe((confirmed) => resolve(confirmed === true)));
+    return new Promise((resolve) =>
+      dialogRef.closed.subscribe((confirmed) => resolve(confirmed === true)),
+    );
   }
 }

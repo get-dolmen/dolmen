@@ -81,7 +81,12 @@ export class Ui {
   public readonly paletteOpen = signal(false);
   public readonly paletteQuery = signal('');
   /** Bumped to ask the sidebar to reveal a table. */
-  public readonly reveal = signal<{ connId: string; database: string; schema: string; table: string } | null>(null);
+  public readonly reveal = signal<{
+    connId: string;
+    database: string;
+    schema: string;
+    table: string;
+  } | null>(null);
 
   public constructor() {
     // Paint the remembered theme as soon as the store exists, then on every change.
@@ -100,7 +105,9 @@ export class Ui {
       };
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
-      } catch { /* storage unavailable */ }
+      } catch {
+        /* storage unavailable */
+      }
     });
   }
 

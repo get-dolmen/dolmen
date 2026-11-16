@@ -34,12 +34,24 @@ export class SettingsDialog {
     { value: 'dark', label: 'Dark', hint: 'Low light' },
   ];
 
-  public readonly form: SyncConfig = { enabled: false, remote: '', branch: 'main', encrypted: false };
+  public readonly form: SyncConfig = {
+    enabled: false,
+    remote: '',
+    branch: 'main',
+    encrypted: false,
+  };
   public readonly status = this.syncStore.status;
   public readonly password = signal('');
   public readonly busy = signal<'save' | 'sync' | null>(null);
 
-  public readonly mcpForm = { enabled: false, port: 8770, read: true, write: false, databases: '', schemas: '' };
+  public readonly mcpForm = {
+    enabled: false,
+    port: 8770,
+    read: true,
+    write: false,
+    databases: '',
+    schemas: '',
+  };
   public readonly mcpStatus = signal<McpStatus | null>(null);
   public readonly mcpBusy = signal<'save' | 'token' | null>(null);
 
@@ -141,7 +153,10 @@ export class SettingsDialog {
       });
       this.applyMcp(status);
       if (status.lastError) this.toastService.error(status.lastError);
-      else this.toastService.success(status.running ? 'MCP server is listening' : 'MCP settings saved');
+      else
+        this.toastService.success(
+          status.running ? 'MCP server is listening' : 'MCP settings saved',
+        );
     } catch (error) {
       this.toastService.error(errorText(error));
     } finally {
@@ -175,15 +190,19 @@ export class SettingsDialog {
 
   /** A ready-to-paste mcpServers entry for the configured endpoint. */
   public mcpSnippet(status: McpStatus): string {
-    return JSON.stringify({
-      mcpServers: {
-        dolmen: {
-          type: 'http',
-          url: status.url,
-          headers: { Authorization: `Bearer ${status.token}` },
+    return JSON.stringify(
+      {
+        mcpServers: {
+          dolmen: {
+            type: 'http',
+            url: status.url,
+            headers: { Authorization: `Bearer ${status.token}` },
+          },
         },
       },
-    }, null, 2);
+      null,
+      2,
+    );
   }
 
   private async copyText(text: string): Promise<boolean> {
@@ -212,5 +231,8 @@ export class SettingsDialog {
 
 /** Splits a comma- or newline-separated allow-list. */
 function splitList(value: string): string[] {
-  return value.split(/[\n,]/).map((part) => part.trim()).filter((part) => part.length > 0);
+  return value
+    .split(/[\n,]/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
 }

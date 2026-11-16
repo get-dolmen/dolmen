@@ -1,8 +1,14 @@
 import { Component, effect, inject, input, untracked } from '@angular/core';
 import { AgGridAngular } from 'ag-grid-angular';
 import {
-  AllCommunityModule, ModuleRegistry, themeQuartz,
-  type CellKeyDownEvent, type ColDef, type FullWidthCellKeyDownEvent, type GridApi, type GridReadyEvent,
+  AllCommunityModule,
+  ModuleRegistry,
+  themeQuartz,
+  type CellKeyDownEvent,
+  type ColDef,
+  type FullWidthCellKeyDownEvent,
+  type GridApi,
+  type GridReadyEvent,
 } from 'ag-grid-community';
 import { Commands } from '../../core/commands';
 import { isMac } from '../../core/ui';
@@ -74,11 +80,27 @@ function estimateColumnWidth(name: string, rows: Cell[][], columnIndex: number):
   imports: [AgGridAngular],
   templateUrl: './result-grid.html',
   styles: `
-    :host { display: block; height: 100%; }
-    .grid { height: 100%; width: 100%; }
-    :host ::ng-deep .null { color: var(--null); font-style: italic; }
-    :host ::ng-deep .num { text-align: right; font-variant-numeric: tabular-nums; }
-    :host ::ng-deep .rownum { color: var(--text-faint); text-align: right; background: var(--bg); }
+    :host {
+      display: block;
+      height: 100%;
+    }
+    .grid {
+      height: 100%;
+      width: 100%;
+    }
+    :host ::ng-deep .null {
+      color: var(--null);
+      font-style: italic;
+    }
+    :host ::ng-deep .num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    :host ::ng-deep .rownum {
+      color: var(--text-faint);
+      text-align: right;
+      background: var(--bg);
+    }
   `,
 })
 export class ResultGrid {
@@ -94,10 +116,12 @@ export class ResultGrid {
     minWidth: 60,
     suppressHeaderMenuButton: true,
     valueFormatter: (params) => displayCell(params.value),
-    cellClass: (params) => (params.value === null ? 'null' : typeof params.value === 'number' ? 'num' : ''),
-    tooltipValueGetter: (params) => (this.tooltips() && typeof params.value === 'string' && params.value.length > 60
-      ? params.value.slice(0, 2000)
-      : undefined),
+    cellClass: (params) =>
+      params.value === null ? 'null' : typeof params.value === 'number' ? 'num' : '',
+    tooltipValueGetter: (params) =>
+      this.tooltips() && typeof params.value === 'string' && params.value.length > 60
+        ? params.value.slice(0, 2000)
+        : undefined,
   };
 
   private gridApi?: GridApi;
@@ -145,7 +169,11 @@ export class ResultGrid {
   public onCellKeyDown(event: CellKeyDownEvent | FullWidthCellKeyDownEvent) {
     const keyboardEvent = event.event as KeyboardEvent | undefined;
     if (!('column' in event) || !keyboardEvent) return;
-    if (keyboardEvent.key.toLowerCase() !== 'c' || !(isMac ? keyboardEvent.metaKey : keyboardEvent.ctrlKey)) return;
+    if (
+      keyboardEvent.key.toLowerCase() !== 'c' ||
+      !(isMac ? keyboardEvent.metaKey : keyboardEvent.ctrlKey)
+    )
+      return;
     keyboardEvent.preventDefault();
     const selectedRows = this.gridApi?.getSelectedRows() as Cell[][] | undefined;
     if (selectedRows && selectedRows.length > 1) {
@@ -154,7 +182,9 @@ export class ResultGrid {
       const value = event.value as Cell;
       void this.commandService.copy(value === null ? '' : String(value));
     } else if (event.data) {
-      void this.commandService.copy(rowsToTSV(this.result().columns, [event.data as Cell[]], false));
+      void this.commandService.copy(
+        rowsToTSV(this.result().columns, [event.data as Cell[]], false),
+      );
     }
   }
 

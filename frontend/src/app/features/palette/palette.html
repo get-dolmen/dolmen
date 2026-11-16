@@ -2,22 +2,43 @@
 <div class="palette" role="dialog" aria-label="Search" (keydown)="onKey($event)">
   <div class="search">
     <span class="glass" aria-hidden="true">⌕</span>
-    <input #input class="q" [value]="query()" (input)="setQuery($any($event.target).value)"
-           placeholder="Search tables, tabs and connections; type > for commands" spellcheck="false" autocomplete="off"
-           role="combobox" aria-controls="palette-list" [attr.aria-activedescendant]="'pi-' + selectedIndex()" />
+    <input
+      #input
+      class="q"
+      [value]="query()"
+      (input)="setQuery($any($event.target).value)"
+      placeholder="Search tables, tabs and connections; type > for commands"
+      spellcheck="false"
+      autocomplete="off"
+      role="combobox"
+      aria-controls="palette-list"
+      [attr.aria-activedescendant]="'pi-' + selectedIndex()"
+    />
   </div>
   <div class="list" id="palette-list" role="listbox" #list>
     @for (item of results(); track item.id; let index = $index) {
       @if (index === 0 || results()[index - 1].group !== item.group) {
         <div class="group">{{ item.group }}</div>
       }
-      <div class="item" role="option" [id]="'pi-' + index" [class.on]="index === selectedIndex()"
-           [attr.aria-selected]="index === selectedIndex()"
-           (mousemove)="selectedIndex.set(index)" (click)="choose(item, false)">
-        @if (item.color) { <span class="dot" [style.background]="item.color"></span> }
+      <div
+        class="item"
+        role="option"
+        [id]="'pi-' + index"
+        [class.on]="index === selectedIndex()"
+        [attr.aria-selected]="index === selectedIndex()"
+        (mousemove)="selectedIndex.set(index)"
+        (click)="choose(item, false)"
+      >
+        @if (item.color) {
+          <span class="dot" [style.background]="item.color"></span>
+        }
         <span class="label ellipsis">{{ item.label }}</span>
-        @if (item.detail) { <span class="detail ellipsis">{{ item.detail }}</span> }
-        @if (item.hint) { <span class="hint">{{ item.hint }}</span> }
+        @if (item.detail) {
+          <span class="detail ellipsis">{{ item.detail }}</span>
+        }
+        @if (item.hint) {
+          <span class="hint">{{ item.hint }}</span>
+        }
       </div>
     } @empty {
       <div class="none">{{ loadingTables() ? 'Loading tables…' : 'No matches' }}</div>
@@ -28,6 +49,8 @@
     <span><span class="kbd">↵</span> open</span>
     <span><span class="kbd">⌥↵</span> insert table name</span>
     <span class="spacer"></span>
-    <span><span class="kbd">{{ modifierKey }}P</span> toggle</span>
+    <span
+      ><span class="kbd">{{ modifierKey }}P</span> toggle</span
+    >
   </div>
 </div>

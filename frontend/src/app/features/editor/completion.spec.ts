@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { completionContext, expectsTable, parseTableReferences, splitName, statementAround } from './completion';
+import {
+  completionContext,
+  expectsTable,
+  parseTableReferences,
+  splitName,
+  statementAround,
+} from './completion';
 
 describe('parseTableReferences', () => {
   it('finds tables and aliases across FROM and JOIN', () => {
@@ -16,7 +22,9 @@ describe('parseTableReferences', () => {
   it('follows comma-separated FROM lists', () => {
     const references = parseTableReferences('select * from a x, b, "My Table" t where x.id = 1');
     expect(references.map((reference) => [reference.table, reference.alias])).toEqual([
-      ['a', 'x'], ['b', undefined], ['My Table', 't'],
+      ['a', 'x'],
+      ['b', undefined],
+      ['My Table', 't'],
     ]);
   });
 
@@ -36,10 +44,25 @@ describe('parseTableReferences', () => {
 
 describe('completionContext', () => {
   it('splits qualifier and word', () => {
-    expect(completionContext('select o.na')).toEqual({ qualifier: ['o'], word: 'na', keyword: 'select' });
-    expect(completionContext('select * from public.')).toEqual({ qualifier: ['public'], word: '', keyword: 'from' });
-    expect(completionContext('select * from ')).toEqual({ qualifier: [], word: '', keyword: 'from' });
-    expect(completionContext('select "My Table".c')).toMatchObject({ qualifier: ['My Table'], word: 'c' });
+    expect(completionContext('select o.na')).toEqual({
+      qualifier: ['o'],
+      word: 'na',
+      keyword: 'select',
+    });
+    expect(completionContext('select * from public.')).toEqual({
+      qualifier: ['public'],
+      word: '',
+      keyword: 'from',
+    });
+    expect(completionContext('select * from ')).toEqual({
+      qualifier: [],
+      word: '',
+      keyword: 'from',
+    });
+    expect(completionContext('select "My Table".c')).toMatchObject({
+      qualifier: ['My Table'],
+      word: 'c',
+    });
   });
 
   it('ranks tables after FROM', () => {

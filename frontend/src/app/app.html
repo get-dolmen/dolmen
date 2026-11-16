@@ -2,18 +2,34 @@
 <div class="main">
   @if (uiState.scratchPosition() === 'left' && uiState.scratchOpen()) {
     <dm-scratch-list class="scratch-left" [style.width.px]="uiState.scratchWidth()" />
-    <div class="split v" role="separator" aria-orientation="vertical" aria-label="Resize scratches"
-         (pointerdown)="dragScratches($event)" (dblclick)="uiState.scratchWidth.set(260)"></div>
+    <div
+      class="split v"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize scratches"
+      (pointerdown)="dragScratches($event)"
+      (dblclick)="uiState.scratchWidth.set(260)"
+    ></div>
   }
   <section class="work" [class.ro]="readOnly()">
     <dm-tab-bar />
     <!-- SQL tabs share one editor; it stays mounted (hidden) while a data tab is active. -->
     <div class="sql" #work [hidden]="!tabStore.active() || tabStore.active()?.kind === 'table'">
       <!-- Inline mode shows results inside the editor, so it takes the whole height. -->
-      <dm-sql-editor class="editor" [class.full]="uiState.inlineResults()" [style.flex-basis.%]="uiState.inlineResults() ? 100 : uiState.editorRatio() * 100" />
+      <dm-sql-editor
+        class="editor"
+        [class.full]="uiState.inlineResults()"
+        [style.flex-basis.%]="uiState.inlineResults() ? 100 : uiState.editorRatio() * 100"
+      />
       @if (!uiState.inlineResults()) {
-        <div class="split h" role="separator" aria-orientation="horizontal" aria-label="Resize editor and results"
-             (pointerdown)="dragRows($event)" (dblclick)="uiState.editorRatio.set(0.55)"></div>
+        <div
+          class="split h"
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize editor and results"
+          (pointerdown)="dragRows($event)"
+          (dblclick)="uiState.editorRatio.set(0.55)"
+        ></div>
         @if (tabStore.active(); as tab) {
           @if (tab.kind === 'sql') {
             <dm-results-panel class="results" [tabId]="tab.id" [connId]="tab.connId" />
@@ -33,8 +49,14 @@
     }
   </section>
   @if (uiState.sidebarOpen()) {
-    <div class="split v" role="separator" aria-orientation="vertical" aria-label="Resize explorer"
-         (pointerdown)="dragSidebar($event)" (dblclick)="uiState.sidebarWidth.set(280)"></div>
+    <div
+      class="split v"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize explorer"
+      (pointerdown)="dragSidebar($event)"
+      (dblclick)="uiState.sidebarWidth.set(280)"
+    ></div>
     <dm-schema-sidebar class="sidebar" [style.width.px]="uiState.sidebarWidth()" />
   }
 </div>

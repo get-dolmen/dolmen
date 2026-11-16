@@ -4,5 +4,4 @@ import { App } from './app/app';
 import { applyStoredTheme } from './app/core/ui';
 
 applyStoredTheme();
-bootstrapApplication(App, appConfig)
-  .catch((err) => console.error(err));
+bootstrapApplication(App, appConfig).catch((err) => console.error(err));

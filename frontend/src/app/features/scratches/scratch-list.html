@@ -1,17 +1,47 @@
 <div class="head">
-  <button class="toggle" [class.docked]="isDockedLeft()" (click)="toggle()" [attr.aria-expanded]="showsList()"
-          [title]="isDockedLeft() ? 'Collapse the scratches panel' : null">
-    @if (!isDockedLeft()) { <span class="chev" [class.open]="!collapsed()">›</span> }
+  <button
+    class="toggle"
+    [class.docked]="isDockedLeft()"
+    (click)="toggle()"
+    [attr.aria-expanded]="showsList()"
+    [title]="isDockedLeft() ? 'Collapse the scratches panel' : null"
+  >
+    @if (!isDockedLeft()) {
+      <span class="chev" [class.open]="!collapsed()">›</span>
+    }
     <span class="title">Scratches</span>
     <span class="count">{{ scratchStore.list().length }}</span>
   </button>
   <span class="spacer"></span>
-  <button class="ib" (click)="commandService.newTab()" title="New scratch" aria-label="New scratch"><dm-icon name="plus" [size]="14" /></button>
-  <button class="ib" (click)="scratchStore.importFile()" title="Open a .sql file as scratch" aria-label="Open a SQL file"><dm-icon name="folderOpen" [size]="14" /></button>
-  <button class="ib" (click)="uiState.toggleScratchPosition()"
-          [title]="uiState.scratchPosition() === 'left' ? 'Move scratches under the explorer' : 'Move scratches to a left panel'"
-          [attr.aria-label]="uiState.scratchPosition() === 'left' ? 'Dock scratches in the explorer' : 'Dock scratches on the left'">
-    <dm-icon [name]="uiState.scratchPosition() === 'left' ? 'panelBottom' : 'panelLeft'" [size]="14" />
+  <button class="ib" (click)="commandService.newTab()" title="New scratch" aria-label="New scratch">
+    <dm-icon name="plus" [size]="14" />
+  </button>
+  <button
+    class="ib"
+    (click)="scratchStore.importFile()"
+    title="Open a .sql file as scratch"
+    aria-label="Open a SQL file"
+  >
+    <dm-icon name="folderOpen" [size]="14" />
+  </button>
+  <button
+    class="ib"
+    (click)="uiState.toggleScratchPosition()"
+    [title]="
+      uiState.scratchPosition() === 'left'
+        ? 'Move scratches under the explorer'
+        : 'Move scratches to a left panel'
+    "
+    [attr.aria-label]="
+      uiState.scratchPosition() === 'left'
+        ? 'Dock scratches in the explorer'
+        : 'Dock scratches on the left'
+    "
+  >
+    <dm-icon
+      [name]="uiState.scratchPosition() === 'left' ? 'panelBottom' : 'panelLeft'"
+      [size]="14"
+    />
   </button>
 </div>
 
@@ -20,60 +50,133 @@
     @for (row of rows(); track row.node.key) {
       @if (row.node.kind === 'folder') {
         @let folder = row.node;
-        <div class="row folder" role="treeitem" [attr.aria-expanded]="row.open" [style.padding-left.px]="8 + row.depth * 14"
-             [class.drop]="dropTargetKey() === folder.key" (click)="toggleFolder(folder.key)" (contextmenu)="openFolderMenu($event, folder)"
-             (dragover)="onDragOver($event, folder)"
-             (dragleave)="dropTargetKey() === folder.key && dropTargetKey.set('')" (drop)="onDrop($event, folder)"
-             [title]="folderTitle(folder)">
+        <div
+          class="row folder"
+          role="treeitem"
+          [attr.aria-expanded]="row.open"
+          [style.padding-left.px]="8 + row.depth * 14"
+          [class.drop]="dropTargetKey() === folder.key"
+          (click)="toggleFolder(folder.key)"
+          (contextmenu)="openFolderMenu($event, folder)"
+          (dragover)="onDragOver($event, folder)"
+          (dragleave)="dropTargetKey() === folder.key && dropTargetKey.set('')"
+          (drop)="onDrop($event, folder)"
+          [title]="folderTitle(folder)"
+        >
           <span class="chev" [class.open]="row.open">›</span>
           @switch (folder.level) {
-            @case ('conn') { <span class="dot" [style.background]="folder.color"></span> }
-            @case ('db') { <svg class="ficon db" width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><ellipse cx="8" cy="3.5" rx="5.5" ry="2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M2.5 3.5v9c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2v-9M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg> }
-            @case ('table') { <dm-icon name="table" [size]="13" class="ficon tbl" /> }
-            @default { <span class="dot none"></span> }
+            @case ('conn') {
+              <span class="dot" [style.background]="folder.color"></span>
+            }
+            @case ('db') {
+              <svg class="ficon db" width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+                <ellipse
+                  cx="8"
+                  cy="3.5"
+                  rx="5.5"
+                  ry="2"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.3"
+                />
+                <path
+                  d="M2.5 3.5v9c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2v-9M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.3"
+                />
+              </svg>
+            }
+            @case ('table') {
+              <dm-icon name="table" [size]="13" class="ficon tbl" />
+            }
+            @default {
+              <span class="dot none"></span>
+            }
           }
-          <span class="label ellipsis" [class.strong]="folder.level === 'conn'">{{ folder.label }}</span>
-          @if (folder.detail) { <span class="detail ellipsis">{{ folder.detail }}</span> }
+          <span class="label ellipsis" [class.strong]="folder.level === 'conn'">{{
+            folder.label
+          }}</span>
+          @if (folder.detail) {
+            <span class="detail ellipsis">{{ folder.detail }}</span>
+          }
           <span class="n">{{ folder.count }}</span>
         </div>
       } @else {
         @let scratch = row.node.scratch;
-        <div class="row file" role="treeitem" tabindex="0" [attr.draggable]="scratch.locked ? null : 'true'"
-             [style.padding-left.px]="8 + row.depth * 14 + 14"
-             [class.open]="scratchStore.openIds().has(scratch.id)" [class.active]="scratch.id === tabStore.activeId()"
-             (click)="editingId() !== scratch.id && scratchStore.open(scratch.id)"
-             (keydown.enter)="scratchStore.open(scratch.id)" (keydown.f2)="editingId.set(scratch.id)"
-             (contextmenu)="openFileMenu($event, scratch)" (dragstart)="onDragStart($event, scratch)"
-             (dragend)="dropTargetKey.set('')"
-             [title]="(scratch.preview || scratch.name) + (scratch.locked ? '\\nLocked to its connection, database and folder' : '\\nDrag onto a folder to move it')">
+        <div
+          class="row file"
+          role="treeitem"
+          tabindex="0"
+          [attr.draggable]="scratch.locked ? null : 'true'"
+          [style.padding-left.px]="8 + row.depth * 14 + 14"
+          [class.open]="scratchStore.openIds().has(scratch.id)"
+          [class.active]="scratch.id === tabStore.activeId()"
+          (click)="editingId() !== scratch.id && scratchStore.open(scratch.id)"
+          (keydown.enter)="scratchStore.open(scratch.id)"
+          (keydown.f2)="editingId.set(scratch.id)"
+          (contextmenu)="openFileMenu($event, scratch)"
+          (dragstart)="onDragStart($event, scratch)"
+          (dragend)="dropTargetKey.set('')"
+          [title]="
+            (scratch.preview || scratch.name) +
+            (scratch.locked
+              ? '\\nLocked to its connection, database and folder'
+              : '\\nDrag onto a folder to move it')
+          "
+        >
           <dm-icon name="file" [size]="14" class="fi" />
           @if (editingId() === scratch.id) {
-            <input class="rename" dmAutofocus [value]="scratch.name" (click)="$event.stopPropagation()"
-                   (keydown.enter)="rename(scratch, $any($event.target).value)" (keydown.escape)="editingId.set('')"
-                   (blur)="rename(scratch, $any($event.target).value)" />
+            <input
+              class="rename"
+              dmAutofocus
+              [value]="scratch.name"
+              (click)="$event.stopPropagation()"
+              (keydown.enter)="rename(scratch, $any($event.target).value)"
+              (keydown.escape)="editingId.set('')"
+              (blur)="rename(scratch, $any($event.target).value)"
+            />
           } @else {
             <span class="label ellipsis">{{ scratch.name }}</span>
-            @if (scratch.locked) { <dm-icon name="lock" [size]="12" class="lock" /> }
+            @if (scratch.locked) {
+              <dm-icon name="lock" [size]="12" class="lock" />
+            }
             <span class="when">{{ relativeTime(scratch.updatedAt) }}</span>
           }
         </div>
       }
     } @empty {
-      <p class="empty">{{ filter() ? 'No scratch matches the filter.' : 'No scratch files yet.' }}</p>
+      <p class="empty">
+        {{ filter() ? 'No scratch matches the filter.' : 'No scratch files yet.' }}
+      </p>
     }
   </div>
 }
 
 @if (contextMenu(); as menuPosition) {
-  <div class="menu" [style.left.px]="menuPosition.x" [style.top.px]="menuPosition.y" (dmClickOutside)="contextMenu.set(null)">
+  <div
+    class="menu"
+    [style.left.px]="menuPosition.x"
+    [style.top.px]="menuPosition.y"
+    (dmClickOutside)="contextMenu.set(null)"
+  >
     @if (menuPosition.kind === 'file') {
       <button class="menu-item" (click)="runMenuAction('open')">Open</button>
-      <button class="menu-item" (click)="runMenuAction('rename')">Rename<span class="hint">F2</span></button>
-      <button class="menu-item" (click)="runMenuAction(menuPosition.scratch.locked ? 'unlock' : 'lock')">{{ menuPosition.scratch.locked ? 'Unlock folder' : 'Lock to its folder' }}</button>
+      <button class="menu-item" (click)="runMenuAction('rename')">
+        Rename<span class="hint">F2</span>
+      </button>
+      <button
+        class="menu-item"
+        (click)="runMenuAction(menuPosition.scratch.locked ? 'unlock' : 'lock')"
+      >
+        {{ menuPosition.scratch.locked ? 'Unlock folder' : 'Lock to its folder' }}
+      </button>
       <button class="menu-item" (click)="runMenuAction('duplicate')">Duplicate</button>
       <button class="menu-item" (click)="runMenuAction('export')">Save as file…</button>
       @if (menuPosition.scratch.table) {
-        <button class="menu-item" (click)="runMenuAction('untable')">Move out of “{{ menuPosition.scratch.table }}”</button>
+        <button class="menu-item" (click)="runMenuAction('untable')">
+          Move out of “{{ menuPosition.scratch.table }}”
+        </button>
       }
       <div class="menu-sep"></div>
       <button class="menu-item danger" (click)="runMenuAction('delete')">Delete…</button>

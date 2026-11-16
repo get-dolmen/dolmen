@@ -1,28 +1,57 @@
 <div class="head">
   <div class="tabs" role="tablist">
     @for (result of run().results; track result.id; let index = $index) {
-      <button role="tab" class="tab" [class.on]="run().panel === 'results' && run().activeResult === index"
-              [attr.aria-selected]="run().panel === 'results' && run().activeResult === index"
-              [title]="result.statement" (click)="runStore.setActiveResult(tabId(), index)">
+      <button
+        role="tab"
+        class="tab"
+        [class.on]="run().panel === 'results' && run().activeResult === index"
+        [attr.aria-selected]="run().panel === 'results' && run().activeResult === index"
+        [title]="result.statement"
+        (click)="runStore.setActiveResult(tabId(), index)"
+      >
         {{ label(result, index) }}
       </button>
     }
     @if (!run().results.length) {
-      <button role="tab" class="tab" [class.on]="run().panel === 'results'" (click)="setPanel('results')">Results</button>
+      <button
+        role="tab"
+        class="tab"
+        [class.on]="run().panel === 'results'"
+        (click)="setPanel('results')"
+      >
+        Results
+      </button>
     }
-    <button role="tab" class="tab" [class.on]="run().panel === 'messages'" (click)="setPanel('messages')">
+    <button
+      role="tab"
+      class="tab"
+      [class.on]="run().panel === 'messages'"
+      (click)="setPanel('messages')"
+    >
       Messages
-      @if (errorCount()) { <span class="count err">{{ errorCount() }}</span> }
+      @if (errorCount()) {
+        <span class="count err">{{ errorCount() }}</span>
+      }
     </button>
-    <button role="tab" class="tab" [class.on]="run().panel === 'history'" (click)="setPanel('history')">History</button>
+    <button
+      role="tab"
+      class="tab"
+      [class.on]="run().panel === 'history'"
+      (click)="setPanel('history')"
+    >
+      History
+    </button>
   </div>
   <span class="spacer"></span>
   @if (run().panel === 'results' && current(); as result) {
     <span class="info">
-      {{ result.rows.length.toLocaleString() }}{{ result.hasMore ? '+' : '' }} rows · {{ result.durationMs.toLocaleString() }} ms
+      {{ result.rows.length.toLocaleString() }}{{ result.hasMore ? '+' : '' }} rows ·
+      {{ result.durationMs.toLocaleString() }} ms
     </span>
     @if (result.canFetchMore) {
-      <button class="btn sm" (click)="fetchMore(result)" [disabled]="fetching()">{{ fetching() ? 'Fetching…' : 'Fetch more' }}</button>
+      <button class="btn sm" (click)="fetchMore(result)" [disabled]="fetching()">
+        {{ fetching() ? 'Fetching…' : 'Fetch more' }}
+      </button>
     }
     <button class="btn sm" (click)="openMenu($event, 'copy')">Copy ▾</button>
     <button class="btn sm" (click)="openMenu($event, 'export')">Export ▾</button>
@@ -37,7 +66,10 @@
       } @else if (!run().running) {
         <div class="empty">
           <p>Run a query to see results here.</p>
-          <p class="faint"><span class="kbd">{{ modifierKey }}↵</span> runs the statement at the cursor &nbsp;·&nbsp; <span class="kbd">{{ modifierKey }}⇧↵</span> runs the whole script</p>
+          <p class="faint">
+            <span class="kbd">{{ modifierKey }}↵</span> runs the statement at the cursor
+            &nbsp;·&nbsp; <span class="kbd">{{ modifierKey }}⇧↵</span> runs the whole script
+          </p>
         </div>
       }
     }
@@ -48,7 +80,9 @@
             <span class="time faint">{{ message.time | date: 'HH:mm:ss' }}</span>
             <div class="txt">
               <div>{{ message.text }}</div>
-              @if (message.statement) { <pre>{{ message.statement }}</pre> }
+              @if (message.statement) {
+                <pre>{{ message.statement }}</pre>
+              }
             </div>
           </div>
         } @empty {
@@ -64,17 +98,26 @@
     <div class="running">
       <span class="spinner" aria-hidden="true"></span>
       <span>Running…</span>
-      <button class="btn sm" (click)="runStore.cancel(tabId())">Cancel <span class="kbd">Esc</span></button>
+      <button class="btn sm" (click)="runStore.cancel(tabId())">
+        Cancel <span class="kbd">Esc</span>
+      </button>
     </div>
   }
 </div>
 
 @if (menu(); as menuPosition) {
-  <div class="menu" [style.left.px]="menuPosition.x" [style.top.px]="menuPosition.y" (dmClickOutside)="menu.set(null)">
+  <div
+    class="menu"
+    [style.left.px]="menuPosition.x"
+    [style.top.px]="menuPosition.y"
+    (dmClickOutside)="menu.set(null)"
+  >
     @if (menuPosition.kind === 'copy') {
       <div class="menu-label">Copy all rows</div>
       @for (format of copyFormats; track format.id) {
-        <button class="menu-item" (click)="copy('all', format.id)">{{ format.label }}<span class="hint">{{ hint(format.id) }}</span></button>
+        <button class="menu-item" (click)="copy('all', format.id)">
+          {{ format.label }}<span class="hint">{{ hint(format.id) }}</span>
+        </button>
       }
       <div class="menu-sep"></div>
       <div class="menu-label">Copy selected rows</div>
@@ -82,7 +125,9 @@
         <button class="menu-item" (click)="copy('selected', format.id)">{{ format.label }}</button>
       }
       <div class="menu-sep"></div>
-      <button class="menu-item" (click)="copyColumns()">Copy column names<span class="hint">{{ modifierKey }}C</span></button>
+      <button class="menu-item" (click)="copyColumns()">
+        Copy column names<span class="hint">{{ modifierKey }}C</span>
+      </button>
     } @else {
       <button class="menu-item" (click)="export('csv')">Export as CSV…</button>
       <button class="menu-item" (click)="export('json')">Export as JSON…</button>

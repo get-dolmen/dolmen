@@ -1,7 +1,27 @@
-import { Component, ElementRef, OnDestroy, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  OnDestroy,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AgGridAngular } from 'ag-grid-angular';
-import type { CellClassParams, CellContextMenuEvent, CellKeyDownEvent, ColDef, FullWidthCellKeyDownEvent, GridApi, GridReadyEvent, ValueSetterParams } from 'ag-grid-community';
+import type {
+  CellClassParams,
+  CellContextMenuEvent,
+  CellKeyDownEvent,
+  ColDef,
+  FullWidthCellKeyDownEvent,
+  GridApi,
+  GridReadyEvent,
+  ValueSetterParams,
+} from 'ag-grid-community';
 import { Api, errorText } from '../../core/api';
 import { Commands } from '../../core/commands';
 import { ConnectionStore } from '../../core/connection.store';
@@ -18,7 +38,14 @@ import { ClickOutside, clampMenu } from '../../shared/click-outside';
 import { displayCell, gridTheme } from '../results/result-grid';
 import { COPY_FORMATS, formatRows, type CopyFormat } from '../results/copy';
 import { CellRangeSelection, rangeClassRules } from '../../shared/cell-range';
-import { buildChanges, isChanged, normalizeEdit, previewSQL, rowChanged, type GridRow } from './changes';
+import {
+  buildChanges,
+  isChanged,
+  normalizeEdit,
+  previewSQL,
+  rowChanged,
+  type GridRow,
+} from './changes';
 import { ColumnHeader, type ColumnHeaderParams } from './column-header';
 
 const PAGE_SIZES = [100, 500, 1000];
@@ -61,7 +88,13 @@ export class TableData implements TableHandle, OnDestroy {
   public readonly searchOpen = signal(false);
   public readonly quickFilter = signal('');
   public readonly copyMenu = signal<{ x: number; y: number } | null>(null);
-  public readonly cellMenu = signal<{ x: number; y: number; row: GridRow; colIndex: number; value: Cell | undefined } | null>(null);
+  public readonly cellMenu = signal<{
+    x: number;
+    y: number;
+    row: GridRow;
+    colIndex: number;
+    value: Cell | undefined;
+  } | null>(null);
   public readonly sizeMenu = signal<{ x: number; y: number } | null>(null);
   public readonly copyFormats = COPY_FORMATS;
   public readonly totalCount = signal<number | null>(null);
@@ -86,7 +119,8 @@ export class TableData implements TableHandle, OnDestroy {
 
   public readonly pending = computed(() => {
     this.editVersion();
-    return this.rows.filter((row) => row.isNew || this.deletedRowIds.has(row.id) || rowChanged(row)).length;
+    return this.rows.filter((row) => row.isNew || this.deletedRowIds.has(row.id) || rowChanged(row))
+      .length;
   });
 
   public readonly preview = computed(() => {
@@ -96,7 +130,9 @@ export class TableData implements TableHandle, OnDestroy {
     if (!page || !table) return [];
     const kind = this.connectionKind();
     const changes = buildChanges(page.columns, this.rows, this.deletedRowIds);
-    return previewSQL(changes, qualified(kind, table.schema, table.name), (name) => quoteIdentifier(kind, name));
+    return previewSQL(changes, qualified(kind, table.schema, table.name), (name) =>
+      quoteIdentifier(kind, name),
+    );
   });
 
   public readonly rangeLabel = computed(() => {
@@ -124,7 +160,8 @@ export class TableData implements TableHandle, OnDestroy {
   public readonly rowId = (params: { data: GridRow }) => params.data.id;
   public readonly rowClassRules = {
     'row-new': (params: { data?: GridRow }) => !!params.data?.isNew,
-    'row-deleted': (params: { data?: GridRow }) => !!params.data && this.deletedRowIds.has(params.data.id),
+    'row-deleted': (params: { data?: GridRow }) =>
+      !!params.data && this.deletedRowIds.has(params.data.id),
   };
 
   public constructor() {
@@ -163,8 +200,12 @@ export class TableData implements TableHandle, OnDestroy {
     this.startAutoRefresh();
   }
 
-  public intervalLabel(seconds: number) { return seconds === 60 ? 'minute' : `${seconds} s`; }
-  public autoRefreshLabel() { return this.intervalLabel(this.refreshSeconds()); }
+  public intervalLabel(seconds: number) {
+    return seconds === 60 ? 'minute' : `${seconds} s`;
+  }
+  public autoRefreshLabel() {
+    return this.intervalLabel(this.refreshSeconds());
+  }
 
   private startAutoRefresh() {
     this.stopAutoRefresh();
@@ -185,7 +226,9 @@ export class TableData implements TableHandle, OnDestroy {
     const selectedRowIds = new Set((this.gridApi?.getSelectedRows() ?? []).map((row) => row.id));
     await this.reload(this.offset(), true);
     if (selectedRowIds.size) {
-      this.gridApi?.forEachNode((node) => node.setSelected(!!node.data && selectedRowIds.has(node.data.id)));
+      this.gridApi?.forEachNode((node) =>
+        node.setSelected(!!node.data && selectedRowIds.has(node.data.id)),
+      );
     }
   }
 
@@ -201,7 +244,9 @@ export class TableData implements TableHandle, OnDestroy {
     this.sizeMenu.set(clampMenu(bounds.right - 140, bounds.bottom + 4, 140, height));
   }
 
-  public refresh() { void this.reload(this.offset()); }
+  public refresh() {
+    void this.reload(this.offset());
+  }
 
   public onOrderByEnter() {
     this.sortState.set(null);
@@ -211,16 +256,27 @@ export class TableData implements TableHandle, OnDestroy {
   private tablePageRequest(offset: number) {
     const table = this.tab().table!;
     return {
-      schema: table.schema, table: table.name, type: table.type,
-      where: this.where, orderBy: this.orderBy, offset: Math.max(0, offset), limit: this.limit(),
+      schema: table.schema,
+      table: table.name,
+      type: table.type,
+      where: this.where,
+      orderBy: this.orderBy,
+      offset: Math.max(0, offset),
+      limit: this.limit(),
     };
   }
 
   public async reload(offset: number, silent = false) {
-    if (!silent && this.pending() && !(await this.confirmDialog.ask(
-      `Discard ${this.pending()} pending change(s)?`,
-      { title: 'Discard changes', confirmLabel: 'Discard', danger: true },
-    ))) return;
+    if (
+      !silent &&
+      this.pending() &&
+      !(await this.confirmDialog.ask(`Discard ${this.pending()} pending change(s)?`, {
+        title: 'Discard changes',
+        confirmLabel: 'Discard',
+        danger: true,
+      }))
+    )
+      return;
     const tab = this.tab();
     if (!tab.table) return;
     if (!(await this.connectionStore.ensureConnected(tab.connId))) return;
@@ -231,7 +287,11 @@ export class TableData implements TableHandle, OnDestroy {
     this.totalCount.set(null);
     try {
       const { page, tx: transactionStatus } = await this.api.readTable(
-        tab.id, tab.connId, tab.database, tab.txMode === 'manual', this.tablePageRequest(offset),
+        tab.id,
+        tab.connId,
+        tab.database,
+        tab.txMode === 'manual',
+        this.tablePageRequest(offset),
       );
       this.transactionStore.set(tab.id, transactionStatus);
       this.offset.set(page.offset);
@@ -254,7 +314,11 @@ export class TableData implements TableHandle, OnDestroy {
     this.error.set('');
     try {
       const { count, tx: transactionStatus } = await this.api.countTableRows(
-        tab.id, tab.connId, tab.database, tab.txMode === 'manual', this.tablePageRequest(this.offset()),
+        tab.id,
+        tab.connId,
+        tab.database,
+        tab.txMode === 'manual',
+        this.tablePageRequest(this.offset()),
       );
       this.transactionStore.set(tab.id, transactionStatus);
       this.totalCount.set(count);
@@ -268,7 +332,12 @@ export class TableData implements TableHandle, OnDestroy {
   private setPage(page: TablePage) {
     this.page.set(page);
     this.deletedRowIds = new Set();
-    this.rows = page.rows.map((cells, index) => ({ id: `o${index}`, isNew: false, orig: cells, cells: [...cells] }));
+    this.rows = page.rows.map((cells, index) => ({
+      id: `o${index}`,
+      isNew: false,
+      orig: cells,
+      cells: [...cells],
+    }));
     this.gridApi?.setGridOption('columnDefs', this.columnDefinitions(page));
     this.gridApi?.setGridOption('rowData', this.rows);
     this.editVersion.update((version) => version + 1);
@@ -276,38 +345,61 @@ export class TableData implements TableHandle, OnDestroy {
 
   private columnDefinitions(page: TablePage): ColDef<GridRow>[] {
     const rowNumberColumn: ColDef<GridRow> = {
-      colId: '__row', headerName: '', width: 52, pinned: 'left', resizable: false, editable: false, cellClass: 'rownum',
+      colId: '__row',
+      headerName: '',
+      width: 52,
+      pinned: 'left',
+      resizable: false,
+      editable: false,
+      cellClass: 'rownum',
       // Numbered from the page position, so rows added on top do not shift the numbers.
-      valueGetter: (params) => (!params.data
-        ? ''
-        : params.data.isNew ? '+' : Number(params.data.id.slice(1)) + 1 + this.offset()),
+      valueGetter: (params) =>
+        !params.data
+          ? ''
+          : params.data.isNew
+            ? '+'
+            : Number(params.data.id.slice(1)) + 1 + this.offset(),
     };
-    return [rowNumberColumn, ...page.columns.map((column, columnIndex): ColDef<GridRow> => ({
-      colId: `c${columnIndex}`,
-      headerName: column.name,
-      headerComponent: ColumnHeader,
-      headerComponentParams: {
-        column,
-        sort: () => (this.sortState()?.col === column.name ? this.sortState()!.dir : null),
-        onSort: () => this.sortBy(column.name),
-        onFilter: () => this.filterByColumn(column.name),
-      } satisfies ColumnHeaderParams,
-      width: this.columnWidth(column.name, page.rows, columnIndex),
-      valueGetter: (params) => params.data?.cells[columnIndex],
-      valueSetter: (params: ValueSetterParams<GridRow>) => this.setCell(params.data, columnIndex, params.newValue),
-      valueFormatter: (params) => (params.value === undefined ? 'DEFAULT' : displayCell(params.value as Cell)),
-      editable: (params) => page.editable && column.editable && !!params.data
-        && !this.deletedRowIds.has(params.data.id),
-      cellClass: (params: CellClassParams<GridRow>) => [
-        params.value === null ? 'null'
-          : params.value === undefined ? 'default'
-            : typeof params.value === 'number' ? 'num' : '',
-        params.data && isChanged(params.data, columnIndex) ? 'changed' : '',
-      ].filter(Boolean),
-      tooltipValueGetter: (params) => (typeof params.value === 'string' && params.value.length > 60
-        ? params.value.slice(0, 2000)
-        : undefined),
-    }))];
+    return [
+      rowNumberColumn,
+      ...page.columns.map((column, columnIndex): ColDef<GridRow> => ({
+        colId: `c${columnIndex}`,
+        headerName: column.name,
+        headerComponent: ColumnHeader,
+        headerComponentParams: {
+          column,
+          sort: () => (this.sortState()?.col === column.name ? this.sortState()!.dir : null),
+          onSort: () => this.sortBy(column.name),
+          onFilter: () => this.filterByColumn(column.name),
+        } satisfies ColumnHeaderParams,
+        width: this.columnWidth(column.name, page.rows, columnIndex),
+        valueGetter: (params) => params.data?.cells[columnIndex],
+        valueSetter: (params: ValueSetterParams<GridRow>) =>
+          this.setCell(params.data, columnIndex, params.newValue),
+        valueFormatter: (params) =>
+          params.value === undefined ? 'DEFAULT' : displayCell(params.value as Cell),
+        editable: (params) =>
+          page.editable &&
+          column.editable &&
+          !!params.data &&
+          !this.deletedRowIds.has(params.data.id),
+        cellClass: (params: CellClassParams<GridRow>) =>
+          [
+            params.value === null
+              ? 'null'
+              : params.value === undefined
+                ? 'default'
+                : typeof params.value === 'number'
+                  ? 'num'
+                  : '',
+            params.data && isChanged(params.data, columnIndex) ? 'changed' : '',
+          ].filter(Boolean),
+        tooltipValueGetter: (params) =>
+          typeof params.value === 'string' && params.value.length > 60
+            ? params.value.slice(0, 2000)
+            : undefined,
+      })),
+    ];
   }
 
   /** Estimated width of a column from its name and its first values. */
@@ -319,7 +411,8 @@ export class TableData implements TableHandle, OnDestroy {
   /** Header sort cycles ascending → descending → none, and sorts in the database. */
   private sortBy(columnName: string) {
     const current = this.sortState();
-    const nextDirection = current?.col !== columnName ? 'asc' : current.dir === 'asc' ? 'desc' : null;
+    const nextDirection =
+      current?.col !== columnName ? 'asc' : current.dir === 'asc' ? 'desc' : null;
     this.sortState.set(nextDirection ? { col: columnName, dir: nextDirection } : null);
     this.orderBy = nextDirection
       ? `${quoteIdentifier(this.connectionKind(), columnName)} ${nextDirection.toUpperCase()}`
@@ -352,7 +445,10 @@ export class TableData implements TableHandle, OnDestroy {
     const page = this.page();
     if (!page?.editable) return;
     const row: GridRow = {
-      id: `n${++this.newRowSequence}`, isNew: true, orig: [], cells: page.columns.map(() => undefined),
+      id: `n${++this.newRowSequence}`,
+      isNew: true,
+      orig: [],
+      cells: page.columns.map(() => undefined),
     };
     // New rows go on top, where they are visible, and editing starts right away.
     this.rows.unshift(row);
@@ -406,9 +502,10 @@ export class TableData implements TableHandle, OnDestroy {
     if (!gridApi || !focusedCell || focusedCell.column.getColId() === '__row') return;
     const node = gridApi.getDisplayedRowAtIndex(focusedCell.rowIndex);
     const columnDefinition = focusedCell.column.getColDef();
-    const editable = typeof columnDefinition.editable === 'function'
-      ? columnDefinition.editable({ data: node?.data } as never)
-      : columnDefinition.editable;
+    const editable =
+      typeof columnDefinition.editable === 'function'
+        ? columnDefinition.editable({ data: node?.data } as never)
+        : columnDefinition.editable;
     if (!node?.data || !editable) return;
     node.setDataValue(focusedCell.column, null);
   }
@@ -423,7 +520,9 @@ export class TableData implements TableHandle, OnDestroy {
     this.previewOpen.update((open) => !open);
   }
 
-  public copyPreview() { void this.commandService.copy(this.preview().join('\n\n')); }
+  public copyPreview() {
+    void this.commandService.copy(this.preview().join('\n\n'));
+  }
 
   public toggleSearch() {
     const open = !this.searchOpen();
@@ -454,7 +553,9 @@ export class TableData implements TableHandle, OnDestroy {
       ? block.rows
       : this.selectedRows().map((row) => row.cells.map((cell) => cell ?? null) as Cell[]);
     if (!rows.length) return;
-    void this.commandService.copy(formatRows(format, block ? block.columns : page.columns, rows, true));
+    void this.commandService.copy(
+      formatRows(format, block ? block.columns : page.columns, rows, true),
+    );
   }
 
   public openCopyMenu(event: MouseEvent) {
@@ -481,7 +582,9 @@ export class TableData implements TableHandle, OnDestroy {
     });
   }
 
-  public selectedCount(): number { return this.selectedRows().length; }
+  public selectedCount(): number {
+    return this.selectedRows().length;
+  }
 
   /**
    * Rows covered by the drag selection, or else the grid's selected rows
@@ -516,7 +619,9 @@ export class TableData implements TableHandle, OnDestroy {
     const rows = this.selectedRows();
     if (!rows.length) return null;
     const selectedIndexes = this.selectedColumnIndexes();
-    const columnIndexes = selectedIndexes.length ? selectedIndexes : page.columns.map((_, index) => index);
+    const columnIndexes = selectedIndexes.length
+      ? selectedIndexes
+      : page.columns.map((_, index) => index);
     return {
       columns: columnIndexes.map((index) => page.columns[index]),
       rows: rows.map((row) => columnIndexes.map((index) => (row.cells[index] ?? null) as Cell)),
@@ -526,7 +631,9 @@ export class TableData implements TableHandle, OnDestroy {
   public onCellKeyDown(event: CellKeyDownEvent<GridRow> | FullWidthCellKeyDownEvent<GridRow>) {
     const keyboardEvent = event.event as KeyboardEvent | undefined;
     if (!('column' in event) || !keyboardEvent) return;
-    const copyKey = keyboardEvent.key.toLowerCase() === 'c' && (isMac ? keyboardEvent.metaKey : keyboardEvent.ctrlKey);
+    const copyKey =
+      keyboardEvent.key.toLowerCase() === 'c' &&
+      (isMac ? keyboardEvent.metaKey : keyboardEvent.ctrlKey);
     if (!copyKey) return;
     keyboardEvent.preventDefault();
     const block = this.selectedBlock();
@@ -550,8 +657,13 @@ export class TableData implements TableHandle, OnDestroy {
   private isCellEditable() {
     const menu = this.cellMenu();
     const column = this.contextMenuColumn();
-    return !!menu && !!column && !!this.page()?.editable && column.editable
-      && !this.deletedRowIds.has(menu.row.id);
+    return (
+      !!menu &&
+      !!column &&
+      !!this.page()?.editable &&
+      column.editable &&
+      !this.deletedRowIds.has(menu.row.id)
+    );
   }
 
   public canSetCellNull() {
@@ -573,7 +685,9 @@ export class TableData implements TableHandle, OnDestroy {
     const menu = this.cellMenu();
     if (!menu || menu.colIndex < 0) return;
     this.cellMenu.set(null);
-    void this.commandService.copy(menu.value === null || menu.value === undefined ? '' : String(menu.value));
+    void this.commandService.copy(
+      menu.value === null || menu.value === undefined ? '' : String(menu.value),
+    );
   }
 
   public copyCellColumn() {
@@ -605,7 +719,8 @@ export class TableData implements TableHandle, OnDestroy {
     let condition: string;
     if (menu.value === null) condition = `${identifier} IS NULL`;
     else if (typeof menu.value === 'number') condition = `${identifier} = ${menu.value}`;
-    else if (typeof menu.value === 'boolean') condition = `${identifier} = ${menu.value ? 'TRUE' : 'FALSE'}`;
+    else if (typeof menu.value === 'boolean')
+      condition = `${identifier} = ${menu.value ? 'TRUE' : 'FALSE'}`;
     else condition = `${identifier} = '${String(menu.value).replace(/'/g, "''")}'`;
     this.where = condition;
     this.cellMenu.set(null);
@@ -662,7 +777,10 @@ export class TableData implements TableHandle, OnDestroy {
     try {
       const manual = tab.txMode === 'manual';
       const { result, tx: transactionStatus } = await this.api.applyTableChanges(
-        tab.id, tab.connId, tab.database, manual,
+        tab.id,
+        tab.connId,
+        tab.database,
+        manual,
         { schema: tab.table.schema, table: tab.table.name, changes },
       );
       this.transactionStore.set(tab.id, transactionStatus);

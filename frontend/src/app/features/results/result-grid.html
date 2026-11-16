@@ -4,7 +4,12 @@
   [columnDefs]="[]"
   [rowData]="[]"
   [defaultColDef]="defaultColumnDefinition"
-  [rowSelection]="{ mode: 'multiRow', checkboxes: false, headerCheckbox: false, enableClickSelection: true }"
+  [rowSelection]="{
+    mode: 'multiRow',
+    checkboxes: false,
+    headerCheckbox: false,
+    enableClickSelection: true,
+  }"
   [suppressDragLeaveHidesColumns]="true"
   [enableCellTextSelection]="false"
   [tooltipShowDelay]="400"

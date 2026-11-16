@@ -46,7 +46,16 @@ const byLabel = (first: { label: string }, second: { label: string }) =>
 /** An empty folder node, filled in by the caller. */
 function emptyFolder(key: string, level: FolderNode['level'], label: string): FolderNode {
   return {
-    kind: 'folder', key, level, label, connId: '', database: '', schema: '', table: '', children: [], count: 0,
+    kind: 'folder',
+    key,
+    level,
+    label,
+    connId: '',
+    database: '',
+    schema: '',
+    table: '',
+    children: [],
+    count: 0,
   };
 }
 
@@ -56,12 +65,16 @@ function emptyFolder(key: string, level: FolderNode['level'], label: string): Fo
  * connection no longer exists go to "No connection".
  */
 export function buildScratchTree(scratches: ScratchInfo[], context: TreeContext): FolderNode[] {
-  const connectionsById = new Map(context.connections.map((connection) => [connection.id, connection]));
+  const connectionsById = new Map(
+    context.connections.map((connection) => [connection.id, connection]),
+  );
   const roots = new Map<string, FolderNode>();
   const orphansFolder = emptyFolder('none', 'none', 'No connection');
 
   const childFolder = (parent: FolderNode, key: string, create: () => FolderNode): FolderNode => {
-    const existing = parent.children.find((child): child is FolderNode => child.kind === 'folder' && child.key === key);
+    const existing = parent.children.find(
+      (child): child is FolderNode => child.kind === 'folder' && child.key === key,
+    );
     if (existing) return existing;
     const created = create();
     parent.children.push(created);
@@ -79,7 +92,8 @@ export function buildScratchTree(scratches: ScratchInfo[], context: TreeContext)
     if (!connectionFolder) {
       connectionFolder = {
         ...emptyFolder(`c:${connection.id}`, 'conn', connection.name),
-        color: connection.color, connId: connection.id,
+        color: connection.color,
+        connId: connection.id,
       };
       roots.set(connection.id, connectionFolder);
     }
@@ -89,11 +103,15 @@ export function buildScratchTree(scratches: ScratchInfo[], context: TreeContext)
     const databaseLabel = isOwnDatabase
       ? ownDatabaseLabel(connection, currentDatabase)
       : scratch.database!;
-    const databaseFolder = childFolder(connectionFolder, `d:${connection.id}:${databaseLabel}`, () => ({
-      ...emptyFolder(`d:${connection.id}:${databaseLabel}`, 'db', databaseLabel),
-      connId: connection.id,
-      database: isOwnDatabase ? '' : scratch.database!,
-    }));
+    const databaseFolder = childFolder(
+      connectionFolder,
+      `d:${connection.id}:${databaseLabel}`,
+      () => ({
+        ...emptyFolder(`d:${connection.id}:${databaseLabel}`, 'db', databaseLabel),
+        connId: connection.id,
+        database: isOwnDatabase ? '' : scratch.database!,
+      }),
+    );
     let parentFolder = databaseFolder;
     if (scratch.table) {
       const tableKey = `t:${databaseFolder.key}:${scratch.schema ?? ''}.${scratch.table}`;
@@ -113,19 +131,27 @@ export function buildScratchTree(scratches: ScratchInfo[], context: TreeContext)
   }
 
   const sortTree = (folder: FolderNode) => {
-    const folders = folder.children.filter((child): child is FolderNode => child.kind === 'folder').sort(byLabel);
+    const folders = folder.children
+      .filter((child): child is FolderNode => child.kind === 'folder')
+      .sort(byLabel);
     const files = folder.children
       .filter((child): child is FileNode => child.kind === 'file')
-      .sort((first, second) => first.scratch.name.localeCompare(
-        second.scratch.name, undefined, { numeric: true, sensitivity: 'base' },
-      ));
+      .sort((first, second) =>
+        first.scratch.name.localeCompare(second.scratch.name, undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        }),
+      );
     folders.forEach(sortTree);
     folder.children = [...folders, ...files];
   };
   // Connections keep the explorer's order.
-  const connectionOrder = new Map(context.connections.map((connection, index) => [connection.id, index]));
+  const connectionOrder = new Map(
+    context.connections.map((connection, index) => [connection.id, index]),
+  );
   const sortedRoots = [...roots.values()].sort(
-    (first, second) => (connectionOrder.get(first.connId) ?? 0) - (connectionOrder.get(second.connId) ?? 0),
+    (first, second) =>
+      (connectionOrder.get(first.connId) ?? 0) - (connectionOrder.get(second.connId) ?? 0),
   );
   if (orphansFolder.children.length) sortedRoots.push(orphansFolder);
   sortedRoots.forEach(sortTree);
@@ -145,9 +171,10 @@ export function flattenTree(
   filter = '',
 ): FlatRow[] {
   const searchText = filter.trim().toLowerCase();
-  const matchesFilter = (scratch: ScratchInfo) => !searchText
-    || scratch.name.toLowerCase().includes(searchText)
-    || (scratch.preview ?? '').toLowerCase().includes(searchText);
+  const matchesFilter = (scratch: ScratchInfo) =>
+    !searchText ||
+    scratch.name.toLowerCase().includes(searchText) ||
+    (scratch.preview ?? '').toLowerCase().includes(searchText);
   const rows: FlatRow[] = [];
   const walk = (node: TreeNode, depth: number): boolean => {
     if (node.kind === 'file') {

@@ -9,7 +9,11 @@ export interface GridRow {
 }
 
 /** Keeps the original value when an edit only changes its text form ("36" for 36). */
-export function normalizeEdit(row: GridRow, columnIndex: number, value: Cell | undefined): Cell | undefined {
+export function normalizeEdit(
+  row: GridRow,
+  columnIndex: number,
+  value: Cell | undefined,
+): Cell | undefined {
   if (row.isNew || value === null || value === undefined) return value;
   const original = row.orig[columnIndex];
   return original !== null && String(original) === String(value) ? original : value;
@@ -25,9 +29,11 @@ export function rowChanged(row: GridRow): boolean {
 
 /** The primary key of a row, as a column → value object. */
 function primaryKey(columns: TableColumn[], row: GridRow): Record<string, Cell> {
-  return Object.fromEntries(columns.flatMap((column, columnIndex) => (
-    column.pk ? [[column.name, row.orig[columnIndex]]] : []
-  )));
+  return Object.fromEntries(
+    columns.flatMap((column, columnIndex) =>
+      column.pk ? [[column.name, row.orig[columnIndex]]] : [],
+    ),
+  );
 }
 
 /** Turns the grid state into the change list sent to the backend. */
@@ -71,21 +77,24 @@ export function previewSQL(
   target: string,
   quoteIdentifier: (name: string) => string,
 ): string[] {
-  const whereClause = (key: Record<string, Cell> = {}) => Object.entries(key)
-    .map(([columnName, value]) => `${quoteIdentifier(columnName)} = ${literal(value)}`)
-    .join(' AND ');
+  const whereClause = (key: Record<string, Cell> = {}) =>
+    Object.entries(key)
+      .map(([columnName, value]) => `${quoteIdentifier(columnName)} = ${literal(value)}`)
+      .join(' AND ');
   return changes.map((change) => {
     const values = Object.entries(change.values ?? {});
     switch (change.op) {
       case 'insert':
         return values.length
-          ? `INSERT INTO ${target} (${values.map(([columnName]) => quoteIdentifier(columnName)).join(', ')})\n`
-            + `VALUES (${values.map(([, value]) => literal(value)).join(', ')});`
+          ? `INSERT INTO ${target} (${values.map(([columnName]) => quoteIdentifier(columnName)).join(', ')})\n` +
+              `VALUES (${values.map(([, value]) => literal(value)).join(', ')});`
           : `INSERT INTO ${target} DEFAULT VALUES;`;
       case 'update':
-        return `UPDATE ${target}\n`
-          + `SET ${values.map(([columnName, value]) => `${quoteIdentifier(columnName)} = ${literal(value)}`).join(', ')}\n`
-          + `WHERE ${whereClause(change.key)};`;
+        return (
+          `UPDATE ${target}\n` +
+          `SET ${values.map(([columnName, value]) => `${quoteIdentifier(columnName)} = ${literal(value)}`).join(', ')}\n` +
+          `WHERE ${whereClause(change.key)};`
+        );
       case 'delete':
         return `DELETE FROM ${target}\nWHERE ${whereClause(change.key)};`;
     }

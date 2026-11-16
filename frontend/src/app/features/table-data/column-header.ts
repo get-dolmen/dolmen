@@ -24,8 +24,13 @@ export class ColumnHeader implements IHeaderAngularComp {
   public readonly sortDirection = signal<'asc' | 'desc' | null>(null);
   private headerParams?: IHeaderParams & ColumnHeaderParams;
 
-  public agInit(params: IHeaderParams & ColumnHeaderParams) { this.applyParams(params); }
-  public refresh(params: IHeaderParams & ColumnHeaderParams) { this.applyParams(params); return true; }
+  public agInit(params: IHeaderParams & ColumnHeaderParams) {
+    this.applyParams(params);
+  }
+  public refresh(params: IHeaderParams & ColumnHeaderParams) {
+    this.applyParams(params);
+    return true;
+  }
 
   private applyParams(params: IHeaderParams & ColumnHeaderParams) {
     this.headerParams = params;

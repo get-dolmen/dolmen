@@ -1,4 +1,13 @@
-import { Component, DestroyRef, ElementRef, computed, inject, input, output, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { clampMenu } from './click-outside';
 import { Icon } from './icon';
 
@@ -37,7 +46,9 @@ export class Select {
   public readonly focus = signal(0);
   public readonly position = signal({ x: 0, y: 0 });
   public readonly width = signal(0);
-  public readonly currentOption = computed(() => this.options().find((option) => option.value === this.value()));
+  public readonly currentOption = computed(() =>
+    this.options().find((option) => option.value === this.value()),
+  );
 
   private elementRef = inject<ElementRef<HTMLElement>>(ElementRef);
 
@@ -63,11 +74,17 @@ export class Select {
     const height = Math.min(220, this.options().length * 26 + 8);
     // Open upwards when the list does not fit below but does above.
     const spaceBelow = window.innerHeight - bounds.bottom - 8;
-    const top = spaceBelow >= height || bounds.top < height ? bounds.bottom + 4 : bounds.top - height - 4;
+    const top =
+      spaceBelow >= height || bounds.top < height ? bounds.bottom + 4 : bounds.top - height - 4;
     const width = Math.max(bounds.width, 190);
     this.width.set(width);
     this.position.set(clampMenu(bounds.left, top, width, height));
-    this.focus.set(Math.max(0, this.options().findIndex((option) => option.value === this.value())));
+    this.focus.set(
+      Math.max(
+        0,
+        this.options().findIndex((option) => option.value === this.value()),
+      ),
+    );
     this.open.set(true);
   }
 
@@ -79,17 +96,34 @@ export class Select {
   public onKey(event: KeyboardEvent) {
     const options = this.options();
     if (!this.open()) {
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter' || event.key === ' ') {
+      if (
+        event.key === 'ArrowDown' ||
+        event.key === 'ArrowUp' ||
+        event.key === 'Enter' ||
+        event.key === ' '
+      ) {
         event.preventDefault();
         this.show();
       }
       return;
     }
     switch (event.key) {
-      case 'ArrowDown': event.preventDefault(); this.focus.set(Math.min(options.length - 1, this.focus() + 1)); break;
-      case 'ArrowUp': event.preventDefault(); this.focus.set(Math.max(0, this.focus() - 1)); break;
-      case 'Home': event.preventDefault(); this.focus.set(0); break;
-      case 'End': event.preventDefault(); this.focus.set(options.length - 1); break;
+      case 'ArrowDown':
+        event.preventDefault();
+        this.focus.set(Math.min(options.length - 1, this.focus() + 1));
+        break;
+      case 'ArrowUp':
+        event.preventDefault();
+        this.focus.set(Math.max(0, this.focus() - 1));
+        break;
+      case 'Home':
+        event.preventDefault();
+        this.focus.set(0);
+        break;
+      case 'End':
+        event.preventDefault();
+        this.focus.set(options.length - 1);
+        break;
       case 'Enter':
       case ' ': {
         event.preventDefault();
@@ -97,8 +131,13 @@ export class Select {
         if (option) this.choose(option);
         break;
       }
-      case 'Escape': event.preventDefault(); this.close(); break;
-      case 'Tab': this.close(); break;
+      case 'Escape':
+        event.preventDefault();
+        this.close();
+        break;
+      case 'Tab':
+        this.close();
+        break;
     }
   }
 

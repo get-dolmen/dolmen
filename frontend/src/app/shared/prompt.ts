@@ -16,9 +16,19 @@ export interface PromptOptions {
   imports: [Autofocus],
   templateUrl: './prompt.html',
   styles: `
-    .prompt { width: 100%; }
-    .field { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-sm); color: var(--text-muted); }
-    .spacer { flex: 1; }
+    .prompt {
+      width: 100%;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+    }
+    .spacer {
+      flex: 1;
+    }
   `,
 })
 export class PromptDialog {

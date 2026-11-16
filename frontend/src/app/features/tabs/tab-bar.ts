@@ -32,9 +32,11 @@ export class TabBar {
   public readonly transactionMenu = signal<{ x: number; y: number } | null>(null);
   public readonly databaseMenu = signal<{ x: number; y: number } | null>(null);
   public readonly activeTab = computed(() => this.tabStore.active());
-  public readonly transactionState = computed(() => this.transactionStore.get(this.tabStore.activeId()));
-  public readonly startedAtLabel = computed(
-    () => new Date(this.transactionState().startedAt).toLocaleTimeString(),
+  public readonly transactionState = computed(() =>
+    this.transactionStore.get(this.tabStore.activeId()),
+  );
+  public readonly startedAtLabel = computed(() =>
+    new Date(this.transactionState().startedAt).toLocaleTimeString(),
   );
   public readonly readOnly = computed(
     () => !!this.connectionStore.get(this.tabStore.active()?.connId)?.readOnly,
@@ -86,7 +88,9 @@ export class TabBar {
     this.tabStore.setConnection(tab.id, tab.connId, nextDatabase);
   }
 
-  public connectionColor(tab: EditorTab) { return this.connectionStore.get(tab.connId)?.color ?? null; }
+  public connectionColor(tab: EditorTab) {
+    return this.connectionStore.get(tab.connId)?.color ?? null;
+  }
 
   /** "connection" or "connection/database" for data tabs. */
   public locationLabel(tab: EditorTab) {
@@ -94,7 +98,9 @@ export class TabBar {
     return tab.database ? `${connectionName}/${tab.database}` : connectionName;
   }
 
-  public isRunning(tab: EditorTab) { return !!this.runStore.runs()[tab.id]?.running; }
+  public isRunning(tab: EditorTab) {
+    return !!this.runStore.runs()[tab.id]?.running;
+  }
 
   public tooltip(tab: EditorTab) {
     const connection = this.connectionStore.get(tab.connId);
@@ -123,19 +129,27 @@ export class TabBar {
     if (!menu) return;
     const tabId = menu.tab.id;
     switch (action) {
-      case 'rename': return this.editingTabId.set(tabId);
-      case 'save': return void this.scratchStore.save(tabId);
-      case 'export': return void this.scratchStore.exportFile(tabId);
-      case 'duplicate': return void this.scratchStore.duplicate(tabId);
-      case 'close': return void this.commandService.closeTab(tabId);
+      case 'rename':
+        return this.editingTabId.set(tabId);
+      case 'save':
+        return void this.scratchStore.save(tabId);
+      case 'export':
+        return void this.scratchStore.exportFile(tabId);
+      case 'duplicate':
+        return void this.scratchStore.duplicate(tabId);
+      case 'close':
+        return void this.commandService.closeTab(tabId);
       case 'others':
-        for (const tab of this.tabStore.tabs()) if (tab.id !== tabId) await this.commandService.closeTab(tab.id);
+        for (const tab of this.tabStore.tabs())
+          if (tab.id !== tabId) await this.commandService.closeTab(tab.id);
         return;
-      case 'delete': return void this.scratchStore.remove(tabId);
+      case 'delete':
+        return void this.scratchStore.remove(tabId);
     }
   }
 
   public dropTab(event: CdkDragDrop<unknown>) {
-    if (event.previousIndex !== event.currentIndex) this.tabStore.move(event.previousIndex, event.currentIndex);
+    if (event.previousIndex !== event.currentIndex)
+      this.tabStore.move(event.previousIndex, event.currentIndex);
   }
 }

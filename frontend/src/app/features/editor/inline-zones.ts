@@ -1,4 +1,9 @@
-import { ApplicationRef, type ComponentRef, EnvironmentInjector, createComponent } from '@angular/core';
+import {
+  ApplicationRef,
+  type ComponentRef,
+  EnvironmentInjector,
+  createComponent,
+} from '@angular/core';
 import type { InlineBlock, RunStore, TabRun } from '../../core/run.store';
 import { INLINE_HEADER_HEIGHT, InlineResult, inlineHeight } from '../results/inline-result';
 import { monaco } from './monaco-setup';
@@ -28,7 +33,10 @@ interface BlockZone {
  * statement while the text changes, also in tabs that are not shown.
  */
 export class InlineZones {
-  private anchorsByBlockId = new Map<string, { model: monaco.editor.ITextModel; decoration: string }>();
+  private anchorsByBlockId = new Map<
+    string,
+    { model: monaco.editor.ITextModel; decoration: string }
+  >();
   private zonesByBlockId = new Map<string, BlockZone>();
   /** Heights the user set by dragging, by block id. */
   private heightsByBlockId = new Map<string, number>();
@@ -42,9 +50,11 @@ export class InlineZones {
     private environmentInjector: EnvironmentInjector,
     private modelsByTabId: Map<string, monaco.editor.ITextModel>,
   ) {
-    this.subscriptions.push(editor.onDidLayoutChange(() => {
-      for (const blockZone of this.zonesByBlockId.values()) this.placeHorizontally(blockZone);
-    }));
+    this.subscriptions.push(
+      editor.onDidLayoutChange(() => {
+        for (const blockZone of this.zonesByBlockId.values()) this.placeHorizontally(blockZone);
+      }),
+    );
     // Monaco shifts zones on its own, but splitting a statement's line keeps
     // the zone under the first half: follow the anchors instead.
     this.subscriptions.push(editor.onDidChangeModelContent(() => this.followAnchors()));
@@ -59,7 +69,9 @@ export class InlineZones {
     if (!enabled || !run || this.editor.getModel() !== this.modelsByTabId.get(tabId)) return;
 
     const wantedIds = new Set(run.inline.map((block) => block.id));
-    const removedZones = [...this.zonesByBlockId.values()].filter((blockZone) => !wantedIds.has(blockZone.block.id));
+    const removedZones = [...this.zonesByBlockId.values()].filter(
+      (blockZone) => !wantedIds.has(blockZone.block.id),
+    );
     if (removedZones.length) {
       this.editor.changeViewZones((accessor) => {
         for (const blockZone of removedZones) this.removeZone(blockZone, accessor);
@@ -75,7 +87,8 @@ export class InlineZones {
         if (blockZone.block !== block) {
           blockZone.block = block;
           blockZone.componentRef.setInput('block', block);
-          if (!this.heightsByBlockId.has(block.id)) this.resizeZone(blockZone, inlineHeight(block.result));
+          if (!this.heightsByBlockId.has(block.id))
+            this.resizeZone(blockZone, inlineHeight(block.result));
         }
       }
     }
@@ -99,7 +112,8 @@ export class InlineZones {
   public clear() {
     if (!this.zonesByBlockId.size) return;
     this.editor.changeViewZones((accessor) => {
-      for (const blockZone of [...this.zonesByBlockId.values()]) this.removeZone(blockZone, accessor);
+      for (const blockZone of [...this.zonesByBlockId.values()])
+        this.removeZone(blockZone, accessor);
     });
   }
 
@@ -129,10 +143,17 @@ export class InlineZones {
         // typed right after it (a new statement below) stays outside, where
         // an empty range would be pushed along onto the new line.
         const position = model.getPositionAt(block.offset);
-        const decoration = model.deltaDecorations([], [{
-          range: new monaco.Range(position.lineNumber, 1, position.lineNumber, position.column),
-          options: { stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges },
-        }])[0];
+        const decoration = model.deltaDecorations(
+          [],
+          [
+            {
+              range: new monaco.Range(position.lineNumber, 1, position.lineNumber, position.column),
+              options: {
+                stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+              },
+            },
+          ],
+        )[0];
         this.anchorsByBlockId.set(block.id, { model, decoration });
         freshBlocks.push(block);
       }
@@ -143,7 +164,8 @@ export class InlineZones {
         .filter((block) => block.seq < latestSequence && usedLines.has(this.lineFor(block.id)))
         .map((block) => block.id);
       // Writes the store; the effect that called us runs again with the result.
-      if (replacedBlockIds.length) queueMicrotask(() => this.runStore.dismissInline(tabId, replacedBlockIds));
+      if (replacedBlockIds.length)
+        queueMicrotask(() => this.runStore.dismissInline(tabId, replacedBlockIds));
     }
     for (const [blockId, anchor] of [...this.anchorsByBlockId]) {
       if (liveIds.has(blockId) && !anchor.model.isDisposed()) continue;
@@ -201,7 +223,9 @@ export class InlineZones {
     this.placeHorizontally(blockZone);
     this.wireEvents(blockZone);
     this.editor.addOverlayWidget(overlayWidget);
-    this.editor.changeViewZones((accessor) => { blockZone.zoneId = accessor.addZone(viewZone); });
+    this.editor.changeViewZones((accessor) => {
+      blockZone.zoneId = accessor.addZone(viewZone);
+    });
     this.zonesByBlockId.set(block.id, blockZone);
   }
 
@@ -223,13 +247,16 @@ export class InlineZones {
   private placeHorizontally(blockZone: BlockZone) {
     const layoutInfo = this.editor.getLayoutInfo();
     blockZone.element.style.left = `${layoutInfo.contentLeft}px`;
-    const width = layoutInfo.width - layoutInfo.contentLeft - layoutInfo.verticalScrollbarWidth - 16;
+    const width =
+      layoutInfo.width - layoutInfo.contentLeft - layoutInfo.verticalScrollbarWidth - 16;
     blockZone.element.style.width = `${Math.max(200, width)}px`;
   }
 
   private wireEvents(blockZone: BlockZone) {
     const blockId = blockZone.block.id;
-    blockZone.componentRef.instance.closed.subscribe(() => this.runStore.dismissInline(this.currentTabId, [blockId]));
+    blockZone.componentRef.instance.closed.subscribe(() =>
+      this.runStore.dismissInline(this.currentTabId, [blockId]),
+    );
     blockZone.componentRef.instance.resetHeight.subscribe(() => {
       this.heightsByBlockId.delete(blockId);
       this.resizeZone(blockZone, inlineHeight(blockZone.block.result));
@@ -243,7 +270,10 @@ export class InlineZones {
       document.body.style.cursor = 'row-resize';
       const onPointerMove = (moveEvent: PointerEvent) => {
         const height = Math.round(
-          Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, startHeight + moveEvent.clientY - startClientY)),
+          Math.min(
+            MAX_HEIGHT,
+            Math.max(MIN_HEIGHT, startHeight + moveEvent.clientY - startClientY),
+          ),
         );
         this.heightsByBlockId.set(blockId, height);
         this.resizeZone(blockZone, height);
@@ -262,31 +292,47 @@ export class InlineZones {
     blockZone.element.addEventListener('keydown', (event) => event.stopPropagation());
     // The wheel scrolls the grid while it can, then the editor (vertically).
     // Monaco never sees it: it would cancel the grid's native scrolling.
-    blockZone.element.addEventListener('wheel', (event) => {
-      event.stopPropagation();
-      if (event.defaultPrevented || event.ctrlKey) return;
-      if (canScroll(event.target as HTMLElement, blockZone.element, event.deltaX, event.deltaY)) return;
-      event.preventDefault();
-      const lineHeight = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 20 : 1;
-      this.editor.setScrollTop(this.editor.getScrollTop() + event.deltaY * lineHeight);
-    }, { passive: false });
+    blockZone.element.addEventListener(
+      'wheel',
+      (event) => {
+        event.stopPropagation();
+        if (event.defaultPrevented || event.ctrlKey) return;
+        if (canScroll(event.target as HTMLElement, blockZone.element, event.deltaX, event.deltaY))
+          return;
+        event.preventDefault();
+        const lineHeight = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 20 : 1;
+        this.editor.setScrollTop(this.editor.getScrollTop() + event.deltaY * lineHeight);
+      },
+      { passive: false },
+    );
   }
 }
 
 /** True when an element between `from` and `root` can still scroll that way. */
-function canScroll(from: HTMLElement | null, root: HTMLElement, deltaX: number, deltaY: number): boolean {
+function canScroll(
+  from: HTMLElement | null,
+  root: HTMLElement,
+  deltaX: number,
+  deltaY: number,
+): boolean {
   const isVertical = Math.abs(deltaY) >= Math.abs(deltaX);
-  for (let element = from; element && element !== root.parentElement; element = element.parentElement) {
+  for (
+    let element = from;
+    element && element !== root.parentElement;
+    element = element.parentElement
+  ) {
     const style = getComputedStyle(element);
     if (isVertical) {
-      if (element.scrollHeight <= element.clientHeight || !/auto|scroll/.test(style.overflowY)) continue;
-      const canScrollDown = deltaY > 0
-        && element.scrollTop + element.clientHeight < element.scrollHeight - 1;
+      if (element.scrollHeight <= element.clientHeight || !/auto|scroll/.test(style.overflowY))
+        continue;
+      const canScrollDown =
+        deltaY > 0 && element.scrollTop + element.clientHeight < element.scrollHeight - 1;
       if ((deltaY < 0 && element.scrollTop > 0) || canScrollDown) return true;
     } else {
-      if (element.scrollWidth <= element.clientWidth || !/auto|scroll/.test(style.overflowX)) continue;
-      const canScrollRight = deltaX > 0
-        && element.scrollLeft + element.clientWidth < element.scrollWidth - 1;
+      if (element.scrollWidth <= element.clientWidth || !/auto|scroll/.test(style.overflowX))
+        continue;
+      const canScrollRight =
+        deltaX > 0 && element.scrollLeft + element.clientWidth < element.scrollWidth - 1;
       if ((deltaX < 0 && element.scrollLeft > 0) || canScrollRight) return true;
     }
   }

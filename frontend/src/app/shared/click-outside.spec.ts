@@ -14,7 +14,12 @@ describe('toggleMenuAt', () => {
   });
 
   it('keeps a menu near the edge of the window inside it', () => {
-    const pos = toggleMenuAt(null, trigger(window.innerWidth - 10, window.innerHeight - 10), 260, 320);
+    const pos = toggleMenuAt(
+      null,
+      trigger(window.innerWidth - 10, window.innerHeight - 10),
+      260,
+      320,
+    );
     expect(pos).toEqual({ x: window.innerWidth - 264, y: window.innerHeight - 324 });
   });
 });

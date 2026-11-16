@@ -3,14 +3,21 @@
   @if (result.error) {
     <span class="badge">Error</span>
   } @else if (result.isQuery) {
-    <span class="info">{{ result.rows.length.toLocaleString() }}{{ result.hasMore ? '+' : '' }} row{{ result.rows.length === 1 && !result.hasMore ? '' : 's' }} · {{ result.durationMs.toLocaleString() }} ms</span>
+    <span class="info"
+      >{{ result.rows.length.toLocaleString() }}{{ result.hasMore ? '+' : '' }} row{{
+        result.rows.length === 1 && !result.hasMore ? '' : 's'
+      }}
+      · {{ result.durationMs.toLocaleString() }} ms</span
+    >
   } @else {
     <span class="info">{{ summary(result) }}</span>
   }
   <span class="spacer"></span>
   @if (result.isQuery && !result.error) {
     @if (result.canFetchMore) {
-      <button class="btn sm" (click)="fetchMore()" [disabled]="fetching()">{{ fetching() ? 'Fetching…' : 'Fetch more' }}</button>
+      <button class="btn sm" (click)="fetchMore()" [disabled]="fetching()">
+        {{ fetching() ? 'Fetching…' : 'Fetch more' }}
+      </button>
     }
     <button class="btn sm" (click)="openMenu($event, 'copy')">Copy ▾</button>
     @if (live()) {
@@ -24,10 +31,20 @@
 } @else if (result.isQuery) {
   <dm-result-grid class="grid" [result]="result" [tooltips]="false" />
 }
-<div class="grip" title="Drag to resize" (pointerdown)="resizeStart.emit($event)" (dblclick)="resetHeight.emit()"></div>
+<div
+  class="grip"
+  title="Drag to resize"
+  (pointerdown)="resizeStart.emit($event)"
+  (dblclick)="resetHeight.emit()"
+></div>
 
 @if (menu(); as menuPosition) {
-  <div class="menu" [style.left.px]="menuPosition.x" [style.top.px]="menuPosition.y" (dmClickOutside)="menu.set(null)">
+  <div
+    class="menu"
+    [style.left.px]="menuPosition.x"
+    [style.top.px]="menuPosition.y"
+    (dmClickOutside)="menu.set(null)"
+  >
     @if (menuPosition.kind === 'copy') {
       <div class="menu-label">Copy all rows</div>
       @for (format of copyFormats; track format.id) {

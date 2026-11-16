@@ -5,49 +5,101 @@
   <div class="body">
     <div class="kinds" role="radiogroup" aria-label="Database type">
       @for (kind of kinds; track kind) {
-        <button type="button" role="radio" class="kind" [class.on]="form.kind === kind" [attr.aria-checked]="form.kind === kind"
-                (click)="setKind(kind)">{{ kindLabels[kind] }}</button>
+        <button
+          type="button"
+          role="radio"
+          class="kind"
+          [class.on]="form.kind === kind"
+          [attr.aria-checked]="form.kind === kind"
+          (click)="setKind(kind)"
+        >
+          {{ kindLabels[kind] }}
+        </button>
       }
     </div>
 
     <div class="grid">
-      <label class="full">Name
-        <input class="input" name="name" [(ngModel)]="form.name" required [placeholder]="placeholderName()" />
+      <label class="full"
+        >Name
+        <input
+          class="input"
+          name="name"
+          [(ngModel)]="form.name"
+          required
+          [placeholder]="placeholderName()"
+        />
       </label>
 
       @if (form.kind === 'sqlite') {
-        <label class="full">Database file
+        <label class="full"
+          >Database file
           <span class="row">
-            <input class="input mono" name="filePath" [(ngModel)]="form.filePath" placeholder="/path/to/database.db" />
+            <input
+              class="input mono"
+              name="filePath"
+              [(ngModel)]="form.filePath"
+              placeholder="/path/to/database.db"
+            />
             <button type="button" class="btn" (click)="pickFile()">Browse…</button>
           </span>
         </label>
       } @else {
-        <label class="host">Host
+        <label class="host"
+          >Host
           <input class="input" name="host" [(ngModel)]="form.host" placeholder="localhost" />
         </label>
-        <label class="port">Port
-          <input class="input" name="port" type="number" [(ngModel)]="form.port" [placeholder]="defaultPort()" />
+        <label class="port"
+          >Port
+          <input
+            class="input"
+            name="port"
+            type="number"
+            [(ngModel)]="form.port"
+            [placeholder]="defaultPort()"
+          />
         </label>
         @if (form.kind === 'oracle') {
-          <div class="lbl">Connect with
-            <dm-select label="Connect with" [options]="oracleModes" [value]="oracleMode"
-                       (valueChange)="setOracleMode($event)" />
+          <div class="lbl">
+            Connect with
+            <dm-select
+              label="Connect with"
+              [options]="oracleModes"
+              [value]="oracleMode"
+              (valueChange)="setOracleMode($event)"
+            />
           </div>
-          <div class="lbl">Role
-            <dm-select label="Role" [options]="oracleRoles" [value]="oracleRole"
-                       (valueChange)="oracleRole = $event" />
+          <div class="lbl">
+            Role
+            <dm-select
+              label="Role"
+              [options]="oracleRoles"
+              [value]="oracleRole"
+              (valueChange)="oracleRole = $event"
+            />
           </div>
         }
-        <label class="full">{{ databaseLabel() }}
-          <input class="input" name="database" [(ngModel)]="form.database" [placeholder]="databasePlaceholder()" />
+        <label class="full"
+          >{{ databaseLabel() }}
+          <input
+            class="input"
+            name="database"
+            [(ngModel)]="form.database"
+            [placeholder]="databasePlaceholder()"
+          />
         </label>
-        <label>User
+        <label
+          >User
           <input class="input" name="user" [(ngModel)]="form.user" />
         </label>
-        <label>Password
-          <input class="input" name="password" type="password" [(ngModel)]="form.password"
-                 [placeholder]="connection?.hasPassword ? '•••••• (unchanged)' : ''" />
+        <label
+          >Password
+          <input
+            class="input"
+            name="password"
+            type="password"
+            [(ngModel)]="form.password"
+            [placeholder]="connection?.hasPassword ? '•••••• (unchanged)' : ''"
+          />
         </label>
       }
     </div>
@@ -57,7 +109,9 @@
         <input type="checkbox" name="readOnly" [(ngModel)]="form.readOnly" />
         <span>
           <b>Read-only</b>
-          <small class="muted">Blocks writes in the database session and rejects anything but queries.</small>
+          <small class="muted"
+            >Blocks writes in the database session and rejects anything but queries.</small
+          >
         </span>
       </label>
 
@@ -71,35 +125,72 @@
         </label>
         @if (ssh.enabled) {
           <div class="ssh grid">
-            <label class="host">SSH host
-              <input class="input" name="sshHost" [(ngModel)]="ssh.host" placeholder="bastion.example.com" />
+            <label class="host"
+              >SSH host
+              <input
+                class="input"
+                name="sshHost"
+                [(ngModel)]="ssh.host"
+                placeholder="bastion.example.com"
+              />
             </label>
-            <label class="port">SSH port
-              <input class="input" name="sshPort" type="number" [(ngModel)]="ssh.port" placeholder="22" />
+            <label class="port"
+              >SSH port
+              <input
+                class="input"
+                name="sshPort"
+                type="number"
+                [(ngModel)]="ssh.port"
+                placeholder="22"
+              />
             </label>
-            <label>SSH user
+            <label
+              >SSH user
               <input class="input" name="sshUser" [(ngModel)]="ssh.user" placeholder="deploy" />
             </label>
-            <div class="lbl">Authentication
-              <dm-select label="Authentication" [options]="sshMethods" [value]="ssh.method || 'password'"
-                         (valueChange)="setSSHMethod($event)" />
+            <div class="lbl">
+              Authentication
+              <dm-select
+                label="Authentication"
+                [options]="sshMethods"
+                [value]="ssh.method || 'password'"
+                (valueChange)="setSSHMethod($event)"
+              />
             </div>
             @if (ssh.method === 'password') {
-              <label class="full">SSH password
-                <input class="input" name="sshPassword" type="password" [(ngModel)]="ssh.password"
-                       [placeholder]="connection?.hasSSHPassword ? '•••••• (unchanged)' : ''" />
+              <label class="full"
+                >SSH password
+                <input
+                  class="input"
+                  name="sshPassword"
+                  type="password"
+                  [(ngModel)]="ssh.password"
+                  [placeholder]="connection?.hasSSHPassword ? '•••••• (unchanged)' : ''"
+                />
               </label>
             }
             @if (ssh.method === 'key') {
-              <label class="full">Private key
+              <label class="full"
+                >Private key
                 <span class="row">
-                  <input class="input mono" name="sshKeyPath" [(ngModel)]="ssh.keyPath" placeholder="~/.ssh/id_ed25519" />
+                  <input
+                    class="input mono"
+                    name="sshKeyPath"
+                    [(ngModel)]="ssh.keyPath"
+                    placeholder="~/.ssh/id_ed25519"
+                  />
                   <button type="button" class="btn" (click)="pickKey()">Browse…</button>
                 </span>
               </label>
-              <label class="full">Key passphrase
-                <input class="input" name="sshPassphrase" type="password" [(ngModel)]="ssh.passphrase"
-                       [placeholder]="connection?.hasSSHPassphrase ? '•••••• (unchanged)' : 'none'" />
+              <label class="full"
+                >Key passphrase
+                <input
+                  class="input"
+                  name="sshPassphrase"
+                  type="password"
+                  [(ngModel)]="ssh.passphrase"
+                  [placeholder]="connection?.hasSSHPassphrase ? '•••••• (unchanged)' : 'none'"
+                />
               </label>
             }
             @if (ssh.method === 'agent') {
@@ -109,7 +200,10 @@
               <input type="checkbox" name="sshInsecure" [(ngModel)]="ssh.insecureHostKey" />
               <span>
                 <b>Skip host key check</b>
-                <small class="muted">Otherwise the server is checked against ~/.ssh/known_hosts when that file exists.</small>
+                <small class="muted"
+                  >Otherwise the server is checked against ~/.ssh/known_hosts when that file
+                  exists.</small
+                >
               </span>
             </label>
           </div>
@@ -119,8 +213,16 @@
       <div class="colors" role="radiogroup" aria-label="Colour">
         <span class="muted">Colour</span>
         @for (color of colors; track color) {
-          <button type="button" class="swatch" role="radio" [style.background]="color" [class.on]="form.color === color"
-                  [attr.aria-checked]="form.color === color" [attr.aria-label]="color" (click)="form.color = color"></button>
+          <button
+            type="button"
+            class="swatch"
+            role="radio"
+            [style.background]="color"
+            [class.on]="form.color === color"
+            [attr.aria-checked]="form.color === color"
+            [attr.aria-label]="color"
+            (click)="form.color = color"
+          ></button>
         }
       </div>
     </div>
@@ -134,7 +236,9 @@
       <button type="button" class="btn danger" (click)="remove()">Delete</button>
     }
     <span class="spacer"></span>
-    <button type="button" class="btn" (click)="test()" [disabled]="busy()">{{ busy() === 'test' ? 'Testing…' : 'Test' }}</button>
+    <button type="button" class="btn" (click)="test()" [disabled]="busy()">
+      {{ busy() === 'test' ? 'Testing…' : 'Test' }}
+    </button>
     <button type="button" class="btn" (click)="dialogRef.close()">Cancel</button>
     <button type="submit" class="btn primary" [disabled]="busy()">Save &amp; connect</button>
   </footer>

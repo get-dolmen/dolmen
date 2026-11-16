@@ -43,35 +43,69 @@ export class TabStore {
   public async load() {
     try {
       const workspace = await this.api.loadWorkspace();
-      this.tabs.set(workspace.tabs.map((tab) => ({
-        id: tab.id, name: tab.name, connId: tab.connId, database: tab.database ?? '', content: tab.content ?? '', dirty: false,
-        kind: tab.kind === 'table' ? 'table' : 'sql', txMode: tab.txMode === 'manual' ? 'manual' : 'auto',
-        locked: !!tab.locked,
-        table: tab.kind === 'table' ? { schema: tab.schema ?? '', name: tab.table ?? '', type: tab.tableType ?? 'table' } : undefined,
-      })));
-      this.activeId.set(workspace.tabs.some((tab) => tab.id === workspace.activeId) ? workspace.activeId : workspace.tabs[0]?.id ?? '');
+      this.tabs.set(
+        workspace.tabs.map((tab) => ({
+          id: tab.id,
+          name: tab.name,
+          connId: tab.connId,
+          database: tab.database ?? '',
+          content: tab.content ?? '',
+          dirty: false,
+          kind: tab.kind === 'table' ? 'table' : 'sql',
+          txMode: tab.txMode === 'manual' ? 'manual' : 'auto',
+          locked: !!tab.locked,
+          table:
+            tab.kind === 'table'
+              ? { schema: tab.schema ?? '', name: tab.table ?? '', type: tab.tableType ?? 'table' }
+              : undefined,
+        })),
+      );
+      this.activeId.set(
+        workspace.tabs.some((tab) => tab.id === workspace.activeId)
+          ? workspace.activeId
+          : (workspace.tabs[0]?.id ?? ''),
+      );
     } catch (error) {
       this.toastService.error(errorText(error));
     }
     this.loaded.set(true);
   }
 
-  public get(id: string) { return this.tabs().find((tab) => tab.id === id); }
+  public get(id: string) {
+    return this.tabs().find((tab) => tab.id === id);
+  }
 
   public create(connId = '', content = '', name?: string, database = ''): EditorTab {
     // Like the backend, a new scratch is pinned to its connection and database.
     return this.insert({
-      id: crypto.randomUUID(), name: name ?? this.nextName(), connId, database, kind: 'sql', txMode: 'auto',
-      locked: !!connId, content, dirty: !!content,
+      id: crypto.randomUUID(),
+      name: name ?? this.nextName(),
+      connId,
+      database,
+      kind: 'sql',
+      txMode: 'auto',
+      locked: !!connId,
+      content,
+      dirty: !!content,
     });
   }
 
   /** Opens an existing scratch file in a new tab. */
   public openScratch(tab: TabState): EditorTab {
-    return this.insert({
-      id: tab.id, name: tab.name, connId: tab.connId, database: tab.database ?? '', kind: 'sql', txMode: 'auto', locked: !!tab.locked,
-      content: tab.content ?? '', dirty: false,
-    }, false);
+    return this.insert(
+      {
+        id: tab.id,
+        name: tab.name,
+        connId: tab.connId,
+        database: tab.database ?? '',
+        kind: 'sql',
+        txMode: 'auto',
+        locked: !!tab.locked,
+        content: tab.content ?? '',
+        dirty: false,
+      },
+      false,
+    );
   }
 
   /** Extra names to avoid when naming new scratches (set by the scratch store). */
@@ -84,8 +118,23 @@ export class TabStore {
   }
 
   /** Opens a data-editor tab for a table. */
-  public createTable(connId: string, database: string, table: { schema: string; name: string; type: string }): EditorTab {
-    return this.insert({ id: crypto.randomUUID(), name: table.name, connId, database, kind: 'table', txMode: 'auto', locked: false, table, content: '', dirty: false });
+  public createTable(
+    connId: string,
+    database: string,
+    table: { schema: string; name: string; type: string },
+  ): EditorTab {
+    return this.insert({
+      id: crypto.randomUUID(),
+      name: table.name,
+      connId,
+      database,
+      kind: 'table',
+      txMode: 'auto',
+      locked: false,
+      table,
+      content: '',
+      dirty: false,
+    });
   }
 
   private insert(tab: EditorTab, save = true): EditorTab {
@@ -199,7 +248,9 @@ export class TabStore {
 
   /** Writes pending content immediately and waits for pendingWrites already in flight. */
   public flush(id?: string): Promise<unknown> {
-    const tabIds = id ? [id] : [...new Set([...this.contentTimers.keys(), ...this.contentSaves.keys()])];
+    const tabIds = id
+      ? [id]
+      : [...new Set([...this.contentTimers.keys(), ...this.contentSaves.keys()])];
     const pendingWrites: Promise<unknown>[] = [];
     for (const tabId of tabIds) {
       const inFlightSaves = [...(this.contentSaves.get(tabId) ?? [])];
@@ -216,10 +267,13 @@ export class TabStore {
 
   private scheduleContentSave(id: string) {
     clearTimeout(this.contentTimers.get(id));
-    this.contentTimers.set(id, setTimeout(() => {
-      this.contentTimers.delete(id);
-      void this.startContentSave(id);
-    }, CONTENT_SAVE_DELAY_MS));
+    this.contentTimers.set(
+      id,
+      setTimeout(() => {
+        this.contentTimers.delete(id);
+        void this.startContentSave(id);
+      }, CONTENT_SAVE_DELAY_MS),
+    );
   }
 
   private startContentSave(id: string): Promise<void> {
@@ -265,9 +319,14 @@ export class TabStore {
     const workspace = {
       activeId: this.activeId(),
       tabs: this.tabs().map((tab) => ({
-        id: tab.id, name: tab.name, connId: tab.connId, database: tab.database || undefined,
+        id: tab.id,
+        name: tab.name,
+        connId: tab.connId,
+        database: tab.database || undefined,
         kind: tab.kind === 'table' ? ('table' as const) : undefined,
-        schema: tab.table?.schema, table: tab.table?.name, tableType: tab.table?.type,
+        schema: tab.table?.schema,
+        table: tab.table?.name,
+        tableType: tab.table?.type,
         txMode: tab.txMode === 'manual' ? ('manual' as const) : undefined,
         locked: tab.locked || undefined,
       })),

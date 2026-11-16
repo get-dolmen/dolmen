@@ -10,7 +10,13 @@ export interface TableHandle {
 export class TableBridge {
   private handles = new Map<string, TableHandle>();
 
-  public attach(tabId: string, handle: TableHandle) { this.handles.set(tabId, handle); }
-  public detach(tabId: string) { this.handles.delete(tabId); }
-  public get(tabId: string) { return this.handles.get(tabId); }
+  public attach(tabId: string, handle: TableHandle) {
+    this.handles.set(tabId, handle);
+  }
+  public detach(tabId: string) {
+    this.handles.delete(tabId);
+  }
+  public get(tabId: string) {
+    return this.handles.get(tabId);
+  }
 }

@@ -17,11 +17,18 @@ const ERROR_LINE_HEIGHT = 18;
 /** Default height of an inline block, before the user resizes it. */
 export function inlineHeight(result: QueryResult): number {
   if (result.error) {
-    return INLINE_HEADER_HEIGHT + 8 + Math.min(6, result.error.split('\n').length) * ERROR_LINE_HEIGHT;
+    return (
+      INLINE_HEADER_HEIGHT + 8 + Math.min(6, result.error.split('\n').length) * ERROR_LINE_HEIGHT
+    );
   }
   if (!result.isQuery) return INLINE_HEADER_HEIGHT;
   const visibleRows = Math.max(1, Math.min(MAX_VISIBLE_ROWS, result.rows.length));
-  return INLINE_HEADER_HEIGHT + GRID_HEADER_HEIGHT + visibleRows * GRID_ROW_HEIGHT + GRID_SCROLLBAR_HEIGHT;
+  return (
+    INLINE_HEADER_HEIGHT +
+    GRID_HEADER_HEIGHT +
+    visibleRows * GRID_ROW_HEIGHT +
+    GRID_SCROLLBAR_HEIGHT
+  );
 }
 
 /** One result shown in the editor under its statement. */
@@ -50,9 +57,10 @@ export class InlineResult {
 
   public summary(result: QueryResult): string {
     if (result.message) return result.message;
-    const affected = result.rowsAffected >= 0
-      ? `${result.rowsAffected.toLocaleString()} row${result.rowsAffected === 1 ? '' : 's'} affected`
-      : 'Done';
+    const affected =
+      result.rowsAffected >= 0
+        ? `${result.rowsAffected.toLocaleString()} row${result.rowsAffected === 1 ? '' : 's'} affected`
+        : 'Done';
     return `${affected} · ${result.durationMs.toLocaleString()} ms`;
   }
 
@@ -64,13 +72,16 @@ export class InlineResult {
 
   public openMenu(event: MouseEvent, kind: 'copy' | 'export') {
     const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    this.menu.set({ ...clampMenu(bounds.right - 220, bounds.bottom + 4, 220, kind === 'copy' ? 330 : 80), kind });
+    this.menu.set({
+      ...clampMenu(bounds.right - 220, bounds.bottom + 4, 220, kind === 'copy' ? 330 : 80),
+      kind,
+    });
   }
 
   public copy(scope: 'all' | 'selected', format: CopyFormat) {
     this.menu.set(null);
     const result = this.block().result;
-    const rows = scope === 'all' ? result.rows : this.resultGrid()?.selectedRows() ?? [];
+    const rows = scope === 'all' ? result.rows : (this.resultGrid()?.selectedRows() ?? []);
     void this.commandService.copy(formatRows(format, result.columns, rows, true));
   }
 

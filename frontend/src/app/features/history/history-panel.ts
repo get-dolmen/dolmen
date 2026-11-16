@@ -57,7 +57,9 @@ export class HistoryPanel {
     }
   }
 
-  public connectionName(connectionId: string) { return this.connectionStore.get(connectionId)?.name ?? 'deleted connection'; }
+  public connectionName(connectionId: string) {
+    return this.connectionStore.get(connectionId)?.name ?? 'deleted connection';
+  }
 
   public insert(entry: HistoryEntry) {
     this.editorBridge.insert(entry.sql);
@@ -67,8 +69,14 @@ export class HistoryPanel {
   public async clear() {
     const scope = this.scope();
     const target = scope ? `for “${this.connectionName(scope)}”` : 'for all connections';
-    if (!(await this.confirmDialog.ask(`Clear query history ${target}?`,
-      { title: 'Clear history', confirmLabel: 'Clear', danger: true }))) return;
+    if (
+      !(await this.confirmDialog.ask(`Clear query history ${target}?`, {
+        title: 'Clear history',
+        confirmLabel: 'Clear',
+        danger: true,
+      }))
+    )
+      return;
     await this.api.clearHistory(scope);
     await this.reload();
   }

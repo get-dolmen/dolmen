@@ -2,16 +2,37 @@
   <span class="kind" [class.pk]="column.pk" [title]="column.pk ? 'Primary key' : column.type">
     <dm-icon [name]="column.pk ? 'key' : 'column'" [size]="13" />
   </span>
-  <span class="name" [title]="column.name + ' · ' + column.type + (column.nullable ? '' : ' · not null')">{{ column.name }}</span>
-  <button class="hb filter" (click)="filter($event)" [title]="'Filter on ' + column.name" aria-label="Filter on this column">
+  <span
+    class="name"
+    [title]="column.name + ' · ' + column.type + (column.nullable ? '' : ' · not null')"
+    >{{ column.name }}</span
+  >
+  <button
+    class="hb filter"
+    (click)="filter($event)"
+    [title]="'Filter on ' + column.name"
+    aria-label="Filter on this column"
+  >
     <dm-icon name="filter" [size]="12" />
   </button>
   <span class="spacer"></span>
-  <button class="hb sort" [class.on]="sortDirection()" (click)="toggleSort($event)" [title]="sortTitle()" aria-label="Sort">
+  <button
+    class="hb sort"
+    [class.on]="sortDirection()"
+    (click)="toggleSort($event)"
+    [title]="sortTitle()"
+    aria-label="Sort"
+  >
     @switch (sortDirection()) {
-      @case ('asc') { <dm-icon name="arrowUp" [size]="12" /> }
-      @case ('desc') { <dm-icon name="arrowDown" [size]="12" /> }
-      @default { <span class="both">⇅</span> }
+      @case ('asc') {
+        <dm-icon name="arrowUp" [size]="12" />
+      }
+      @case ('desc') {
+        <dm-icon name="arrowDown" [size]="12" />
+      }
+      @default {
+        <span class="both">⇅</span>
+      }
     }
   </button>
 }

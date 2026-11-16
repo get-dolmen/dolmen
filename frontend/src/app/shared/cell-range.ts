@@ -1,10 +1,23 @@
 import type { CellClassParams, Column, GridApi } from 'ag-grid-community';
 
-interface CellPosition { row: number; columnId: string }
+interface CellPosition {
+  row: number;
+  columnId: string;
+}
 
-const AUTO_SCROLL_EDGE = 24;       // px from the grid body edge where dragging starts to scroll
-const AUTO_SCROLL_INTERVAL_MS = 40;  // auto-scroll step while the pointer stays past the edge
-const NAVIGATION_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown', 'Tab']);
+const AUTO_SCROLL_EDGE = 24; // px from the grid body edge where dragging starts to scroll
+const AUTO_SCROLL_INTERVAL_MS = 40; // auto-scroll step while the pointer stays past the edge
+const NAVIGATION_KEYS = new Set([
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'Home',
+  'End',
+  'PageUp',
+  'PageDown',
+  'Tab',
+]);
 
 /**
  * Class rules for a column definition, usable before the grid (and so the
@@ -56,7 +69,9 @@ export class CellRangeSelection<T> {
       capture = false,
     ) => {
       element.addEventListener(type, listener as EventListener, capture);
-      this.cleanupCallbacks.push(() => element.removeEventListener(type, listener as EventListener, capture));
+      this.cleanupCallbacks.push(() =>
+        element.removeEventListener(type, listener as EventListener, capture),
+      );
     };
     listen(hostElement, 'mousedown', (event) => this.onMouseDown(event));
     listen(hostElement, 'mouseover', (event) => this.onMouseOver(event));
@@ -78,14 +93,18 @@ export class CellRangeSelection<T> {
       displayedColumnsChanged: placeBox,
       bodyScroll: placeBox,
     } as const;
-    for (const [type, listener] of Object.entries(gridEvents)) gridApi.addEventListener(type as 'sortChanged', listener);
+    for (const [type, listener] of Object.entries(gridEvents))
+      gridApi.addEventListener(type as 'sortChanged', listener);
     this.cleanupCallbacks.push(() => {
       if (gridApi.isDestroyed()) return;
-      for (const [type, listener] of Object.entries(gridEvents)) gridApi.removeEventListener(type as 'sortChanged', listener);
+      for (const [type, listener] of Object.entries(gridEvents))
+        gridApi.removeEventListener(type as 'sortChanged', listener);
     });
   }
 
-  public get active(): boolean { return !!this.anchor && !!this.focus; }
+  public get active(): boolean {
+    return !!this.anchor && !!this.focus;
+  }
 
   /** First and last displayed row index of the selection ([-1, -1] when empty). */
   public rows(): [number, number] {
@@ -112,16 +131,24 @@ export class CellRangeSelection<T> {
   /** Whether a cell is in the selection. */
   public contains(rowIndex: number | null, columnId: string): boolean {
     const [firstRow, lastRow] = this.rows();
-    return rowIndex !== null && rowIndex >= firstRow && rowIndex <= lastRow
-      && this.columns().some((column) => column.getColId() === columnId);
+    return (
+      rowIndex !== null &&
+      rowIndex >= firstRow &&
+      rowIndex <= lastRow &&
+      this.columns().some((column) => column.getColId() === columnId)
+    );
   }
 
   /** Row-number cells of the selected rows are highlighted. */
   public marksRow(params: CellClassParams<T>): boolean {
     const [firstRow, lastRow] = this.rows();
     const rowIndex = params.node.rowIndex;
-    return params.column.getColId() === this.rowNumberColumnId
-      && rowIndex !== null && rowIndex >= firstRow && rowIndex <= lastRow;
+    return (
+      params.column.getColId() === this.rowNumberColumnId &&
+      rowIndex !== null &&
+      rowIndex >= firstRow &&
+      rowIndex <= lastRow
+    );
   }
 
   public clear() {
@@ -147,7 +174,9 @@ export class CellRangeSelection<T> {
   }
 
   private dataColumns(): Column[] {
-    return this.gridApi.getAllDisplayedColumns().filter((column) => column.getColId() !== this.rowNumberColumnId);
+    return this.gridApi
+      .getAllDisplayedColumns()
+      .filter((column) => column.getColId() !== this.rowNumberColumnId);
   }
 
   /** The cell under a DOM event: its displayed row index and column id. */
@@ -159,7 +188,9 @@ export class CellRangeSelection<T> {
     if (cell.classList.contains('ag-cell-inline-editing')) return null;
     const rowIndex = Number(row.getAttribute('row-index'));
     const columnId = cell.getAttribute('col-id');
-    return Number.isInteger(rowIndex) && rowIndex >= 0 && columnId ? { row: rowIndex, columnId } : null;
+    return Number.isInteger(rowIndex) && rowIndex >= 0 && columnId
+      ? { row: rowIndex, columnId }
+      : null;
   }
 
   private onMouseDown(event: MouseEvent) {
@@ -170,16 +201,20 @@ export class CellRangeSelection<T> {
     if (event.button === 2) {
       // Right-click keeps the block it lands in, else selects the cell under it.
       const onRowNumber = cellPosition.columnId === this.rowNumberColumnId;
-      if (!this.contains(cellPosition.row, cellPosition.columnId) && !(onRowNumber && this.isRowSelected(cellPosition.row))) {
+      if (
+        !this.contains(cellPosition.row, cellPosition.columnId) &&
+        !(onRowNumber && this.isRowSelected(cellPosition.row))
+      ) {
         this.selectCells(cellPosition, columns);
       }
       return;
     }
     if (event.button !== 0) return;
     if (event.shiftKey && this.anchor) {
-      this.focus = cellPosition.columnId === this.rowNumberColumnId
-        ? { row: cellPosition.row, columnId: this.focus!.columnId }
-        : cellPosition;
+      this.focus =
+        cellPosition.columnId === this.rowNumberColumnId
+          ? { row: cellPosition.row, columnId: this.focus!.columnId }
+          : cellPosition;
     } else {
       this.selectCells(cellPosition, columns);
     }
@@ -204,7 +239,11 @@ export class CellRangeSelection<T> {
 
   private isRowSelected(rowIndex: number): boolean {
     const [firstRow, lastRow] = this.rows();
-    return rowIndex >= firstRow && rowIndex <= lastRow && this.columns().length === this.dataColumns().length;
+    return (
+      rowIndex >= firstRow &&
+      rowIndex <= lastRow &&
+      this.columns().length === this.dataColumns().length
+    );
   }
 
   private onMouseOver(event: MouseEvent) {
@@ -243,14 +282,18 @@ export class CellRangeSelection<T> {
     let rowIndex = this.focus.row;
     let columnId = this.focus.columnId;
     const lastRow = this.gridApi.getDisplayedRowCount() - 1;
-    if (pointerY > viewportBounds.bottom - AUTO_SCROLL_EDGE) rowIndex = Math.min(lastRow, rowIndex + 1);
+    if (pointerY > viewportBounds.bottom - AUTO_SCROLL_EDGE)
+      rowIndex = Math.min(lastRow, rowIndex + 1);
     else if (pointerY < contentTop + AUTO_SCROLL_EDGE) rowIndex = Math.max(0, rowIndex - 1);
     if (!this.wholeRows) {
       const columns = this.dataColumns();
       const columnIndex = columns.findIndex((column) => column.getColId() === columnId);
       if (pointerX > viewportBounds.right - AUTO_SCROLL_EDGE && columnIndex < columns.length - 1) {
         columnId = columns[columnIndex + 1].getColId();
-      } else if (pointerX < viewportBounds.left + this.pinnedColumnsWidth() + AUTO_SCROLL_EDGE && columnIndex > 0) {
+      } else if (
+        pointerX < viewportBounds.left + this.pinnedColumnsWidth() + AUTO_SCROLL_EDGE &&
+        columnIndex > 0
+      ) {
         columnId = columns[columnIndex - 1].getColId();
       }
     }
@@ -263,7 +306,9 @@ export class CellRangeSelection<T> {
 
   private onKeyDown(event: KeyboardEvent) {
     if (this.gridApi.getEditingCells().length) return;
-    const modifierPressed = /Mac|iPhone|iPad/.test(navigator.platform) ? event.metaKey : event.ctrlKey;
+    const modifierPressed = /Mac|iPhone|iPad/.test(navigator.platform)
+      ? event.metaKey
+      : event.ctrlKey;
     if (modifierPressed && !event.shiftKey && event.key.toLowerCase() === 'a') {
       event.preventDefault();
       event.stopPropagation();
@@ -276,7 +321,10 @@ export class CellRangeSelection<T> {
       setTimeout(() => {
         const focusedCell = this.gridApi.getFocusedCell();
         if (!focusedCell || focusedCell.rowIndex === null) return;
-        let cellPosition: CellPosition = { row: focusedCell.rowIndex, columnId: focusedCell.column.getColId() };
+        let cellPosition: CellPosition = {
+          row: focusedCell.rowIndex,
+          columnId: focusedCell.column.getColId(),
+        };
         if (extending && startPosition) {
           cellPosition = this.nextCellPosition(startPosition, event.key) ?? startPosition;
           this.gridApi.ensureIndexVisible(cellPosition.row);
@@ -296,15 +344,20 @@ export class CellRangeSelection<T> {
     const columnIndex = columns.findIndex((column) => column.getColId() === startPosition.columnId);
     const lastRow = this.gridApi.getDisplayedRowCount() - 1;
     switch (key) {
-      case 'ArrowUp': return { row: Math.max(0, startPosition.row - 1), columnId: startPosition.columnId };
-      case 'ArrowDown': return { row: Math.min(lastRow, startPosition.row + 1), columnId: startPosition.columnId };
-      case 'ArrowLeft': return columnIndex > 0
-        ? { row: startPosition.row, columnId: columns[columnIndex - 1].getColId() }
-        : startPosition;
-      case 'ArrowRight': return columnIndex < columns.length - 1
-        ? { row: startPosition.row, columnId: columns[columnIndex + 1].getColId() }
-        : startPosition;
-      default: return null;
+      case 'ArrowUp':
+        return { row: Math.max(0, startPosition.row - 1), columnId: startPosition.columnId };
+      case 'ArrowDown':
+        return { row: Math.min(lastRow, startPosition.row + 1), columnId: startPosition.columnId };
+      case 'ArrowLeft':
+        return columnIndex > 0
+          ? { row: startPosition.row, columnId: columns[columnIndex - 1].getColId() }
+          : startPosition;
+      case 'ArrowRight':
+        return columnIndex < columns.length - 1
+          ? { row: startPosition.row, columnId: columns[columnIndex + 1].getColId() }
+          : startPosition;
+      default:
+        return null;
     }
   }
 
@@ -314,7 +367,8 @@ export class CellRangeSelection<T> {
 
   /** Width of the left-pinned columns (the row numbers). */
   private pinnedColumnsWidth(): number {
-    return this.gridApi.getAllDisplayedColumns()
+    return this.gridApi
+      .getAllDisplayedColumns()
       .filter((column) => column.getPinned() === 'left')
       .reduce((width, column) => width + column.getActualWidth(), 0);
   }
@@ -334,8 +388,10 @@ export class CellRangeSelection<T> {
   private placeSelectionBox() {
     const columns = this.columns();
     const [firstRowIndex, lastRowIndex] = this.rows();
-    const firstRow = firstRowIndex >= 0 ? this.gridApi.getDisplayedRowAtIndex(firstRowIndex) : undefined;
-    const lastRow = lastRowIndex >= 0 ? this.gridApi.getDisplayedRowAtIndex(lastRowIndex) : undefined;
+    const firstRow =
+      firstRowIndex >= 0 ? this.gridApi.getDisplayedRowAtIndex(firstRowIndex) : undefined;
+    const lastRow =
+      lastRowIndex >= 0 ? this.gridApi.getDisplayedRowAtIndex(lastRowIndex) : undefined;
     const container = this.hostElement.querySelector<HTMLElement>(
       '.ag-grid-scrolling-container, .ag-center-cols-container',
     );
@@ -358,10 +414,13 @@ export class CellRangeSelection<T> {
     const right = offset + lastColumn.getLeft()! + lastColumn.getActualWidth();
     const top = firstRow.rowTop;
     const bottom = lastRow.rowTop + (lastRow.rowHeight ?? 0);
-    const scrollLeft = offset ? this.viewportElement()?.scrollLeft ?? 0 : 0;
+    const scrollLeft = offset ? (this.viewportElement()?.scrollLeft ?? 0) : 0;
     const hiddenWidth = Math.max(0, scrollLeft + pinnedWidth - left); // part under the pinned columns
     Object.assign(this.selectionBox.style, {
-      left: `${left}px`, top: `${top}px`, width: `${right - left}px`, height: `${bottom - top}px`,
+      left: `${left}px`,
+      top: `${top}px`,
+      width: `${right - left}px`,
+      height: `${bottom - top}px`,
       clipPath: hiddenWidth ? `inset(-2px -2px -2px ${hiddenWidth}px)` : '',
     });
     this.selectionBox.hidden = false;

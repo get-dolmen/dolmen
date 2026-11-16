@@ -18,11 +18,18 @@ function csvCell(cell: Cell): string {
 }
 
 function markdownCell(cell: Cell): string {
-  return cellText(cell).replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ');
+  return cellText(cell)
+    .replace(/\|/g, '\\|')
+    .replace(/[\r\n]+/g, ' ');
 }
 
 /** Formats rows for the clipboard in the chosen format. NULL is empty except in JSON (null). */
-export function formatRows(format: CopyFormat, columns: ResultColumn[], rows: Cell[][], header = true): string {
+export function formatRows(
+  format: CopyFormat,
+  columns: ResultColumn[],
+  rows: Cell[][],
+  header = true,
+): string {
   switch (format) {
     case 'csv': {
       const lines = rows.map((row) => row.map(csvCell).join(','));
@@ -31,9 +38,13 @@ export function formatRows(format: CopyFormat, columns: ResultColumn[], rows: Ce
     }
     case 'json':
       return JSON.stringify(
-        rows.map((row) => (header
-          ? Object.fromEntries(columns.map((column, columnIndex) => [column.name, row[columnIndex] ?? null]))
-          : row)),
+        rows.map((row) =>
+          header
+            ? Object.fromEntries(
+                columns.map((column, columnIndex) => [column.name, row[columnIndex] ?? null]),
+              )
+            : row,
+        ),
         null,
         2,
       );

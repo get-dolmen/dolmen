@@ -1,14 +1,30 @@
 <div class="left">
   <!-- Keep the click-outside handler from closing the menu before this click toggles it. -->
-  <button class="conn nodrag" (mousedown)="$event.stopPropagation()" (click)="toggleMenu($event)"
-          [class.open]="menuOpen()" title="Connection used by this tab" aria-haspopup="true"
-          [attr.aria-expanded]="menuOpen()">
+  <button
+    class="conn nodrag"
+    (mousedown)="$event.stopPropagation()"
+    (click)="toggleMenu($event)"
+    [class.open]="menuOpen()"
+    title="Connection used by this tab"
+    aria-haspopup="true"
+    [attr.aria-expanded]="menuOpen()"
+  >
     @if (connection(); as connection) {
-      <span class="dot" [style.background]="connection.color" [class.off]="!connection.connected"></span>
+      <span
+        class="dot"
+        [style.background]="connection.color"
+        [class.off]="!connection.connected"
+      ></span>
       <span class="ellipsis">{{ connection.name }}</span>
-      @if (database(); as databaseName) { <span class="db ellipsis">/ {{ databaseName }}</span> }
-      @if (connection.readOnly) { <span class="badge ro">🔒 RO</span> }
-      @if (locked()) { <dm-icon name="lock" [size]="12" class="lock" /> }
+      @if (database(); as databaseName) {
+        <span class="db ellipsis">/ {{ databaseName }}</span>
+      }
+      @if (connection.readOnly) {
+        <span class="badge ro">🔒 RO</span>
+      }
+      @if (locked()) {
+        <dm-icon name="lock" [size]="12" class="lock" />
+      }
     } @else {
       <span class="faint">No connection</span>
     }
@@ -24,38 +40,74 @@
 
 <div class="actions nodrag">
   @if (uiState.scratchPosition() === 'left') {
-    <button class="btn ghost icon" (click)="uiState.scratchOpen.set(!uiState.scratchOpen())" [class.on]="uiState.scratchOpen()"
-            [title]="uiState.scratchOpen() ? 'Hide the scratches panel' : 'Show the scratches panel'"
-            [attr.aria-label]="uiState.scratchOpen() ? 'Hide scratches' : 'Show scratches'">
+    <button
+      class="btn ghost icon"
+      (click)="uiState.scratchOpen.set(!uiState.scratchOpen())"
+      [class.on]="uiState.scratchOpen()"
+      [title]="uiState.scratchOpen() ? 'Hide the scratches panel' : 'Show the scratches panel'"
+      [attr.aria-label]="uiState.scratchOpen() ? 'Hide scratches' : 'Show scratches'"
+    >
       <dm-icon name="panelLeft" [size]="16" />
     </button>
   }
-  <button class="btn ghost icon" (click)="uiState.sidebarOpen.set(!uiState.sidebarOpen())" [class.on]="uiState.sidebarOpen()"
-          [title]="'Toggle explorer (' + modifierKey + 'B)'" aria-label="Toggle explorer">
+  <button
+    class="btn ghost icon"
+    (click)="uiState.sidebarOpen.set(!uiState.sidebarOpen())"
+    [class.on]="uiState.sidebarOpen()"
+    [title]="'Toggle explorer (' + modifierKey + 'B)'"
+    aria-label="Toggle explorer"
+  >
     <dm-icon name="panelRight" [size]="16" />
   </button>
-  <button class="btn ghost icon" (click)="commandService.openSettings()" [title]="'Settings (' + modifierKey + ',)'" aria-label="Settings">
+  <button
+    class="btn ghost icon"
+    (click)="commandService.openSettings()"
+    [title]="'Settings (' + modifierKey + ',)'"
+    aria-label="Settings"
+  >
     <dm-icon name="settings" [size]="16" />
   </button>
 </div>
 
 @if (menu(); as menuPosition) {
-  <div class="menu" [style.left.px]="menuPosition.x" [style.top.px]="menuPosition.y" (dmClickOutside)="menu.set(null)">
+  <div
+    class="menu"
+    [style.left.px]="menuPosition.x"
+    [style.top.px]="menuPosition.y"
+    (dmClickOutside)="menu.set(null)"
+  >
     <div class="menu-label">Use in this tab</div>
     @for (connectionOption of connectionStore.connections(); track connectionOption.id) {
-      <button class="menu-item" [class.active]="connectionOption.id === connection()?.id" (click)="choose(connectionOption)">
-        <span class="dot" [style.background]="connectionOption.color" [style.opacity]="connectionOption.connected ? 1 : 0.35"></span>
+      <button
+        class="menu-item"
+        [class.active]="connectionOption.id === connection()?.id"
+        (click)="choose(connectionOption)"
+      >
+        <span
+          class="dot"
+          [style.background]="connectionOption.color"
+          [style.opacity]="connectionOption.connected ? 1 : 0.35"
+        ></span>
         <span class="ellipsis">{{ connectionOption.name }}</span>
-        @if (connectionOption.readOnly) { <span class="badge ro">RO</span> }
+        @if (connectionOption.readOnly) {
+          <span class="badge ro">RO</span>
+        }
         <span class="hint">{{ kindLabel(connectionOption) }}</span>
       </button>
     } @empty {
       <div class="menu-label">No saved connections</div>
     }
     <div class="menu-sep"></div>
-    <button class="menu-item" (click)="menu.set(null); commandService.newConnection()">New connection…</button>
+    <button class="menu-item" (click)="menu.set(null); commandService.newConnection()">
+      New connection…
+    </button>
     @if (connection(); as currentConnection) {
-      <button class="menu-item" (click)="menu.set(null); commandService.editConnection(currentConnection)">Edit “{{ currentConnection.name }}”…</button>
+      <button
+        class="menu-item"
+        (click)="menu.set(null); commandService.editConnection(currentConnection)"
+      >
+        Edit “{{ currentConnection.name }}”…
+      </button>
     }
   </div>
 }

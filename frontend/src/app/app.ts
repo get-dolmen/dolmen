@@ -16,7 +16,17 @@ import { Topbar } from './features/topbar/topbar';
 
 @Component({
   selector: 'app-root',
-  imports: [Topbar, TabBar, SqlEditor, ResultsPanelComponent, SchemaSidebar, ScratchList, Statusbar, Palette, TableData],
+  imports: [
+    Topbar,
+    TabBar,
+    SqlEditor,
+    ResultsPanelComponent,
+    SchemaSidebar,
+    ScratchList,
+    Statusbar,
+    Palette,
+    TableData,
+  ],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -27,8 +37,12 @@ export class App {
   private connectionStore = inject(ConnectionStore);
   private workArea = viewChild.required<ElementRef<HTMLElement>>('work');
 
-  public readonly tableTabs = computed(() => this.tabStore.tabs().filter((tab) => tab.kind === 'table'));
-  public readonly readOnly = computed(() => !!this.connectionStore.get(this.tabStore.active()?.connId)?.readOnly);
+  public readonly tableTabs = computed(() =>
+    this.tabStore.tabs().filter((tab) => tab.kind === 'table'),
+  );
+  public readonly readOnly = computed(
+    () => !!this.connectionStore.get(this.tabStore.active()?.connId)?.readOnly,
+  );
 
   public constructor() {
     inject(Hotkeys).install();
@@ -47,13 +61,18 @@ export class App {
     const top = bounds.top;
     const height = bounds.bottom - top;
     this.drag(event, 'row-resize', (moveEvent) => {
-      this.uiState.editorRatio.set(Math.min(0.85, Math.max(0.15, (moveEvent.clientY - top) / height)));
+      this.uiState.editorRatio.set(
+        Math.min(0.85, Math.max(0.15, (moveEvent.clientY - top) / height)),
+      );
     });
   }
 
   public dragSidebar(event: PointerEvent) {
     this.drag(event, 'col-resize', (moveEvent) => {
-      const width = Math.min(window.innerWidth * 0.6, Math.max(180, window.innerWidth - moveEvent.clientX));
+      const width = Math.min(
+        window.innerWidth * 0.6,
+        Math.max(180, window.innerWidth - moveEvent.clientX),
+      );
       this.uiState.sidebarWidth.set(Math.round(width));
     });
   }

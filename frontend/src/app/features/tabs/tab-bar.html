@@ -1,51 +1,117 @@
 <div class="tabrow">
-<div class="tabs" role="tablist" cdkDropList cdkDropListOrientation="horizontal" (cdkDropListDropped)="dropTab($event)">
-  @for (tab of tabStore.tabs(); track tab.id) {
-    <div class="tab" role="tab" cdkDrag cdkDragLockAxis="x" [class.on]="tab.id === tabStore.activeId()"
-         [attr.aria-selected]="tab.id === tabStore.activeId()" [style.--conn]="connectionColor(tab)"
-         (mousedown)="$event.button === 0 && tabStore.activate(tab.id)" (auxclick)="$event.button === 1 && commandService.closeTab(tab.id)"
-         (dblclick)="editingTabId.set(tab.id)" (contextmenu)="openTabMenu($event, tab)" [title]="tooltip(tab)">
-      @if (isRunning(tab)) { <span class="spin" aria-label="Running"></span> }
-      @else if (tab.kind === 'table') { <span class="tbl" aria-hidden="true">▦</span> }
-      @if (editingTabId() === tab.id) {
-        <input class="rename" [value]="tab.name" (keydown.enter)="renameTab(tab, $any($event.target).value)"
-               (keydown.escape)="editingTabId.set('')" (blur)="renameTab(tab, $any($event.target).value)" (mousedown)="$event.stopPropagation()" dmAutofocus />
-      } @else {
-        <span class="name">{{ tab.name }}@if (tab.kind === 'table') {<span class="where"> [{{ locationLabel(tab) }}]</span>}</span>
-      }
-      <button class="close" [class.dirty]="tab.dirty" (mousedown)="$event.stopPropagation()" (click)="commandService.closeTab(tab.id)"
-              [attr.aria-label]="'Close ' + tab.name" [title]="'Close (' + modifierKey + 'W)'">
-        <span class="x">×</span><span class="d" aria-hidden="true">●</span>
-      </button>
-    </div>
-  }
-</div>
-<button class="btn ghost icon sm add" (click)="commandService.newTab()" [title]="'New tab (' + modifierKey + 'T)'" aria-label="New tab">＋</button>
+  <div
+    class="tabs"
+    role="tablist"
+    cdkDropList
+    cdkDropListOrientation="horizontal"
+    (cdkDropListDropped)="dropTab($event)"
+  >
+    @for (tab of tabStore.tabs(); track tab.id) {
+      <div
+        class="tab"
+        role="tab"
+        cdkDrag
+        cdkDragLockAxis="x"
+        [class.on]="tab.id === tabStore.activeId()"
+        [attr.aria-selected]="tab.id === tabStore.activeId()"
+        [style.--conn]="connectionColor(tab)"
+        (mousedown)="$event.button === 0 && tabStore.activate(tab.id)"
+        (auxclick)="$event.button === 1 && commandService.closeTab(tab.id)"
+        (dblclick)="editingTabId.set(tab.id)"
+        (contextmenu)="openTabMenu($event, tab)"
+        [title]="tooltip(tab)"
+      >
+        @if (isRunning(tab)) {
+          <span class="spin" aria-label="Running"></span>
+        } @else if (tab.kind === 'table') {
+          <span class="tbl" aria-hidden="true">▦</span>
+        }
+        @if (editingTabId() === tab.id) {
+          <input
+            class="rename"
+            [value]="tab.name"
+            (keydown.enter)="renameTab(tab, $any($event.target).value)"
+            (keydown.escape)="editingTabId.set('')"
+            (blur)="renameTab(tab, $any($event.target).value)"
+            (mousedown)="$event.stopPropagation()"
+            dmAutofocus
+          />
+        } @else {
+          <span class="name"
+            >{{ tab.name }}
+            @if (tab.kind === 'table') {
+              <span class="where"> [{{ locationLabel(tab) }}]</span>
+            }
+          </span>
+        }
+        <button
+          class="close"
+          [class.dirty]="tab.dirty"
+          (mousedown)="$event.stopPropagation()"
+          (click)="commandService.closeTab(tab.id)"
+          [attr.aria-label]="'Close ' + tab.name"
+          [title]="'Close (' + modifierKey + 'W)'"
+        >
+          <span class="x">×</span><span class="d" aria-hidden="true">●</span>
+        </button>
+      </div>
+    }
+  </div>
+  <button
+    class="btn ghost icon sm add"
+    (click)="commandService.newTab()"
+    [title]="'New tab (' + modifierKey + 'T)'"
+    aria-label="New tab"
+  >
+    ＋
+  </button>
 </div>
 @if (tabMenu(); as menuPosition) {
-  <div class="menu" [style.left.px]="menuPosition.x" [style.top.px]="menuPosition.y" (dmClickOutside)="tabMenu.set(null)">
+  <div
+    class="menu"
+    [style.left.px]="menuPosition.x"
+    [style.top.px]="menuPosition.y"
+    (dmClickOutside)="tabMenu.set(null)"
+  >
     <button class="menu-item" (click)="runMenuAction('rename')">Rename</button>
     @if (menuPosition.tab.kind === 'sql') {
-      <button class="menu-item" (click)="runMenuAction('save')">Save<span class="hint">{{ modifierKey }}S</span></button>
+      <button class="menu-item" (click)="runMenuAction('save')">
+        Save<span class="hint">{{ modifierKey }}S</span>
+      </button>
       <button class="menu-item" (click)="runMenuAction('export')">Save as file…</button>
       <button class="menu-item" (click)="runMenuAction('duplicate')">Duplicate</button>
     }
     <div class="menu-sep"></div>
-    <button class="menu-item" (click)="runMenuAction('close')">Close<span class="hint">{{ modifierKey }}W</span></button>
+    <button class="menu-item" (click)="runMenuAction('close')">
+      Close<span class="hint">{{ modifierKey }}W</span>
+    </button>
     <button class="menu-item" (click)="runMenuAction('others')">Close other tabs</button>
     @if (menuPosition.tab.kind === 'sql') {
       <div class="menu-sep"></div>
-      <button class="menu-item danger" (click)="runMenuAction('delete')">Delete scratch file…</button>
+      <button class="menu-item danger" (click)="runMenuAction('delete')">
+        Delete scratch file…
+      </button>
     }
   </div>
 }
 @if (databaseMenu(); as menuPosition) {
-  <div class="menu dbmenu" [style.left.px]="menuPosition.x" [style.top.px]="menuPosition.y" (dmClickOutside)="databaseMenu.set(null)">
+  <div
+    class="menu dbmenu"
+    [style.left.px]="menuPosition.x"
+    [style.top.px]="menuPosition.y"
+    (dmClickOutside)="databaseMenu.set(null)"
+  >
     <div class="menu-label">Database for this scratch</div>
     @for (database of databaseInfo()?.databases ?? []; track database) {
-      <button class="menu-item" [class.active]="isCurrentDatabase(database)" (click)="chooseDatabase(database)">
+      <button
+        class="menu-item"
+        [class.active]="isCurrentDatabase(database)"
+        (click)="chooseDatabase(database)"
+      >
         <span class="ellipsis">{{ database }}</span>
-        @if (database === databaseInfo()?.current) { <span class="hint">default</span> }
+        @if (database === databaseInfo()?.current) {
+          <span class="hint">default</span>
+        }
       </button>
     } @empty {
       <div class="menu-label">No databases reported</div>
@@ -53,49 +119,119 @@
   </div>
 }
 @if (transactionMenu(); as menuPosition) {
-  <div class="menu txmenu" [style.left.px]="menuPosition.x" [style.top.px]="menuPosition.y" (dmClickOutside)="transactionMenu.set(null)">
-    <button class="menu-item" [class.active]="tabStore.active()?.txMode !== 'manual'" (click)="setMode('auto')" [disabled]="transactionState().open">
+  <div
+    class="menu txmenu"
+    [style.left.px]="menuPosition.x"
+    [style.top.px]="menuPosition.y"
+    (dmClickOutside)="transactionMenu.set(null)"
+  >
+    <button
+      class="menu-item"
+      [class.active]="tabStore.active()?.txMode !== 'manual'"
+      (click)="setMode('auto')"
+      [disabled]="transactionState().open"
+    >
       <span><b>Auto-commit</b><small>Each statement is committed immediately.</small></span>
     </button>
-    <button class="menu-item" [class.active]="tabStore.active()?.txMode === 'manual'" (click)="setMode('manual')" [disabled]="transactionState().open">
-      <span><b>Manual</b><small>Changes stay in a transaction until you commit or roll back.</small></span>
+    <button
+      class="menu-item"
+      [class.active]="tabStore.active()?.txMode === 'manual'"
+      (click)="setMode('manual')"
+      [disabled]="transactionState().open"
+    >
+      <span
+        ><b>Manual</b
+        ><small>Changes stay in a transaction until you commit or roll back.</small></span
+      >
     </button>
-    @if (transactionState().open) { <div class="menu-label">Commit or roll back to switch</div> }
+    @if (transactionState().open) {
+      <div class="menu-label">Commit or roll back to switch</div>
+    }
   </div>
 }
 @if (activeTab(); as tab) {
   <div class="actions" role="toolbar" aria-label="Tab actions">
     @if (isRunning(tab)) {
-      <button class="btn danger sm" (click)="commandService.cancel()" title="Cancel (Esc)">■ Stop</button>
+      <button class="btn danger sm" (click)="commandService.cancel()" title="Cancel (Esc)">
+        ■ Stop
+      </button>
     } @else {
-      <button class="btn primary sm run" (click)="commandService.run()" [title]="'Run statement at cursor (' + modifierKey + '↵)'">▶ Run</button>
-      <button class="btn sm" (click)="commandService.runAll()" [title]="'Run whole script (' + modifierKey + '⇧↵)'">Run all</button>
+      <button
+        class="btn primary sm run"
+        (click)="commandService.run()"
+        [title]="'Run statement at cursor (' + modifierKey + '↵)'"
+      >
+        ▶ Run
+      </button>
+      <button
+        class="btn sm"
+        (click)="commandService.runAll()"
+        [title]="'Run whole script (' + modifierKey + '⇧↵)'"
+      >
+        Run all
+      </button>
     }
     <span class="vsep"></span>
     @if (!readOnly()) {
-      <button class="txmode" (click)="openTransactionMenu($event)" [class.manual]="tab.txMode === 'manual'"
-              title="Transaction mode for this tab">Tx: {{ tab.txMode === 'manual' ? 'Manual' : 'Auto' }} <span class="caret">▾</span></button>
+      <button
+        class="txmode"
+        (click)="openTransactionMenu($event)"
+        [class.manual]="tab.txMode === 'manual'"
+        title="Transaction mode for this tab"
+      >
+        Tx: {{ tab.txMode === 'manual' ? 'Manual' : 'Auto' }} <span class="caret">▾</span>
+      </button>
       @if (transactionState().open) {
         <span class="txopen" [title]="'Transaction open since ' + startedAtLabel()">
           <span class="pulse"></span>{{ transactionState().statements }}
         </span>
-        <button class="btn sm" (click)="transactionStore.commit()" title="Commit the transaction">✓ Commit</button>
-        <button class="btn sm" (click)="transactionStore.rollback()" title="Roll back the transaction">↶ Rollback</button>
+        <button class="btn sm" (click)="transactionStore.commit()" title="Commit the transaction">
+          ✓ Commit
+        </button>
+        <button
+          class="btn sm"
+          (click)="transactionStore.rollback()"
+          title="Roll back the transaction"
+        >
+          ↶ Rollback
+        </button>
       }
     }
-    <button class="txmode" (click)="uiState.inlineResults.set(!uiState.inlineResults())" [attr.aria-pressed]="uiState.inlineResults()"
-            [title]="uiState.inlineResults() ? 'Results show under each statement. Click to use the bottom panel.' : 'Results show in the bottom panel. Click to show them under each statement.'">Results: {{ uiState.inlineResults() ? 'Inline' : 'Panel' }}</button>
+    <button
+      class="txmode"
+      (click)="uiState.inlineResults.set(!uiState.inlineResults())"
+      [attr.aria-pressed]="uiState.inlineResults()"
+      [title]="
+        uiState.inlineResults()
+          ? 'Results show under each statement. Click to use the bottom panel.'
+          : 'Results show in the bottom panel. Click to show them under each statement.'
+      "
+    >
+      Results: {{ uiState.inlineResults() ? 'Inline' : 'Panel' }}
+    </button>
     @if (tab.kind === 'sql') {
       <span class="spacer"></span>
       @if (showDatabasePicker()) {
-        <button class="dbtarget" [class.locked]="tab.locked" (click)="openDatabaseMenu($event)"
-                [title]="tab.locked ? 'Locked to ' + databaseLabel() + '. Unlock the scratch to switch database.' : 'Database used by this scratch'">
+        <button
+          class="dbtarget"
+          [class.locked]="tab.locked"
+          (click)="openDatabaseMenu($event)"
+          [title]="
+            tab.locked
+              ? 'Locked to ' + databaseLabel() + '. Unlock the scratch to switch database.'
+              : 'Database used by this scratch'
+          "
+        >
           <span class="dbname">{{ databaseLabel() }}</span><span class="caret">▾</span>
         </button>
       }
-      <button class="btn ghost icon sm" [class.on]="tab.locked" (click)="scratchStore.setLocked(tab.id, !tab.locked)"
-              [title]="tab.locked ? 'Unlock this scratch' : 'Lock this scratch to its database'"
-              [attr.aria-label]="tab.locked ? 'Unlock scratch' : 'Lock scratch'">
+      <button
+        class="btn ghost icon sm"
+        [class.on]="tab.locked"
+        (click)="scratchStore.setLocked(tab.id, !tab.locked)"
+        [title]="tab.locked ? 'Unlock this scratch' : 'Lock this scratch to its database'"
+        [attr.aria-label]="tab.locked ? 'Unlock scratch' : 'Lock scratch'"
+      >
         <dm-icon [name]="tab.locked ? 'lock' : 'unlock'" [size]="14" />
       </button>
     }

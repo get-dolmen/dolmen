@@ -12,16 +12,25 @@ export class ConnectionStore {
   public readonly folders = signal<ConnectionFolder[]>([]);
   /** IDs currently connecting. */
   public readonly pending = signal<ReadonlySet<string>>(new Set());
-  public readonly byId = computed(() => new Map(this.connections().map((connection) => [connection.id, connection])));
-  public readonly connected = computed(() => this.connections().filter((connection) => connection.connected));
+  public readonly byId = computed(
+    () => new Map(this.connections().map((connection) => [connection.id, connection])),
+  );
+  public readonly connected = computed(() =>
+    this.connections().filter((connection) => connection.connected),
+  );
 
   /** Called after a connection is opened or closed, so schema caches can reset. */
   private listeners: ((id: string, connected: boolean) => void)[] = [];
-  public onChange(listener: (id: string, connected: boolean) => void) { this.listeners.push(listener); }
+  public onChange(listener: (id: string, connected: boolean) => void) {
+    this.listeners.push(listener);
+  }
 
   public async refresh() {
     try {
-      const [connections, folders] = await Promise.all([this.api.listConnections(), this.api.listFolders()]);
+      const [connections, folders] = await Promise.all([
+        this.api.listConnections(),
+        this.api.listFolders(),
+      ]);
       this.connections.set(connections);
       this.folders.set(folders);
     } catch (error) {
@@ -29,7 +38,9 @@ export class ConnectionStore {
     }
   }
 
-  public get(id: string | undefined) { return id ? this.byId().get(id) : undefined; }
+  public get(id: string | undefined) {
+    return id ? this.byId().get(id) : undefined;
+  }
 
   /** Creates a folder (optionally nested) and returns it. */
   public async createFolder(name: string, parentId = ''): Promise<ConnectionFolder | undefined> {
@@ -48,7 +59,9 @@ export class ConnectionStore {
     if (!current || !name.trim()) return false;
     try {
       const saved = await this.api.saveFolder({ ...current, name: name.trim() });
-      this.folders.update((folders) => folders.map((folder) => (folder.id === id ? saved : folder)));
+      this.folders.update((folders) =>
+        folders.map((folder) => (folder.id === id ? saved : folder)),
+      );
       return true;
     } catch (error) {
       this.toastService.error(errorText(error));
@@ -70,8 +83,13 @@ export class ConnectionStore {
     if (!current || (current.folderId ?? '') === folderId) return;
     try {
       await this.api.moveConnectionToFolder(connectionId, folderId);
-      this.connections.update((connections) => connections.map((connection) =>
-        (connection.id === connectionId ? { ...connection, folderId: folderId || undefined } : connection)));
+      this.connections.update((connections) =>
+        connections.map((connection) =>
+          connection.id === connectionId
+            ? { ...connection, folderId: folderId || undefined }
+            : connection,
+        ),
+      );
     } catch (error) {
       this.toastService.error(errorText(error));
     }
@@ -83,7 +101,9 @@ export class ConnectionStore {
     if (!current || (current.parentId ?? '') === parentId) return;
     try {
       const saved = await this.api.saveFolder({ ...current, parentId: parentId || undefined });
-      this.folders.update((folders) => folders.map((folder) => (folder.id === id ? saved : folder)));
+      this.folders.update((folders) =>
+        folders.map((folder) => (folder.id === id ? saved : folder)),
+      );
     } catch (error) {
       this.toastService.error(errorText(error));
     }
@@ -133,13 +153,17 @@ export class ConnectionStore {
   }
 
   private patch(id: string, changes: Partial<ConnectionView>) {
-    this.connections.update((connections) => connections.map((connection) =>
-      (connection.id === id ? { ...connection, ...changes } : connection)));
+    this.connections.update((connections) =>
+      connections.map((connection) =>
+        connection.id === id ? { ...connection, ...changes } : connection,
+      ),
+    );
   }
 
   private setPending(id: string, connecting: boolean) {
     const pending = new Set(this.pending());
-    if (connecting) pending.add(id); else pending.delete(id);
+    if (connecting) pending.add(id);
+    else pending.delete(id);
     this.pending.set(pending);
   }
 

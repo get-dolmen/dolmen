@@ -31,7 +31,9 @@ export class Topbar {
   public readonly modifierKey = MOD;
   public readonly isMacPlatform = isMac;
 
-  public readonly connection = computed(() => this.connectionStore.get(this.tabStore.active()?.connId));
+  public readonly connection = computed(() =>
+    this.connectionStore.get(this.tabStore.active()?.connId),
+  );
   public readonly database = computed(() => this.tabStore.active()?.database ?? '');
   public readonly locked = computed(() => !!this.tabStore.active()?.locked);
   public readonly menu = signal<MenuPos | null>(null);
@@ -45,7 +47,9 @@ export class Topbar {
     WindowToggleMaximise();
   }
 
-  public kindLabel(connection: ConnectionView) { return KIND_LABELS[connection.kind]; }
+  public kindLabel(connection: ConnectionView) {
+    return KIND_LABELS[connection.kind];
+  }
 
   public toggleMenu(event: MouseEvent) {
     const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
@@ -59,7 +63,8 @@ export class Topbar {
       this.toastService.error(`${tab.name} is locked to its folder. Unlock it first.`);
       return;
     }
-    if (tab && tab.connId !== connection.id && !(await this.transactionStore.confirmLeave(tab.id))) return;
+    if (tab && tab.connId !== connection.id && !(await this.transactionStore.confirmLeave(tab.id)))
+      return;
     if (tab) this.tabStore.setConnection(tab.id, connection.id);
     void this.connectionStore.ensureConnected(connection.id);
   }

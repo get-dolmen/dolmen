@@ -1,4 +1,12 @@
-import { Component, ElementRef, afterNextRender, computed, inject, signal, viewChild } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  afterNextRender,
+  computed,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import fuzzysort from 'fuzzysort';
 import { Commands } from '../../core/commands';
 import { ConnectionStore } from '../../core/connection.store';
@@ -21,7 +29,13 @@ export interface PaletteItem {
   alternateRun?: () => void;
 }
 
-const GROUP_ORDER: PaletteItem['group'][] = ['Tabs', 'Scratches', 'Tables', 'Connections', 'Commands'];
+const GROUP_ORDER: PaletteItem['group'][] = [
+  'Tabs',
+  'Scratches',
+  'Tables',
+  'Connections',
+  'Commands',
+];
 const MAX_RESULTS = 60;
 
 /** Ranks items by fuzzy score; with an empty query, keeps the given order. */
@@ -52,17 +66,21 @@ export class Palette {
 
   public readonly query = signal(this.uiState.paletteQuery());
   public readonly selectedIndex = signal(0);
-  public readonly loadingTables = computed(
-    () => [...this.schemaStore.loading()].some((scope) => scope.includes('|tables|')),
+  public readonly loadingTables = computed(() =>
+    [...this.schemaStore.loading()].some((scope) => scope.includes('|tables|')),
   );
 
   public constructor() {
     afterNextRender(() => this.searchInput().nativeElement.focus());
     // Each connection's own database, plus any other database already browsed in the explorer.
-    const connectedIds = new Set(this.connectionStore.connected().map((connection) => connection.id));
-    const browsedScopes = Object.keys(this.schemaStore.schemasByScope())
-      .filter((scope) => connectedIds.has(parseConnectionScope(scope).connId));
-    for (const scope of new Set([...connectedIds, ...browsedScopes])) void this.schemaStore.loadAllTables(scope);
+    const connectedIds = new Set(
+      this.connectionStore.connected().map((connection) => connection.id),
+    );
+    const browsedScopes = Object.keys(this.schemaStore.schemasByScope()).filter((scope) =>
+      connectedIds.has(parseConnectionScope(scope).connId),
+    );
+    for (const scope of new Set([...connectedIds, ...browsedScopes]))
+      void this.schemaStore.loadAllTables(scope);
   }
 
   private items = computed<PaletteItem[]>(() => {
@@ -71,7 +89,11 @@ export class Palette {
     for (const tab of this.tabStore.tabs()) {
       const connection = this.connectionStore.get(tab.connId);
       items.push({
-        id: `tab:${tab.id}`, group: 'Tabs', label: tab.name, detail: connection?.name, color: connection?.color,
+        id: `tab:${tab.id}`,
+        group: 'Tabs',
+        label: tab.name,
+        detail: connection?.name,
+        color: connection?.color,
         hint: tab.id === activeTab?.id ? 'current' : undefined,
         run: () => this.tabStore.activate(tab.id),
       });
@@ -82,7 +104,10 @@ export class Palette {
       if (openTabIds.has(scratch.id)) continue;
       const connection = this.connectionStore.get(scratch.connId);
       items.push({
-        id: `scr:${scratch.id}`, group: 'Scratches', label: scratch.name, color: connection?.color,
+        id: `scr:${scratch.id}`,
+        group: 'Scratches',
+        label: scratch.name,
+        color: connection?.color,
         detail: [connection?.name, scratch.database].filter(Boolean).join(' / ') || 'no connection',
         run: () => void this.scratchStore.open(scratch.id),
       });
@@ -96,10 +121,14 @@ export class Palette {
       for (const [schema, tables] of Object.entries(cachedSchema.tables)) {
         for (const table of tables) {
           items.push({
-            id: `tbl:${scope}:${schema}:${table.name}`, group: 'Tables', label: table.name,
-            detail: `${location} · ${schema}${table.type === 'view' ? ' · view' : ''}`, color: connection.color,
+            id: `tbl:${scope}:${schema}:${table.name}`,
+            group: 'Tables',
+            label: table.name,
+            detail: `${location} · ${schema}${table.type === 'view' ? ' · view' : ''}`,
+            color: connection.color,
             run: () => this.openTableData(connId, database, table),
-            alternateRun: () => this.commandService.insertName(connId, schema, table.name, database),
+            alternateRun: () =>
+              this.commandService.insertName(connId, schema, table.name, database),
           });
         }
       }
@@ -108,14 +137,23 @@ export class Palette {
       const isActive = activeTab?.connId === connection.id;
       const detail = isActive
         ? 'used by this tab'
-        : connection.connected ? 'connected · use in this tab' : 'connect and use in this tab';
+        : connection.connected
+          ? 'connected · use in this tab'
+          : 'connect and use in this tab';
       items.push({
-        id: `conn:${connection.id}`, group: 'Connections', label: connection.name, color: connection.color,
+        id: `conn:${connection.id}`,
+        group: 'Connections',
+        label: connection.name,
+        color: connection.color,
         detail,
         hint: connection.readOnly ? 'read-only' : undefined,
         run: async () => {
-          if (activeTab && activeTab.connId !== connection.id
-            && !(await this.transactionStore.confirmLeave(activeTab.id))) return;
+          if (
+            activeTab &&
+            activeTab.connId !== connection.id &&
+            !(await this.transactionStore.confirmLeave(activeTab.id))
+          )
+            return;
           if (activeTab) this.tabStore.setConnection(activeTab.id, connection.id);
           void this.connectionStore.ensureConnected(connection.id);
         },
@@ -123,7 +161,11 @@ export class Palette {
     }
     for (const command of this.commandService.list()) {
       items.push({
-        id: `cmd:${command.id}`, group: 'Commands', label: command.label, hint: command.hint, run: command.run,
+        id: `cmd:${command.id}`,
+        group: 'Commands',
+        label: command.label,
+        hint: command.hint,
+        run: command.run,
       });
     }
     return items;
@@ -141,7 +183,9 @@ export class Palette {
       return ranked.filter((item) => item.group !== 'Tables');
     }
     // Group results while keeping score order inside each group.
-    return [...ranked].sort((first, second) => GROUP_ORDER.indexOf(first.group) - GROUP_ORDER.indexOf(second.group));
+    return [...ranked].sort(
+      (first, second) => GROUP_ORDER.indexOf(first.group) - GROUP_ORDER.indexOf(second.group),
+    );
   });
 
   public setQuery(query: string) {
@@ -151,7 +195,12 @@ export class Palette {
 
   private openTableData(connectionId: string, database: string, table: DbTable) {
     this.uiState.sidebarOpen.set(true);
-    this.uiState.reveal.set({ connId: connectionId, database, schema: table.schema, table: table.name });
+    this.uiState.reveal.set({
+      connId: connectionId,
+      database,
+      schema: table.schema,
+      table: table.name,
+    });
     this.commandService.openTableData(connectionId, database, table);
   }
 
@@ -161,26 +210,35 @@ export class Palette {
     else item.run();
   }
 
-  public close() { this.uiState.paletteOpen.set(false); }
+  public close() {
+    this.uiState.paletteOpen.set(false);
+  }
 
   public onKey(event: KeyboardEvent) {
     const count = this.results().length;
     switch (event.key) {
-      case 'ArrowDown': this.selectedIndex.set(count ? (this.selectedIndex() + 1) % count : 0); break;
-      case 'ArrowUp': this.selectedIndex.set(count ? (this.selectedIndex() - 1 + count) % count : 0); break;
+      case 'ArrowDown':
+        this.selectedIndex.set(count ? (this.selectedIndex() + 1) % count : 0);
+        break;
+      case 'ArrowUp':
+        this.selectedIndex.set(count ? (this.selectedIndex() - 1 + count) % count : 0);
+        break;
       case 'Enter': {
         const item = this.results()[this.selectedIndex()];
         if (item) this.choose(item, event.altKey);
         break;
       }
-      case 'Escape': this.close(); break;
-      default: return;
+      case 'Escape':
+        this.close();
+        break;
+      default:
+        return;
     }
     event.preventDefault();
     event.stopPropagation();
     queueMicrotask(() => {
-      this.resultList().nativeElement
-        .querySelector(`#pi-${this.selectedIndex()}`)
+      this.resultList()
+        .nativeElement.querySelector(`#pi-${this.selectedIndex()}`)
         ?.scrollIntoView({ block: 'nearest' });
     });
   }

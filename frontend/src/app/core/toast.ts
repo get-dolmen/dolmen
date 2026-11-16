@@ -1,6 +1,10 @@
 import { Injectable, signal } from '@angular/core';
 
-export interface Toast { id: number; text: string; kind: 'info' | 'error' | 'success'; }
+export interface Toast {
+  id: number;
+  text: string;
+  kind: 'info' | 'error' | 'success';
+}
 
 @Injectable({ providedIn: 'root' })
 export class Toasts {
@@ -10,9 +14,18 @@ export class Toasts {
   public show(text: string, kind: Toast['kind'] = 'info', durationMilliseconds = 4000) {
     const id = ++this.sequence;
     this.items.update((toasts) => [...toasts, { id, text, kind }]);
-    setTimeout(() => this.dismiss(id), kind === 'error' ? Math.max(durationMilliseconds, 7000) : durationMilliseconds);
+    setTimeout(
+      () => this.dismiss(id),
+      kind === 'error' ? Math.max(durationMilliseconds, 7000) : durationMilliseconds,
+    );
   }
-  public error(text: string) { this.show(text, 'error'); }
-  public success(text: string) { this.show(text, 'success'); }
-  public dismiss(id: number) { this.items.update((toasts) => toasts.filter((toast) => toast.id !== id)); }
+  public error(text: string) {
+    this.show(text, 'error');
+  }
+  public success(text: string) {
+    this.show(text, 'success');
+  }
+  public dismiss(id: number) {
+    this.items.update((toasts) => toasts.filter((toast) => toast.id !== id));
+  }
 }

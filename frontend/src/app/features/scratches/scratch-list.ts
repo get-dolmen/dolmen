@@ -74,18 +74,25 @@ export class ScratchList {
   public readonly isDockedLeft = computed(() => this.uiState.scratchPosition() === 'left');
   public readonly showsList = computed(() => this.isDockedLeft() || !this.collapsed());
 
-  public constructor() { void this.scratchStore.refresh(); }
+  public constructor() {
+    void this.scratchStore.refresh();
+  }
 
   public toggle() {
     // In the left dock the whole panel collapses, so there is no header left to click.
     if (this.isDockedLeft()) return this.uiState.scratchOpen.set(false);
     this.collapsed.update((value) => !value);
-    try { localStorage.setItem(COLLAPSED_KEY, this.collapsed() ? '1' : '0'); } catch { /* storage unavailable */ }
+    try {
+      localStorage.setItem(COLLAPSED_KEY, this.collapsed() ? '1' : '0');
+    } catch {
+      /* storage unavailable */
+    }
   }
 
   public toggleFolder(key: string) {
     const folded = new Set(this.folded());
-    if (folded.has(key)) folded.delete(key); else folded.add(key);
+    if (folded.has(key)) folded.delete(key);
+    else folded.add(key);
     this.setFolded(folded);
   }
 
@@ -93,11 +100,18 @@ export class ScratchList {
     this.folded.set(folded);
     try {
       localStorage.setItem(FOLDERS_KEY, JSON.stringify([...folded]));
-    } catch { /* storage unavailable */ }
+    } catch {
+      /* storage unavailable */
+    }
   }
 
   public folderTitle(folder: FolderNode) {
-    const kind = { conn: 'Connection', db: 'Database', table: 'Table', none: 'Scratches whose connection was deleted' }[folder.level];
+    const kind = {
+      conn: 'Connection',
+      db: 'Database',
+      table: 'Table',
+      none: 'Scratches whose connection was deleted',
+    }[folder.level];
     return folder.level === 'none'
       ? kind
       : `${kind} ${folder.detail ? folder.detail + '.' : ''}${folder.label}: drop a scratch here to file it`;
@@ -124,7 +138,10 @@ export class ScratchList {
     const scratchId = event.dataTransfer?.getData(DRAG_TYPE);
     if (!scratchId || folder.level === 'none') return;
     void this.scratchStore.moveTo(scratchId, {
-      connId: folder.connId, database: folder.database, schema: folder.schema, table: folder.table,
+      connId: folder.connId,
+      database: folder.database,
+      schema: folder.schema,
+      table: folder.table,
     });
     // Make sure the destination is visible.
     const folded = new Set(this.folded());
@@ -136,12 +153,20 @@ export class ScratchList {
 
   public openFileMenu(event: MouseEvent, scratch: ScratchInfo) {
     event.preventDefault();
-    this.contextMenu.set({ ...clampMenu(event.clientX, event.clientY, 220, 200), kind: 'file', scratch });
+    this.contextMenu.set({
+      ...clampMenu(event.clientX, event.clientY, 220, 200),
+      kind: 'file',
+      scratch,
+    });
   }
 
   public openFolderMenu(event: MouseEvent, folder: FolderNode) {
     event.preventDefault();
-    this.contextMenu.set({ ...clampMenu(event.clientX, event.clientY, 200, 120), kind: 'folder', folder });
+    this.contextMenu.set({
+      ...clampMenu(event.clientX, event.clientY, 200, 120),
+      kind: 'folder',
+      folder,
+    });
   }
 
   public runMenuAction(action: string) {
@@ -153,25 +178,41 @@ export class ScratchList {
       switch (action) {
         case 'new':
           return void this.scratchStore.createIn({
-            connId: folder.connId, database: folder.database, schema: folder.schema, table: folder.table,
+            connId: folder.connId,
+            database: folder.database,
+            schema: folder.schema,
+            table: folder.table,
           });
-        case 'collapse': return this.setFolded(new Set(this.allFolderKeys()));
-        case 'expand': return this.setFolded(new Set());
+        case 'collapse':
+          return this.setFolded(new Set(this.allFolderKeys()));
+        case 'expand':
+          return this.setFolded(new Set());
       }
       return;
     }
     const scratch = menu.scratch;
     switch (action) {
-      case 'open': return void this.scratchStore.open(scratch.id);
-      case 'rename': return this.editingId.set(scratch.id);
-      case 'lock': return void this.scratchStore.setLocked(scratch.id, true);
-      case 'unlock': return void this.scratchStore.setLocked(scratch.id, false);
-      case 'duplicate': return void this.scratchStore.duplicate(scratch.id);
-      case 'export': return void this.scratchStore.exportFile(scratch.id);
-      case 'untable': return void this.scratchStore.moveTo(scratch.id, {
-        connId: scratch.connId, database: scratch.database ?? '', schema: '', table: '',
-      });
-      case 'delete': return void this.scratchStore.remove(scratch.id);
+      case 'open':
+        return void this.scratchStore.open(scratch.id);
+      case 'rename':
+        return this.editingId.set(scratch.id);
+      case 'lock':
+        return void this.scratchStore.setLocked(scratch.id, true);
+      case 'unlock':
+        return void this.scratchStore.setLocked(scratch.id, false);
+      case 'duplicate':
+        return void this.scratchStore.duplicate(scratch.id);
+      case 'export':
+        return void this.scratchStore.exportFile(scratch.id);
+      case 'untable':
+        return void this.scratchStore.moveTo(scratch.id, {
+          connId: scratch.connId,
+          database: scratch.database ?? '',
+          schema: '',
+          table: '',
+        });
+      case 'delete':
+        return void this.scratchStore.remove(scratch.id);
     }
   }
 
@@ -188,6 +229,7 @@ export class ScratchList {
   public rename(scratch: ScratchInfo, name: string) {
     if (this.editingId() !== scratch.id) return;
     this.editingId.set('');
-    if (name.trim() && name.trim() !== scratch.name) void this.scratchStore.rename(scratch.id, name);
+    if (name.trim() && name.trim() !== scratch.name)
+      void this.scratchStore.rename(scratch.id, name);
   }
 }

@@ -26,7 +26,9 @@ export class Hotkeys {
     let handled = true;
 
     if (modifierPressed && !event.altKey && key === 'p') {
-      this.uiState.paletteOpen() ? this.uiState.paletteOpen.set(false) : this.uiState.openPalette(event.shiftKey ? '>' : '');
+      this.uiState.paletteOpen()
+        ? this.uiState.paletteOpen.set(false)
+        : this.uiState.openPalette(event.shiftKey ? '>' : '');
     } else if (this.uiState.paletteOpen() || document.querySelector('.cdk-overlay-pane')) {
       return; // let the palette or a dialog handle its own keys
     } else if (modifierPressed && key === 'enter') {
@@ -43,7 +45,11 @@ export class Hotkeys {
       this.commandService.openSettings();
     } else if (event.ctrlKey && key === 'tab') {
       this.tabStore.activateRelative(event.shiftKey ? -1 : 1);
-    } else if (modifierPressed && event.shiftKey && (event.key === ']' || event.key === '[' || event.key === '}' || event.key === '{')) {
+    } else if (
+      modifierPressed &&
+      event.shiftKey &&
+      (event.key === ']' || event.key === '[' || event.key === '}' || event.key === '{')
+    ) {
       this.tabStore.activateRelative(event.key === ']' || event.key === '}' ? 1 : -1);
     } else if (key === 'escape' && this.runStore.get(this.tabStore.activeId()).running) {
       this.commandService.cancel();

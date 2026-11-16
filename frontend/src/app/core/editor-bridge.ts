@@ -23,14 +23,26 @@ export interface EditorHandle {
 export class EditorBridge {
   private editorHandle?: EditorHandle;
 
-  public attach(editorHandle: EditorHandle) { this.editorHandle = editorHandle; }
+  public attach(editorHandle: EditorHandle) {
+    this.editorHandle = editorHandle;
+  }
   public detach(editorHandle: EditorHandle) {
     if (this.editorHandle === editorHandle) this.editorHandle = undefined;
   }
 
-  public runTarget(mode: 'cursor' | 'all') { return this.editorHandle?.runTarget(mode) ?? null; }
-  public insert(text: string) { this.editorHandle?.insert(text); }
-  public replaceContent(tabId: string, content: string) { this.editorHandle?.replaceContent(tabId, content); }
-  public focus() { this.editorHandle?.focus(); }
-  public flashError() { this.editorHandle?.flashError(); }
+  public runTarget(mode: 'cursor' | 'all') {
+    return this.editorHandle?.runTarget(mode) ?? null;
+  }
+  public insert(text: string) {
+    this.editorHandle?.insert(text);
+  }
+  public replaceContent(tabId: string, content: string) {
+    this.editorHandle?.replaceContent(tabId, content);
+  }
+  public focus() {
+    this.editorHandle?.focus();
+  }
+  public flashError() {
+    this.editorHandle?.flashError();
+  }
 }

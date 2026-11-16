@@ -9,8 +9,14 @@
         <span class="label">Theme</span>
         <div class="choices" role="radiogroup" aria-label="Theme">
           @for (themeOption of themeOptions; track themeOption.value) {
-            <button type="button" class="choice" role="radio" [class.on]="uiState.theme() === themeOption.value"
-                    [attr.aria-checked]="uiState.theme() === themeOption.value" (click)="uiState.theme.set(themeOption.value)">
+            <button
+              type="button"
+              class="choice"
+              role="radio"
+              [class.on]="uiState.theme() === themeOption.value"
+              [attr.aria-checked]="uiState.theme() === themeOption.value"
+              (click)="uiState.theme.set(themeOption.value)"
+            >
               <span class="preview" [attr.data-preview]="themeOption.value" aria-hidden="true">
                 <span class="bar"></span><span class="pane"></span>
               </span>
@@ -24,18 +30,35 @@
       <div class="field">
         <span class="label">Scratch files</span>
         <div class="choices two" role="radiogroup" aria-label="Scratch panel position">
-          <button type="button" class="choice" role="radio" [class.on]="uiState.scratchPosition() === 'explorer'"
-                  [attr.aria-checked]="uiState.scratchPosition() === 'explorer'" (click)="uiState.scratchPosition.set('explorer')">
+          <button
+            type="button"
+            class="choice"
+            role="radio"
+            [class.on]="uiState.scratchPosition() === 'explorer'"
+            [attr.aria-checked]="uiState.scratchPosition() === 'explorer'"
+            (click)="uiState.scratchPosition.set('explorer')"
+          >
             <span class="preview dock" aria-hidden="true">
-              <span class="work"><span class="explorer"><span class="scratches"></span></span></span>
+              <span class="work"
+                ><span class="explorer"><span class="scratches"></span></span
+              ></span>
             </span>
             <span class="name">Explorer</span>
             <span class="hint">Bottom of the right sidebar</span>
           </button>
-          <button type="button" class="choice" role="radio" [class.on]="uiState.scratchPosition() === 'left'"
-                  [attr.aria-checked]="uiState.scratchPosition() === 'left'" (click)="uiState.scratchPosition.set('left')">
+          <button
+            type="button"
+            class="choice"
+            role="radio"
+            [class.on]="uiState.scratchPosition() === 'left'"
+            [attr.aria-checked]="uiState.scratchPosition() === 'left'"
+            (click)="uiState.scratchPosition.set('left')"
+          >
             <span class="preview dock" aria-hidden="true">
-              <span class="work"><span class="left-dock"></span><span class="main-pane"></span><span class="explorer"></span></span>
+              <span class="work"
+                ><span class="left-dock"></span><span class="main-pane"></span
+                ><span class="explorer"></span
+              ></span>
             </span>
             <span class="name">Left panel</span>
             <span class="hint">Full-height pane, above the tab bar</span>
@@ -46,18 +69,34 @@
       <div class="field">
         <span class="label">Query results</span>
         <div class="choices two" role="radiogroup" aria-label="Where query results are shown">
-          <button type="button" class="choice" role="radio" [class.on]="!uiState.inlineResults()"
-                  [attr.aria-checked]="!uiState.inlineResults()" (click)="uiState.inlineResults.set(false)">
+          <button
+            type="button"
+            class="choice"
+            role="radio"
+            [class.on]="!uiState.inlineResults()"
+            [attr.aria-checked]="!uiState.inlineResults()"
+            (click)="uiState.inlineResults.set(false)"
+          >
             <span class="preview dock" aria-hidden="true">
-              <span class="work col"><span class="main-pane"></span><span class="results-pane"></span></span>
+              <span class="work col"
+                ><span class="main-pane"></span><span class="results-pane"></span
+              ></span>
             </span>
             <span class="name">Bottom panel</span>
             <span class="hint">Results, messages and history under the editor</span>
           </button>
-          <button type="button" class="choice" role="radio" [class.on]="uiState.inlineResults()"
-                  [attr.aria-checked]="uiState.inlineResults()" (click)="uiState.inlineResults.set(true)">
+          <button
+            type="button"
+            class="choice"
+            role="radio"
+            [class.on]="uiState.inlineResults()"
+            [attr.aria-checked]="uiState.inlineResults()"
+            (click)="uiState.inlineResults.set(true)"
+          >
             <span class="preview dock" aria-hidden="true">
-              <span class="work col"><span class="code"></span><span class="inline-res"></span><span class="code"></span></span>
+              <span class="work col"
+                ><span class="code"></span><span class="inline-res"></span><span class="code"></span
+              ></span>
             </span>
             <span class="name">Inline</span>
             <span class="hint">Under each statement, in the editor</span>
@@ -73,17 +112,34 @@
           <input type="checkbox" name="syncEnabled" [(ngModel)]="form.enabled" />
           <span>
             <b>Sync connections and scratch files through Git</b>
-            <small class="muted">Dolmen keeps a small repository in <span class="mono">{{ status()?.dir || '…' }}</span> and exchanges it with this remote.</small>
+            <small class="muted"
+              >Dolmen keeps a small repository in
+              <span class="mono">{{ status()?.dir || '…' }}</span> and exchanges it with this
+              remote.</small
+            >
           </span>
         </label>
 
-        <label class="stack">Remote
-          <input class="input mono" name="remote" [(ngModel)]="form.remote"
-                 placeholder="git@github.com:you/dolmen-sync.git — or a bare local repository (file://…)" spellcheck="false" />
+        <label class="stack"
+          >Remote
+          <input
+            class="input mono"
+            name="remote"
+            [(ngModel)]="form.remote"
+            placeholder="git@github.com:you/dolmen-sync.git — or a bare local repository (file://…)"
+            spellcheck="false"
+          />
         </label>
         <div class="two-col">
-          <label class="stack">Branch
-            <input class="input mono" name="branch" [(ngModel)]="form.branch" placeholder="main" spellcheck="false" />
+          <label class="stack"
+            >Branch
+            <input
+              class="input mono"
+              name="branch"
+              [(ngModel)]="form.branch"
+              placeholder="main"
+              spellcheck="false"
+            />
           </label>
           <label class="check inline">
             <input type="checkbox" name="encrypted" [(ngModel)]="form.encrypted" />
@@ -95,13 +151,28 @@
         </div>
 
         @if (form.encrypted) {
-          <label class="stack">Master password
-            <input class="input" name="password" type="password" [ngModel]="password()" (ngModelChange)="password.set($event)"
-                   placeholder="Kept in memory for this session" autocomplete="off" />
+          <label class="stack"
+            >Master password
+            <input
+              class="input"
+              name="password"
+              type="password"
+              [ngModel]="password()"
+              (ngModelChange)="password.set($event)"
+              placeholder="Kept in memory for this session"
+              autocomplete="off"
+            />
           </label>
-          <p class="note">The password is never written to disk; use the same one on every machine. Encryption applies to new commits, so earlier commits of the repository may still contain plain text.</p>
+          <p class="note">
+            The password is never written to disk; use the same one on every machine. Encryption
+            applies to new commits, so earlier commits of the repository may still contain plain
+            text.
+          </p>
         } @else {
-          <p class="note warn">Without a master password, the Git repository contains connection passwords in plain text.</p>
+          <p class="note warn">
+            Without a master password, the Git repository contains connection passwords in plain
+            text.
+          </p>
         }
 
         @if (status(); as syncStatus) {
@@ -114,14 +185,23 @@
           @if (syncStatus.lastSyncAt) {
             <p class="note ok">
               Last sync {{ relativeTime(syncStatus.lastSyncAt) }}
-              @if (syncStatus.lastCommit) { · commit <span class="mono">{{ syncStatus.lastCommit }}</span> }
+              @if (syncStatus.lastCommit) {
+                · commit <span class="mono">{{ syncStatus.lastCommit }}</span>
+              }
             </p>
           }
         }
       </div>
       <div class="actions">
-        <button type="button" class="btn" (click)="save()" [disabled]="busy() !== null">Save</button>
-        <button type="button" class="btn primary" (click)="sync()" [disabled]="busy() !== null || !form.enabled || status()?.gitAvailable === false">
+        <button type="button" class="btn" (click)="save()" [disabled]="busy() !== null">
+          Save
+        </button>
+        <button
+          type="button"
+          class="btn primary"
+          (click)="sync()"
+          [disabled]="busy() !== null || !form.enabled || status()?.gitAvailable === false"
+        >
           {{ busy() === 'sync' ? 'Syncing…' : 'Sync now' }}
         </button>
       </div>
@@ -134,14 +214,24 @@
           <input type="checkbox" name="mcpEnabled" [(ngModel)]="mcpForm.enabled" />
           <span>
             <b>Let MCP clients use this computer's connections</b>
-            <small class="muted">Listens on 127.0.0.1 only; every client must send the access token.</small>
+            <small class="muted"
+              >Listens on 127.0.0.1 only; every client must send the access token.</small
+            >
           </span>
         </label>
 
         @if (mcpStatus(); as mcp) {
           <div class="mcp-grid">
-            <label class="stack">Port
-              <input class="input mono" type="number" min="1" max="65535" name="mcpPort" [(ngModel)]="mcpForm.port" />
+            <label class="stack"
+              >Port
+              <input
+                class="input mono"
+                type="number"
+                min="1"
+                max="65535"
+                name="mcpPort"
+                [(ngModel)]="mcpForm.port"
+              />
             </label>
             <div class="permissions">
               <span class="label">Permissions</span>
@@ -153,7 +243,12 @@
                 </span>
               </label>
               <label class="check inline">
-                <input type="checkbox" name="mcpWrite" [ngModel]="mcpForm.write" (ngModelChange)="setMcpWrite($event)" />
+                <input
+                  type="checkbox"
+                  name="mcpWrite"
+                  [ngModel]="mcpForm.write"
+                  (ngModelChange)="setMcpWrite($event)"
+                />
                 <span>
                   <b>Write</b>
                   <small class="muted">INSERT, UPDATE, DDL… (also turns Read on)</small>
@@ -163,27 +258,59 @@
           </div>
 
           <div class="two-col even">
-            <label class="stack">Allowed databases
-              <input class="input mono" name="mcpDatabases" [(ngModel)]="mcpForm.databases"
-                     placeholder="all — or sales, analytics" spellcheck="false" />
+            <label class="stack"
+              >Allowed databases
+              <input
+                class="input mono"
+                name="mcpDatabases"
+                [(ngModel)]="mcpForm.databases"
+                placeholder="all — or sales, analytics"
+                spellcheck="false"
+              />
             </label>
-            <label class="stack">Allowed schemas
-              <input class="input mono" name="mcpSchemas" [(ngModel)]="mcpForm.schemas"
-                     placeholder="all — or public, reporting" spellcheck="false" />
+            <label class="stack"
+              >Allowed schemas
+              <input
+                class="input mono"
+                name="mcpSchemas"
+                [(ngModel)]="mcpForm.schemas"
+                placeholder="all — or public, reporting"
+                spellcheck="false"
+              />
             </label>
           </div>
-          <p class="note">Comma-separated allow-lists; leave a field empty to allow every database or schema. On MySQL a schema is a database.</p>
+          <p class="note">
+            Comma-separated allow-lists; leave a field empty to allow every database or schema. On
+            MySQL a schema is a database.
+          </p>
 
-          <label class="stack">Access token
+          <label class="stack"
+            >Access token
             <div class="token-row">
               <input class="input mono" name="mcpToken" [value]="mcp.token" readonly />
-              <button type="button" class="btn sm" (click)="copyMcpToken()" [disabled]="mcpBusy() !== null">Copy</button>
-              <button type="button" class="btn sm" (click)="regenerateMcpToken()" [disabled]="mcpBusy() !== null">Regenerate</button>
+              <button
+                type="button"
+                class="btn sm"
+                (click)="copyMcpToken()"
+                [disabled]="mcpBusy() !== null"
+              >
+                Copy
+              </button>
+              <button
+                type="button"
+                class="btn sm"
+                (click)="regenerateMcpToken()"
+                [disabled]="mcpBusy() !== null"
+              >
+                Regenerate
+              </button>
             </div>
           </label>
 
           @if (mcp.running) {
-            <p class="note ok">Listening on <span class="mono">{{ mcp.url }}</span></p>
+            <p class="note ok">
+              Listening on <span class="mono">{{ mcp.url }}</span>
+            </p>
           } @else if (mcp.enabled) {
             <p class="note warn">Not listening.</p>
           } @else {
@@ -196,14 +323,26 @@
           <div class="snippet">
             <div class="snippet-head">
               <span class="label">Client configuration</span>
-              <button type="button" class="btn sm" (click)="copyMcpConfig()" [disabled]="mcpBusy() !== null">Copy</button>
+              <button
+                type="button"
+                class="btn sm"
+                (click)="copyMcpConfig()"
+                [disabled]="mcpBusy() !== null"
+              >
+                Copy
+              </button>
             </div>
             <pre class="mono">{{ mcpSnippet(mcp) }}</pre>
           </div>
         }
       </div>
       <div class="actions">
-        <button type="button" class="btn primary" (click)="saveMcp()" [disabled]="mcpBusy() !== null">
+        <button
+          type="button"
+          class="btn primary"
+          (click)="saveMcp()"
+          [disabled]="mcpBusy() !== null"
+        >
           {{ mcpBusy() === 'save' ? 'Saving…' : 'Save MCP settings' }}
         </button>
       </div>

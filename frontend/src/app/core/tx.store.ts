@@ -19,7 +19,9 @@ export class TxStore {
 
   public readonly status = signal<Record<string, TxStatus>>({});
 
-  public get(tabId: string): TxStatus { return this.status()[tabId] ?? CLOSED; }
+  public get(tabId: string): TxStatus {
+    return this.status()[tabId] ?? CLOSED;
+  }
 
   public set(tabId: string, transactionStatus: TxStatus | undefined) {
     this.status.set({ ...this.status(), [tabId]: transactionStatus ?? CLOSED });
@@ -48,16 +50,23 @@ export class TxStore {
   public async confirmLeave(tabId: string): Promise<boolean> {
     const transaction = this.get(tabId);
     if (!transaction.open) return true;
-    if (!(await this.confirmDialog.ask(
-      `This tab has an open transaction (${transaction.statements} statements). Switching rolls it back.`,
-      { title: 'Leave transaction', confirmLabel: 'Roll back and switch', danger: true },
-    ))) return false;
+    if (
+      !(await this.confirmDialog.ask(
+        `This tab has an open transaction (${transaction.statements} statements). Switching rolls it back.`,
+        { title: 'Leave transaction', confirmLabel: 'Roll back and switch', danger: true },
+      ))
+    )
+      return false;
     this.forget(tabId);
     return true;
   }
 
-  public commit(tabId = this.tabStore.activeId()) { return this.end(tabId, true); }
-  public rollback(tabId = this.tabStore.activeId()) { return this.end(tabId, false); }
+  public commit(tabId = this.tabStore.activeId()) {
+    return this.end(tabId, true);
+  }
+  public rollback(tabId = this.tabStore.activeId()) {
+    return this.end(tabId, false);
+  }
 
   private async end(tabId: string, commit: boolean) {
     const statementCount = this.get(tabId).statements;

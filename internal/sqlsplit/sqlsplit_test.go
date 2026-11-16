@@ -173,3 +173,25 @@ func TestByteToUTF16Offset(t *testing.T) {
 		}
 	}
 }
+
+func TestReferences(t *testing.T) {
+	cases := []struct {
+		name string
+		d    Dialect
+		src  string
+		want []Reference
+	}{
+		{"qualified names", Postgres, `select o.id from public.orders o join "Sales"."Lines" l on l.order_id = o.id`,
+			[]Reference{{"o", "id"}, {"public", "orders"}, {"Sales", "Lines"}, {"l", "order_id"}, {"o", "id"}}},
+		{"literals and comments", Postgres, `select 'a.b', "x.y" from s.t -- u.v`,
+			[]Reference{{"s", "t"}}},
+		{"backticks", MySQL, "select `db`.`t`.`c` from db.t", []Reference{{"db", "t"}, {"t", "c"}, {"db", "t"}}},
+		{"no qualified names", Postgres, "select 1, now()", nil},
+	}
+	for _, c := range cases {
+		got := References(c.d, c.src)
+		if !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%s: References(%s, %q) = %+v, want %+v", c.name, c.d, c.src, got, c.want)
+		}
+	}
+}

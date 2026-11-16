@@ -91,6 +91,29 @@ func (t *Tools) ListTools() []Tool {
 			}, "connection", "table"),
 		},
 	}
+	if cfg.AllowsRead() {
+		tools = append(tools, Tool{
+			Name:        "read_query",
+			Description: "Run read-only SQL (SELECT, WITH, SHOW, EXPLAIN, …) and return the rows. Use write_query for changes.",
+			InputSchema: object(map[string]any{
+				"connection": text("Saved connection name or id."),
+				"database":   text("Database to open; empty uses the connection's own database."),
+				"sql":        text("One or more read-only statements."),
+				"maxRows":    number("Maximum rows per statement (default 100, at most 1000).", 1, maxQueryRows),
+			}, "connection", "sql"),
+		})
+	}
+	if cfg.AllowsWrite() {
+		tools = append(tools, Tool{
+			Name:        "write_query",
+			Description: "Run SQL that changes data or schema. All statements run in one transaction unless the engine commits DDL implicitly.",
+			InputSchema: object(map[string]any{
+				"connection": text("Saved connection name or id."),
+				"database":   text("Database to open; empty uses the connection's own database."),
+				"sql":        text("One or more statements to run."),
+			}, "connection", "sql"),
+		})
+	}
 	return tools
 }
 
@@ -152,6 +175,24 @@ func (t *Tools) Call(ctx context.Context, name string, raw json.RawMessage) (any
 			return nil, err
 		}
 		return t.tableDDL(ctx, cfg, args)
+	case "read_query":
+		if err := requireRead(cfg); err != nil {
+			return nil, err
+		}
+		var args queryArgs
+		if err := decodeArgs(raw, &args); err != nil {
+			return nil, err
+		}
+		return t.readQuery(ctx, cfg, args)
+	case "write_query":
+		if err := requireWrite(cfg); err != nil {
+			return nil, err
+		}
+		var args queryArgs
+		if err := decodeArgs(raw, &args); err != nil {
+			return nil, err
+		}
+		return t.writeQuery(ctx, cfg, args)
 	}
 	return nil, fmt.Errorf("unknown tool %q", name)
 }

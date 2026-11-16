@@ -10,6 +10,7 @@ import (
 
 	"dolmen/internal/conn"
 	"dolmen/internal/driver"
+	"dolmen/internal/history"
 
 	_ "modernc.org/sqlite"
 )
@@ -39,9 +40,14 @@ func newSQLiteTools(t *testing.T) (*Tools, *Config) {
 	}
 	manager := conn.NewManager()
 	t.Cleanup(manager.CloseAll)
+	hist, err := history.Open(filepath.Join(dir, "history.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { hist.Close() })
 	cfg := DefaultConfig()
 	cfg.Enabled = true
-	return NewTools(manager, store, nil, func() Config { return cfg }), &cfg
+	return NewTools(manager, store, hist, func() Config { return cfg }), &cfg
 }
 
 func call[T any](t *testing.T, tools *Tools, name, args string) T {
@@ -147,10 +153,15 @@ func TestToolsListFollowsPermissions(t *testing.T) {
 		}
 		return out
 	}
-	if got := strings.Join(names(), ","); got != "list_connections,list_databases,list_schemas,list_tables,describe_table,get_table_ddl" {
+	if got := strings.Join(names(), ","); got != "list_connections,list_databases,list_schemas,list_tables,describe_table,get_table_ddl,read_query" {
 		t.Fatalf("read tools = %s", got)
 	}
+	cfg.Write = true
+	if got := strings.Join(names(), ","); got != "list_connections,list_databases,list_schemas,list_tables,describe_table,get_table_ddl,read_query,write_query" {
+		t.Fatalf("write tools = %s", got)
+	}
 	cfg.Read = false
+	cfg.Write = false
 	if got := names(); len(got) != 0 {
 		t.Fatalf("tools listed without read access: %v", got)
 	}

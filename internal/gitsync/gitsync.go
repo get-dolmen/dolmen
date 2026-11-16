@@ -23,6 +23,7 @@ import (
 	"dolmen/internal/conn"
 	"dolmen/internal/driver"
 	"dolmen/internal/folder"
+	"dolmen/internal/jsonfile"
 	"dolmen/internal/scratch"
 )
 
@@ -117,11 +118,7 @@ func (s *Service) SaveConfig(config Config) (Config, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	data, err := json.MarshalIndent(config, "", "  ")
-	if err != nil {
-		return Config{}, err
-	}
-	return config, atomicfile.Write(s.configPath, data, 0o600)
+	return config, jsonfile.Write(s.configPath, config, 0o600)
 }
 
 // Status reports the settings plus the last sync result.
@@ -149,15 +146,12 @@ func (s *Service) Status() Status {
 
 func (s *Service) loadConfig() (Config, error) {
 	var config Config
-	data, err := os.ReadFile(s.configPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return normalize(Config{}), nil
-	}
+	found, err := jsonfile.Read(s.configPath, &config)
 	if err != nil {
 		return Config{}, err
 	}
-	if err := json.Unmarshal(data, &config); err != nil {
-		return Config{}, fmt.Errorf("reading %s: %w", s.configPath, err)
+	if !found {
+		return normalize(Config{}), nil
 	}
 	return normalize(config), nil
 }
@@ -646,18 +640,12 @@ func itemSet(bundle Bundle) map[string]bool {
 
 func (s *Service) loadState() syncState {
 	var state syncState
-	if data, err := os.ReadFile(s.statePath); err == nil {
-		_ = json.Unmarshal(data, &state)
-	}
+	_, _ = jsonfile.Read(s.statePath, &state)
 	return state
 }
 
 func (s *Service) saveState(state syncState) error {
-	data, err := json.MarshalIndent(state, "", "  ")
-	if err != nil {
-		return err
-	}
-	return atomicfile.Write(s.statePath, data, 0o600)
+	return jsonfile.Write(s.statePath, state, 0o600)
 }
 
 func exists(path string) bool {

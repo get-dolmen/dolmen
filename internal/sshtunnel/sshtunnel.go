@@ -50,88 +50,88 @@ type Tunnel struct {
 
 // Open connects to the SSH server and starts a local listener for target
 // ("host:port" as seen from the SSH server).
-func Open(ctx context.Context, cfg Config, target string) (*Tunnel, error) {
-	if strings.TrimSpace(cfg.Host) == "" {
+func Open(ctx context.Context, config Config, target string) (*Tunnel, error) {
+	if strings.TrimSpace(config.Host) == "" {
 		return nil, errors.New("SSH host is required")
 	}
-	if strings.TrimSpace(cfg.User) == "" {
+	if strings.TrimSpace(config.User) == "" {
 		return nil, errors.New("SSH user is required")
 	}
-	port := cfg.Port
+	port := config.Port
 	if port == 0 {
 		port = 22
 	}
-	methods, closer, err := authMethods(cfg)
+	methods, closer, err := authMethods(config)
 	if err != nil {
 		return nil, err
 	}
-	hostKey, err := hostKeyCallback(cfg)
+	hostKey, err := hostKeyCallback(config)
 	if err != nil {
 		closeIfSet(closer)
 		return nil, err
 	}
-	addr := net.JoinHostPort(cfg.Host, strconv.Itoa(port))
+	addr := net.JoinHostPort(config.Host, strconv.Itoa(port))
 	dialer := net.Dialer{Timeout: 15 * time.Second}
-	netConn, err := dialer.DialContext(ctx, "tcp", addr)
+	networkConnection, err := dialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		closeIfSet(closer)
 		return nil, fmt.Errorf("could not reach the SSH server: %w", err)
 	}
-	sshConn, chans, reqs, err := ssh.NewClientConn(netConn, addr, &ssh.ClientConfig{
-		User:            cfg.User,
+	sshConnection, channels, requests, err := ssh.NewClientConn(networkConnection, addr, &ssh.ClientConfig{
+		User:            config.User,
 		Auth:            methods,
 		HostKeyCallback: hostKey,
 		Timeout:         15 * time.Second,
 	})
 	if err != nil {
-		netConn.Close()
+		networkConnection.Close()
 		closeIfSet(closer)
 		return nil, fmt.Errorf("SSH handshake failed: %w", err)
 	}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		sshConn.Close()
+		sshConnection.Close()
 		closeIfSet(closer)
 		return nil, err
 	}
-	t := &Tunnel{listener: listener, client: ssh.NewClient(sshConn, chans, reqs), target: target, agent: closer}
-	go t.serve()
-	return t, nil
+	tunnel := &Tunnel{listener: listener, client: ssh.NewClient(sshConnection, channels, requests), target: target, agent: closer}
+	go tunnel.serve()
+	return tunnel, nil
 }
 
 // Host and Port are the local address the database DSN should use.
-func (t *Tunnel) Host() string { return "127.0.0.1" }
+func (tunnel *Tunnel) Host() string { return "127.0.0.1" }
 
-func (t *Tunnel) Port() int { return t.listener.Addr().(*net.TCPAddr).Port }
+func (tunnel *Tunnel) Port() int { return tunnel.listener.Addr().(*net.TCPAddr).Port }
 
 // Addr returns the local "host:port".
-func (t *Tunnel) Addr() string { return t.listener.Addr().String() }
+func (tunnel *Tunnel) Addr() string { return tunnel.listener.Addr().String() }
 
 // Close stops accepting connections and drops the SSH session.
-func (t *Tunnel) Close() error {
-	t.once.Do(func() {
-		t.err = t.listener.Close()
-		if err := t.client.Close(); err != nil && t.err == nil {
-			t.err = err
+func (tunnel *Tunnel) Close() error {
+	tunnel.once.Do(func() {
+		tunnel.err = tunnel.listener.Close()
+		if err := tunnel.client.Close(); err != nil && tunnel.err == nil {
+			tunnel.err = err
 		}
-		closeIfSet(t.agent)
+		closeIfSet(tunnel.agent)
 	})
-	return t.err
+	return tunnel.err
 }
 
-func (t *Tunnel) serve() {
+func (tunnel *Tunnel) serve() {
 	for {
-		local, err := t.listener.Accept()
+		local, err := tunnel.listener.Accept()
 		if err != nil {
 			return
 		}
-		go t.forward(local)
+		go tunnel.forward(local)
 	}
 }
 
-func (t *Tunnel) forward(local net.Conn) {
+func (tunnel *Tunnel) forward(local net.Conn) {
 	defer local.Close()
-	remote, err := t.client.Dial("tcp", t.target)
+	remote, err := tunnel.client.Dial("tcp", tunnel.target)
 	if err != nil {
 		return
 	}
@@ -142,13 +142,13 @@ func (t *Tunnel) forward(local net.Conn) {
 	<-done
 }
 
-func authMethods(cfg Config) ([]ssh.AuthMethod, io.Closer, error) {
-	switch strings.ToLower(cfg.Method) {
+func authMethods(config Config) ([]ssh.AuthMethod, io.Closer, error) {
+	switch strings.ToLower(config.Method) {
 	case "", "password":
-		if cfg.Password == "" {
+		if config.Password == "" {
 			return nil, nil, errors.New("an SSH password is required")
 		}
-		password := cfg.Password
+		password := config.Password
 		// Some servers only offer keyboard-interactive.
 		keyboard := ssh.KeyboardInteractive(func(_, _ string, questions []string, _ []bool) ([]string, error) {
 			answers := make([]string, len(questions))
@@ -159,7 +159,7 @@ func authMethods(cfg Config) ([]ssh.AuthMethod, io.Closer, error) {
 		})
 		return []ssh.AuthMethod{ssh.Password(password), keyboard}, nil, nil
 	case "key":
-		path := expandHome(cfg.KeyPath)
+		path := expandHome(config.KeyPath)
 		if path == "" {
 			return nil, nil, errors.New("an SSH private key is required")
 		}
@@ -168,8 +168,8 @@ func authMethods(cfg Config) ([]ssh.AuthMethod, io.Closer, error) {
 			return nil, nil, fmt.Errorf("could not read the SSH key: %w", err)
 		}
 		var signer ssh.Signer
-		if cfg.Passphrase != "" {
-			signer, err = ssh.ParsePrivateKeyWithPassphrase(key, []byte(cfg.Passphrase))
+		if config.Passphrase != "" {
+			signer, err = ssh.ParsePrivateKeyWithPassphrase(key, []byte(config.Passphrase))
 		} else {
 			signer, err = ssh.ParsePrivateKey(key)
 		}
@@ -178,32 +178,32 @@ func authMethods(cfg Config) ([]ssh.AuthMethod, io.Closer, error) {
 		}
 		return []ssh.AuthMethod{ssh.PublicKeys(signer)}, nil, nil
 	case "agent":
-		sock := os.Getenv("SSH_AUTH_SOCK")
-		if sock == "" {
+		socket := os.Getenv("SSH_AUTH_SOCK")
+		if socket == "" {
 			return nil, nil, errors.New("SSH_AUTH_SOCK is not set; start ssh-agent or choose another authentication method")
 		}
-		conn, err := net.Dial("unix", sock)
+		connection, err := net.Dial("unix", socket)
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not reach the SSH agent: %w", err)
 		}
-		signers, err := agent.NewClient(conn).Signers()
+		signers, err := agent.NewClient(connection).Signers()
 		if err != nil {
-			conn.Close()
+			connection.Close()
 			return nil, nil, fmt.Errorf("could not read the SSH agent keys: %w", err)
 		}
 		if len(signers) == 0 {
-			conn.Close()
+			connection.Close()
 			return nil, nil, errors.New("the SSH agent has no keys")
 		}
-		return []ssh.AuthMethod{ssh.PublicKeys(signers...)}, conn, nil
+		return []ssh.AuthMethod{ssh.PublicKeys(signers...)}, connection, nil
 	}
-	return nil, nil, fmt.Errorf("unknown SSH authentication method %q", cfg.Method)
+	return nil, nil, fmt.Errorf("unknown SSH authentication method %q", config.Method)
 }
 
 // hostKeyCallback verifies the server against ~/.ssh/known_hosts when that
 // file exists. A missing file means there is nothing to compare with.
-func hostKeyCallback(cfg Config) (ssh.HostKeyCallback, error) {
-	if cfg.InsecureHostKey {
+func hostKeyCallback(config Config) (ssh.HostKeyCallback, error) {
+	if config.InsecureHostKey {
 		return ssh.InsecureIgnoreHostKey(), nil
 	}
 	home, err := os.UserHomeDir()
@@ -239,33 +239,33 @@ func expandHome(path string) string {
 
 // expandPercentVars replaces %NAME% with the variable's value, as cmd.exe
 // does. Unset names and lone % signs are left as they are.
-func expandPercentVars(s string) string {
-	var b strings.Builder
+func expandPercentVars(text string) string {
+	var builder strings.Builder
 	for {
-		start := strings.IndexByte(s, '%')
+		start := strings.IndexByte(text, '%')
 		if start < 0 {
 			break
 		}
-		end := strings.IndexByte(s[start+1:], '%')
+		end := strings.IndexByte(text[start+1:], '%')
 		if end <= 0 {
 			break
 		}
-		value := os.Getenv(s[start+1 : start+1+end])
+		value := os.Getenv(text[start+1 : start+1+end])
 		if value == "" {
-			b.WriteString(s[:start+1])
-			s = s[start+1:]
+			builder.WriteString(text[:start+1])
+			text = text[start+1:]
 			continue
 		}
-		b.WriteString(s[:start])
-		b.WriteString(value)
-		s = s[start+2+end:]
+		builder.WriteString(text[:start])
+		builder.WriteString(value)
+		text = text[start+2+end:]
 	}
-	b.WriteString(s)
-	return b.String()
+	builder.WriteString(text)
+	return builder.String()
 }
 
-func closeIfSet(c io.Closer) {
-	if c != nil {
-		_ = c.Close()
+func closeIfSet(closer io.Closer) {
+	if closer != nil {
+		_ = closer.Close()
 	}
 }

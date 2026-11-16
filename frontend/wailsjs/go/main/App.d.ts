@@ -7,6 +7,7 @@ import {scratch} from '../models';
 import {driver} from '../models';
 import {folder} from '../models';
 import {history} from '../models';
+import {mcp} from '../models';
 import {gitsync} from '../models';
 
 export function ApplyTableChanges(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:tabledata.ApplyRequest):Promise<main.TableApplyResult>;
@@ -75,6 +76,8 @@ export function ListTables(arg1:string,arg2:string,arg3:string):Promise<Array<dr
 
 export function LoadWorkspace():Promise<scratch.Workspace>;
 
+export function MCPStatus():Promise<mcp.Status>;
+
 export function MoveConnectionToFolder(arg1:string,arg2:string):Promise<void>;
 
 export function OpenReleasePage(arg1:string):Promise<void>;
@@ -89,6 +92,8 @@ export function QuoteIdent(arg1:string,arg2:string):Promise<string>;
 
 export function ReadTable(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:tabledata.PageRequest):Promise<main.TableReadResult>;
 
+export function RegenerateMCPToken():Promise<mcp.Status>;
+
 export function ReleaseTabSession(arg1:string):Promise<void>;
 
 export function RenameScratch(arg1:string,arg2:string):Promise<string>;
@@ -100,6 +105,8 @@ export function Rollback(arg1:string):Promise<query.TxStatus>;
 export function SaveConnection(arg1:driver.Config):Promise<main.ConnectionView>;
 
 export function SaveFolder(arg1:folder.Folder):Promise<folder.Folder>;
+
+export function SaveMCPConfig(arg1:mcp.Config):Promise<mcp.Status>;
 
 export function SaveSyncConfig(arg1:gitsync.Config):Promise<gitsync.Config>;
 

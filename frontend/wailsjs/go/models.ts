@@ -523,6 +523,65 @@ export namespace main {
 
 }
 
+export namespace mcp {
+	
+	export class Config {
+	    enabled: boolean;
+	    port: number;
+	    token: string;
+	    read: boolean;
+	    write: boolean;
+	    databases: string[];
+	    schemas: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Config(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.port = source["port"];
+	        this.token = source["token"];
+	        this.read = source["read"];
+	        this.write = source["write"];
+	        this.databases = source["databases"];
+	        this.schemas = source["schemas"];
+	    }
+	}
+	export class Status {
+	    enabled: boolean;
+	    port: number;
+	    token: string;
+	    read: boolean;
+	    write: boolean;
+	    databases: string[];
+	    schemas: string[];
+	    running: boolean;
+	    url: string;
+	    lastError?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Status(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.port = source["port"];
+	        this.token = source["token"];
+	        this.read = source["read"];
+	        this.write = source["write"];
+	        this.databases = source["databases"];
+	        this.schemas = source["schemas"];
+	        this.running = source["running"];
+	        this.url = source["url"];
+	        this.lastError = source["lastError"];
+	    }
+	}
+
+}
+
 export namespace query {
 	
 	export class Column {

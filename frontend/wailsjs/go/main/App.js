@@ -134,6 +134,10 @@ export function LoadWorkspace() {
   return window['go']['main']['App']['LoadWorkspace']();
 }
 
+export function MCPStatus() {
+  return window['go']['main']['App']['MCPStatus']();
+}
+
 export function MoveConnectionToFolder(arg1, arg2) {
   return window['go']['main']['App']['MoveConnectionToFolder'](arg1, arg2);
 }
@@ -162,6 +166,10 @@ export function ReadTable(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['ReadTable'](arg1, arg2, arg3, arg4, arg5);
 }
 
+export function RegenerateMCPToken() {
+  return window['go']['main']['App']['RegenerateMCPToken']();
+}
+
 export function ReleaseTabSession(arg1) {
   return window['go']['main']['App']['ReleaseTabSession'](arg1);
 }
@@ -184,6 +192,10 @@ export function SaveConnection(arg1) {
 
 export function SaveFolder(arg1) {
   return window['go']['main']['App']['SaveFolder'](arg1);
+}
+
+export function SaveMCPConfig(arg1) {
+  return window['go']['main']['App']['SaveMCPConfig'](arg1);
 }
 
 export function SaveSyncConfig(arg1) {

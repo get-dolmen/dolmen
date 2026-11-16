@@ -18,6 +18,7 @@ import (
 	"dolmen/internal/folder"
 	"dolmen/internal/gitsync"
 	"dolmen/internal/history"
+	"dolmen/internal/mcp"
 	"dolmen/internal/query"
 	"dolmen/internal/scratch"
 	"dolmen/internal/tabledata"
@@ -36,6 +37,7 @@ type App struct {
 	scratch *scratch.Store
 	folders *folder.Store
 	sync    *gitsync.Service
+	mcp     *mcp.Service
 	initErr error
 
 	// Set by InstallUpdate: whether an update was installed, and the argv
@@ -72,10 +74,19 @@ func (a *App) init() error {
 	}
 	a.folders = folder.NewStore(dir)
 	a.sync = gitsync.NewService(dir, a.store, a.folders, a.scratch)
+	if a.mcp, err = mcp.NewService(dir, a.conns, a.store, a.hist, version); err != nil {
+		return fmt.Errorf("opening MCP settings: %w", err)
+	}
+	if a.mcp.Status().Enabled {
+		_ = a.mcp.Start()
+	}
 	return nil
 }
 
 func (a *App) shutdown(context.Context) {
+	if a.mcp != nil {
+		a.mcp.Stop()
+	}
 	if a.conns != nil {
 		a.conns.CloseAll()
 	}
@@ -261,6 +272,35 @@ func (a *App) MoveConnectionToFolder(connID, folderID string) error {
 		}
 	}
 	return a.store.SetFolder(connID, folderID)
+}
+
+// ---------- MCP server ----------
+
+// MCPStatus reports the local MCP server's settings and whether it is
+// listening for clients.
+func (a *App) MCPStatus() (mcp.Status, error) {
+	if err := a.ready(); err != nil {
+		return mcp.Status{}, err
+	}
+	return a.mcp.Status(), nil
+}
+
+// SaveMCPConfig stores the MCP settings and applies them immediately: the
+// listener starts, stops or moves to another port as needed. Clients reach it
+// on 127.0.0.1 only, with the access token.
+func (a *App) SaveMCPConfig(cfg mcp.Config) (mcp.Status, error) {
+	if err := a.ready(); err != nil {
+		return mcp.Status{}, err
+	}
+	return a.mcp.Save(cfg)
+}
+
+// RegenerateMCPToken replaces the bearer token MCP clients must send.
+func (a *App) RegenerateMCPToken() (mcp.Status, error) {
+	if err := a.ready(); err != nil {
+		return mcp.Status{}, err
+	}
+	return a.mcp.RegenerateToken()
 }
 
 // ---------- git sync ----------

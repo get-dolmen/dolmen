@@ -91,18 +91,16 @@ func (t *Tools) ListTools() []Tool {
 			}, "connection", "table"),
 		},
 	}
-	if cfg.AllowsRead() {
-		tools = append(tools, Tool{
-			Name:        "read_query",
-			Description: "Run read-only SQL (SELECT, WITH, SHOW, EXPLAIN, …) and return the rows. Use write_query for changes.",
-			InputSchema: object(map[string]any{
-				"connection": text("Saved connection name or id."),
-				"database":   text("Database to open; empty uses the connection's own database."),
-				"sql":        text("One or more read-only statements."),
-				"maxRows":    number("Maximum rows per statement (default 100, at most 1000).", 1, maxQueryRows),
-			}, "connection", "sql"),
-		})
-	}
+	tools = append(tools, Tool{
+		Name:        "read_query",
+		Description: "Run read-only SQL (SELECT, WITH, SHOW, EXPLAIN, …) and return the rows. Use write_query for changes.",
+		InputSchema: object(map[string]any{
+			"connection": text("Saved connection name or id."),
+			"database":   text("Database to open; empty uses the connection's own database."),
+			"sql":        text("One or more read-only statements."),
+			"maxRows":    number("Maximum rows per statement (default 100, at most 1000).", 1, maxQueryRows),
+		}, "connection", "sql"),
+	})
 	if cfg.AllowsWrite() {
 		tools = append(tools, Tool{
 			Name:        "write_query",
@@ -468,7 +466,10 @@ func (t *Tools) schemaTarget(ctx context.Context, cfg Config, args schemaArgs) (
 	}
 	schema := strings.TrimSpace(args.Schema)
 	if schema == "" {
-		schema, _ = tg.open.Driver.DefaultSchema(ctx, tg.open.DB)
+		var err error
+		if schema, err = tg.open.Driver.DefaultSchema(ctx, tg.open.DB); err != nil {
+			return "", nil, err
+		}
 	}
 	if !cfg.AllowsSchema(schema) {
 		return "", nil, fmt.Errorf("schema %q is not allowed by the MCP permissions", schema)

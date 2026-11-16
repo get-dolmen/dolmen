@@ -82,23 +82,23 @@ type syncState struct {
 
 // Service owns the sync repository and the bundle inside it.
 type Service struct {
-	dir        string
-	configPath string
-	statePath  string
-	conns      *conn.Store
-	folders    *folder.Store
-	scratches  *scratch.Store
-	mu         sync.Mutex
+	dir         string
+	configPath  string
+	statePath   string
+	connections *conn.Store
+	folders     *folder.Store
+	scratches   *scratch.Store
+	mu          sync.Mutex
 }
 
-func NewService(dataDir string, conns *conn.Store, folders *folder.Store, scratches *scratch.Store) *Service {
+func NewService(dataDir string, connections *conn.Store, folders *folder.Store, scratches *scratch.Store) *Service {
 	return &Service{
-		dir:        filepath.Join(dataDir, "sync"),
-		configPath: filepath.Join(dataDir, "sync.json"),
-		statePath:  filepath.Join(dataDir, "sync-state.json"),
-		conns:      conns,
-		folders:    folders,
-		scratches:  scratches,
+		dir:         filepath.Join(dataDir, "sync"),
+		configPath:  filepath.Join(dataDir, "sync.json"),
+		statePath:   filepath.Join(dataDir, "sync-state.json"),
+		connections: connections,
+		folders:     folders,
+		scratches:   scratches,
 	}
 }
 
@@ -110,83 +110,83 @@ func (s *Service) Config() (Config, error) {
 }
 
 // SaveConfig validates and writes the sync settings.
-func (s *Service) SaveConfig(c Config) (Config, error) {
-	c = normalize(c)
-	if err := validate(c); err != nil {
+func (s *Service) SaveConfig(config Config) (Config, error) {
+	config = normalize(config)
+	if err := validate(config); err != nil {
 		return Config{}, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	b, err := json.MarshalIndent(c, "", "  ")
+	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return Config{}, err
 	}
-	return c, atomicfile.Write(s.configPath, b, 0o600)
+	return config, atomicfile.Write(s.configPath, data, 0o600)
 }
 
 // Status reports the settings plus the last sync result.
 func (s *Service) Status() Status {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	cfg, _ := s.loadConfig()
-	st := s.loadState()
+	config, _ := s.loadConfig()
+	state := s.loadState()
 	status := Status{
-		Config:       cfg,
+		Config:       config,
 		Dir:          s.dir,
 		GitAvailable: hasGit(),
 		RepoExists:   exists(filepath.Join(s.dir, ".git")),
-		LastCommit:   st.LastCommit,
-		LastSyncAt:   st.LastSyncAt,
-		LastError:    st.LastError,
+		LastCommit:   state.LastCommit,
+		LastSyncAt:   state.LastSyncAt,
+		LastError:    state.LastError,
 	}
 	if status.GitAvailable && status.RepoExists {
-		if out, err := s.git("rev-parse", "--short", "HEAD"); err == nil {
-			status.LastCommit = strings.TrimSpace(out)
+		if output, err := s.git("rev-parse", "--short", "HEAD"); err == nil {
+			status.LastCommit = strings.TrimSpace(output)
 		}
 	}
 	return status
 }
 
 func (s *Service) loadConfig() (Config, error) {
-	var c Config
-	b, err := os.ReadFile(s.configPath)
+	var config Config
+	data, err := os.ReadFile(s.configPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return normalize(Config{}), nil
 	}
 	if err != nil {
 		return Config{}, err
 	}
-	if err := json.Unmarshal(b, &c); err != nil {
+	if err := json.Unmarshal(data, &config); err != nil {
 		return Config{}, fmt.Errorf("reading %s: %w", s.configPath, err)
 	}
-	return normalize(c), nil
+	return normalize(config), nil
 }
 
-func normalize(c Config) Config {
-	c.Remote = strings.TrimSpace(c.Remote)
-	c.Branch = strings.TrimSpace(c.Branch)
-	if c.Branch == "" {
-		c.Branch = defaultBranch
+func normalize(config Config) Config {
+	config.Remote = strings.TrimSpace(config.Remote)
+	config.Branch = strings.TrimSpace(config.Branch)
+	if config.Branch == "" {
+		config.Branch = defaultBranch
 	}
-	return c
+	return config
 }
 
-func validate(c Config) error {
-	if !validBranch(c.Branch) {
-		return fmt.Errorf("invalid branch name %q", c.Branch)
+func validate(config Config) error {
+	if !validBranch(config.Branch) {
+		return fmt.Errorf("invalid branch name %q", config.Branch)
 	}
 	return nil
 }
 
-func validBranch(b string) bool {
-	if b == "" || len(b) > 200 || strings.HasPrefix(b, "/") || strings.HasSuffix(b, "/") ||
-		strings.Contains(b, "..") || strings.Contains(b, "//") || strings.HasSuffix(b, ".lock") {
+func validBranch(branch string) bool {
+	if branch == "" || len(branch) > 200 || strings.HasPrefix(branch, "/") || strings.HasSuffix(branch, "/") ||
+		strings.Contains(branch, "..") || strings.Contains(branch, "//") || strings.HasSuffix(branch, ".lock") {
 		return false
 	}
-	for _, r := range b {
+	for _, character := range branch {
 		switch {
-		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
-		case r == '.', r == '_', r == '-', r == '/':
+		case character >= 'a' && character <= 'z', character >= 'A' && character <= 'Z', character >= '0' && character <= '9':
+		case character == '.', character == '_', character == '-', character == '/':
 		default:
 			return false
 		}
@@ -197,85 +197,85 @@ func validBranch(b string) bool {
 // Sync pulls the remote bundle, merges it with the local state, pushes the
 // result and applies it locally. password is only needed when the bundle is
 // encrypted (or when the remote still is and the local mode just changed).
-func (s *Service) Sync(password string) (res Result, err error) {
+func (s *Service) Sync(password string) (result Result, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	st := s.loadState()
+	state := s.loadState()
 	defer func() {
 		if err == nil {
 			return
 		}
-		st.LastError = err.Error()
-		_ = s.saveState(st)
+		state.LastError = err.Error()
+		_ = s.saveState(state)
 	}()
 
-	cfg, err := s.loadConfig()
+	config, err := s.loadConfig()
 	if err != nil {
-		return res, err
+		return result, err
 	}
-	if !cfg.Enabled {
-		return res, errors.New("git sync is turned off")
+	if !config.Enabled {
+		return result, errors.New("git sync is turned off")
 	}
 	if !hasGit() {
-		return res, errors.New("git is not installed or not on PATH")
+		return result, errors.New("git is not installed or not on PATH")
 	}
-	if err = s.ensureRepo(cfg); err != nil {
-		return res, err
+	if err = s.ensureRepo(config); err != nil {
+		return result, err
 	}
 
 	local, err := s.localBundle()
 	if err != nil {
-		return res, err
+		return result, err
 	}
 	// A record present at the end of the previous sync but gone now was
 	// deleted locally: remember it so the other machines delete it too.
-	local.Deleted = mergeDeleted(local.Deleted, missingItems(st.Items, local))
+	local.Deleted = mergeDeleted(local.Deleted, missingItems(state.Items, local))
 
 	merged := local
-	if cfg.Remote != "" {
-		remote, remoteEncrypted, ferr := s.fetchRemote(cfg, password)
-		if ferr != nil {
-			return res, ferr
+	if config.Remote != "" {
+		remote, remoteEncrypted, fetchErr := s.fetchRemote(config, password)
+		if fetchErr != nil {
+			return result, fetchErr
 		}
-		if remoteEncrypted && !cfg.Encrypted {
-			return res, errors.New("the remote bundle is encrypted: turn on the master password and enter it")
+		if remoteEncrypted && !config.Encrypted {
+			return result, errors.New("the remote bundle is encrypted: turn on the master password and enter it")
 		}
 		if remote != nil {
 			merged = mergeBundles(merged, *remote)
 		}
 	}
 
-	commit, changed, err := s.commitAndPush(cfg, merged, password)
+	commit, changed, err := s.commitAndPush(config, merged, password)
 	if err != nil {
-		return res, err
+		return result, err
 	}
 	// Pick up anything typed or created while the network round-trip ran, so
 	// applying the merge never drops a scratch the user just made. Those
 	// changes go out with the next sync.
-	if fresh, ferr := s.localBundle(); ferr == nil {
+	if fresh, fetchErr := s.localBundle(); fetchErr == nil {
 		merged = mergeBundles(fresh, merged)
 	}
 	if err := s.apply(merged); err != nil {
-		return res, err
+		return result, err
 	}
-	at := time.Now().UnixMilli()
-	st.LastSyncAt = at
-	st.LastCommit = commit
-	st.LastError = ""
-	st.Items = itemSet(merged)
-	if err := s.saveState(st); err != nil {
-		return res, err
+	syncedAt := time.Now().UnixMilli()
+	state.LastSyncAt = syncedAt
+	state.LastCommit = commit
+	state.LastError = ""
+	state.Items = itemSet(merged)
+	if err := s.saveState(state); err != nil {
+		return result, err
 	}
 	return Result{
-		Commit: commit, Changed: changed, LastSyncAt: at,
+		Commit: commit, Changed: changed, LastSyncAt: syncedAt,
 		Connections: len(merged.Connections), Scratches: len(merged.Scratches),
 	}, nil
 }
 
 // localBundle snapshots the live stores.
 func (s *Service) localBundle() (Bundle, error) {
-	conns, err := s.conns.List()
+	connections, err := s.connections.List()
 	if err != nil {
 		return Bundle{}, err
 	}
@@ -289,19 +289,19 @@ func (s *Service) localBundle() (Bundle, error) {
 	}
 	return Bundle{
 		Version: 1, UpdatedAt: time.Now().UnixMilli(),
-		Connections: conns, Folders: folders, Scratches: scratches,
+		Connections: connections, Folders: folders, Scratches: scratches,
 	}, nil
 }
 
 // apply writes the merged bundle back to the live stores.
-func (s *Service) apply(b Bundle) error {
-	if err := s.conns.Replace(b.Connections); err != nil {
+func (s *Service) apply(bundle Bundle) error {
+	if err := s.connections.Replace(bundle.Connections); err != nil {
 		return err
 	}
-	if err := s.folders.Replace(b.Folders); err != nil {
+	if err := s.folders.Replace(bundle.Folders); err != nil {
 		return err
 	}
-	return s.scratches.Replace(b.Scratches)
+	return s.scratches.Replace(bundle.Scratches)
 }
 
 // ---------- git ----------
@@ -316,18 +316,18 @@ func (s *Service) git(args ...string) (string, error) {
 	// A desktop window cannot answer a password prompt on the terminal; rely
 	// on the user's credential helper or SSH agent instead.
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
-	out, err := cmd.CombinedOutput()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		msg := strings.TrimSpace(string(out))
-		if msg == "" {
-			msg = err.Error()
+		message := strings.TrimSpace(string(output))
+		if message == "" {
+			message = err.Error()
 		}
-		return string(out), fmt.Errorf("git %s: %s", strings.Join(args, " "), msg)
+		return string(output), fmt.Errorf("git %s: %s", strings.Join(args, " "), message)
 	}
-	return string(out), nil
+	return string(output), nil
 }
 
-func (s *Service) ensureRepo(cfg Config) error {
+func (s *Service) ensureRepo(config Config) error {
 	if err := os.MkdirAll(s.dir, 0o700); err != nil {
 		return err
 	}
@@ -338,7 +338,7 @@ func (s *Service) ensureRepo(cfg Config) error {
 	}
 	// Keep the checked-out branch in line with the setting, including right
 	// after git init (whose default branch depends on the user's config).
-	if _, err := s.git("symbolic-ref", "HEAD", "refs/heads/"+cfg.Branch); err != nil {
+	if _, err := s.git("symbolic-ref", "HEAD", "refs/heads/"+config.Branch); err != nil {
 		return err
 	}
 	// Commits need an identity; keep the user's when one is configured.
@@ -354,16 +354,16 @@ func (s *Service) ensureRepo(cfg Config) error {
 	}
 	url, err := s.git("remote", "get-url", "origin")
 	switch {
-	case cfg.Remote == "" && err == nil:
+	case config.Remote == "" && err == nil:
 		if _, err := s.git("remote", "remove", "origin"); err != nil {
 			return err
 		}
-	case cfg.Remote != "" && err != nil:
-		if _, err := s.git("remote", "add", "origin", cfg.Remote); err != nil {
+	case config.Remote != "" && err != nil:
+		if _, err := s.git("remote", "add", "origin", config.Remote); err != nil {
 			return err
 		}
-	case cfg.Remote != "" && strings.TrimSpace(url) != cfg.Remote:
-		if _, err := s.git("remote", "set-url", "origin", cfg.Remote); err != nil {
+	case config.Remote != "" && strings.TrimSpace(url) != config.Remote:
+		if _, err := s.git("remote", "set-url", "origin", config.Remote); err != nil {
 			return err
 		}
 	}
@@ -372,15 +372,15 @@ func (s *Service) ensureRepo(cfg Config) error {
 
 // fetchRemote leaves the repository at the remote branch and returns the
 // bundle it carries (nil when the branch or the bundle does not exist yet).
-func (s *Service) fetchRemote(cfg Config, password string) (*Bundle, bool, error) {
-	out, err := s.git("ls-remote", "--heads", "origin", cfg.Branch)
+func (s *Service) fetchRemote(config Config, password string) (*Bundle, bool, error) {
+	output, err := s.git("ls-remote", "--heads", "origin", config.Branch)
 	if err != nil {
 		return nil, false, err
 	}
-	if strings.TrimSpace(out) == "" {
+	if strings.TrimSpace(output) == "" {
 		return nil, false, nil // first push to this branch
 	}
-	if _, err := s.git("fetch", "--prune", "origin", cfg.Branch); err != nil {
+	if _, err := s.git("fetch", "--prune", "origin", config.Branch); err != nil {
 		return nil, false, err
 	}
 	if _, err := s.git("reset", "--hard", "FETCH_HEAD"); err != nil {
@@ -391,38 +391,38 @@ func (s *Service) fetchRemote(cfg Config, password string) (*Bundle, bool, error
 
 // commitAndPush writes the merged bundle, commits it and pushes. When the
 // remote moved in the meantime it pulls once more, merges and retries.
-func (s *Service) commitAndPush(cfg Config, merged Bundle, password string) (string, bool, error) {
+func (s *Service) commitAndPush(config Config, merged Bundle, password string) (string, bool, error) {
 	changedAny := false
 	for attempt := 0; attempt < maxPushTries; attempt++ {
-		if err := s.writeBundle(cfg, merged, password); err != nil {
+		if err := s.writeBundle(config, merged, password); err != nil {
 			return "", changedAny, err
 		}
 		if _, err := s.git("add", "-A"); err != nil {
 			return "", changedAny, err
 		}
-		st, err := s.git("status", "--porcelain")
+		state, err := s.git("status", "--porcelain")
 		if err != nil {
 			return "", changedAny, err
 		}
-		changed := strings.TrimSpace(st) != ""
+		changed := strings.TrimSpace(state) != ""
 		if changed {
-			msg := "sync: " + time.Now().UTC().Format("2006-01-02 15:04:05")
-			if _, err := s.git("commit", "-q", "-m", msg); err != nil {
+			message := "sync: " + time.Now().UTC().Format("2006-01-02 15:04:05")
+			if _, err := s.git("commit", "-q", "-m", message); err != nil {
 				return "", changedAny, err
 			}
 			changedAny = true
 		}
 		commit := s.head()
-		if cfg.Remote == "" {
+		if config.Remote == "" {
 			return commit, changedAny, nil
 		}
-		if _, err := s.git("push", "-q", "origin", "HEAD:"+cfg.Branch); err != nil {
+		if _, err := s.git("push", "-q", "origin", "HEAD:"+config.Branch); err != nil {
 			if attempt == maxPushTries-1 || !rejected(err) {
 				return "", changedAny, err
 			}
-			remote, _, ferr := s.fetchRemote(cfg, password)
-			if ferr != nil {
-				return "", changedAny, ferr
+			remote, _, fetchErr := s.fetchRemote(config, password)
+			if fetchErr != nil {
+				return "", changedAny, fetchErr
 			}
 			if remote != nil {
 				merged = mergeBundles(merged, *remote)
@@ -435,14 +435,14 @@ func (s *Service) commitAndPush(cfg Config, merged Bundle, password string) (str
 }
 
 func rejected(err error) bool {
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "rejected") || strings.Contains(msg, "fetch first") ||
-		strings.Contains(msg, "non-fast-forward") || strings.Contains(msg, "failed to push")
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "rejected") || strings.Contains(message, "fetch first") ||
+		strings.Contains(message, "non-fast-forward") || strings.Contains(message, "failed to push")
 }
 
 func (s *Service) head() string {
-	if out, err := s.git("rev-parse", "--short", "HEAD"); err == nil {
-		return strings.TrimSpace(out)
+	if output, err := s.git("rev-parse", "--short", "HEAD"); err == nil {
+		return strings.TrimSpace(output)
 	}
 	return ""
 }
@@ -452,15 +452,15 @@ func (s *Service) head() string {
 // readBundle returns the bundle and whether it was encrypted on disk.
 func (s *Service) readBundle(password string) (*Bundle, bool, error) {
 	plainPath := filepath.Join(s.dir, plainFile)
-	encPath := filepath.Join(s.dir, encryptedFile)
-	plain, plainErr := os.ReadFile(plainPath)
-	enc, encErr := os.ReadFile(encPath)
-	hasPlain, hasEnc := plainErr == nil, encErr == nil
-	if plainErr != nil && !errors.Is(plainErr, os.ErrNotExist) {
-		return nil, false, plainErr
+	encryptedPath := filepath.Join(s.dir, encryptedFile)
+	plainData, plainError := os.ReadFile(plainPath)
+	encryptedData, encryptedError := os.ReadFile(encryptedPath)
+	hasPlain, hasEnc := plainError == nil, encryptedError == nil
+	if plainError != nil && !errors.Is(plainError, os.ErrNotExist) {
+		return nil, false, plainError
 	}
-	if encErr != nil && !errors.Is(encErr, os.ErrNotExist) {
-		return nil, false, encErr
+	if encryptedError != nil && !errors.Is(encryptedError, os.ErrNotExist) {
+		return nil, false, encryptedError
 	}
 	switch {
 	case hasPlain && hasEnc:
@@ -470,7 +470,7 @@ func (s *Service) readBundle(password string) (*Bundle, bool, error) {
 			return nil, true, errors.New("the sync repository is encrypted: a master password is required")
 		}
 		var err error
-		plain, err = open(enc, password)
+		plainData, err = open(encryptedData, password)
 		if err != nil {
 			return nil, true, err
 		}
@@ -479,45 +479,45 @@ func (s *Service) readBundle(password string) (*Bundle, bool, error) {
 	default:
 		return nil, false, nil
 	}
-	var b Bundle
-	if err := json.Unmarshal(plain, &b); err != nil {
+	var bundle Bundle
+	if err := json.Unmarshal(plainData, &bundle); err != nil {
 		return nil, hasEnc, fmt.Errorf("reading the sync bundle: %w", err)
 	}
-	if b.Connections == nil {
-		b.Connections = []driver.Config{}
+	if bundle.Connections == nil {
+		bundle.Connections = []driver.Config{}
 	}
-	if b.Folders == nil {
-		b.Folders = []folder.Folder{}
+	if bundle.Folders == nil {
+		bundle.Folders = []folder.Folder{}
 	}
-	b.ScratchList()
-	return &b, hasEnc, nil
+	bundle.ScratchList()
+	return &bundle, hasEnc, nil
 }
 
-func (s *Service) writeBundle(cfg Config, b Bundle, password string) error {
-	if b.Connections == nil {
-		b.Connections = []driver.Config{}
+func (s *Service) writeBundle(config Config, bundle Bundle, password string) error {
+	if bundle.Connections == nil {
+		bundle.Connections = []driver.Config{}
 	}
-	if b.Folders == nil {
-		b.Folders = []folder.Folder{}
+	if bundle.Folders == nil {
+		bundle.Folders = []folder.Folder{}
 	}
-	b.ScratchList()
-	b.Version = 1
-	b.UpdatedAt = time.Now().UnixMilli()
-	plain, err := json.MarshalIndent(b, "", "  ")
+	bundle.ScratchList()
+	bundle.Version = 1
+	bundle.UpdatedAt = time.Now().UnixMilli()
+	encoded, err := json.MarshalIndent(bundle, "", "  ")
 	if err != nil {
 		return err
 	}
 	plainPath := filepath.Join(s.dir, plainFile)
-	encPath := filepath.Join(s.dir, encryptedFile)
-	if cfg.Encrypted {
+	encryptedPath := filepath.Join(s.dir, encryptedFile)
+	if config.Encrypted {
 		if password == "" {
 			return errors.New("a master password is required to encrypt the sync repository")
 		}
-		sealed, err := seal(plain, password)
+		sealed, err := seal(encoded, password)
 		if err != nil {
 			return err
 		}
-		if err := atomicfile.Write(encPath, sealed, 0o600); err != nil {
+		if err := atomicfile.Write(encryptedPath, sealed, 0o600); err != nil {
 			return err
 		}
 		if err := os.Remove(plainPath); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -525,87 +525,87 @@ func (s *Service) writeBundle(cfg Config, b Bundle, password string) error {
 		}
 		return nil
 	}
-	if err := atomicfile.Write(plainPath, plain, 0o600); err != nil {
+	if err := atomicfile.Write(plainPath, encoded, 0o600); err != nil {
 		return err
 	}
-	if err := os.Remove(encPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := os.Remove(encryptedPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	return nil
 }
 
 // ScratchList returns the scratches, initialising the slice so JSON gets [].
-func (b *Bundle) ScratchList() []scratch.Entry {
-	if b.Scratches == nil {
-		b.Scratches = []scratch.Entry{}
+func (bundle *Bundle) ScratchList() []scratch.Entry {
+	if bundle.Scratches == nil {
+		bundle.Scratches = []scratch.Entry{}
 	}
-	return b.Scratches
+	return bundle.Scratches
 }
 
 // ---------- merge ----------
 
-func mergeBundles(a, b Bundle) Bundle {
-	out := Bundle{
+func mergeBundles(left, right Bundle) Bundle {
+	merged := Bundle{
 		Version:   1,
-		UpdatedAt: max(a.UpdatedAt, b.UpdatedAt),
-		Deleted:   mergeDeleted(a.Deleted, b.Deleted),
+		UpdatedAt: max(left.UpdatedAt, right.UpdatedAt),
+		Deleted:   mergeDeleted(left.Deleted, right.Deleted),
 	}
-	out.Connections = mergeItems(a.Connections, b.Connections,
-		func(c driver.Config) string { return "conn:" + c.ID },
-		func(c driver.Config) int64 { return c.UpdatedAt }, out.Deleted)
-	out.Folders = mergeItems(a.Folders, b.Folders,
-		func(f folder.Folder) string { return "folder:" + f.ID },
-		func(f folder.Folder) int64 { return f.UpdatedAt }, out.Deleted)
-	out.Scratches = mergeScratches(a.ScratchList(), b.ScratchList(), out.Deleted)
-	return out
+	merged.Connections = mergeItems(left.Connections, right.Connections,
+		func(config driver.Config) string { return "conn:" + config.ID },
+		func(config driver.Config) int64 { return config.UpdatedAt }, merged.Deleted)
+	merged.Folders = mergeItems(left.Folders, right.Folders,
+		func(item folder.Folder) string { return "folder:" + item.ID },
+		func(item folder.Folder) int64 { return item.UpdatedAt }, merged.Deleted)
+	merged.Scratches = mergeScratches(left.Scratches, right.Scratches, merged.Deleted)
+	return merged
 }
 
-func mergeScratches(a, b []scratch.Entry, deleted map[string]int64) []scratch.Entry {
-	return mergeItems(a, b,
-		func(e scratch.Entry) string { return "scratch:" + e.ID },
-		func(e scratch.Entry) int64 { return e.UpdatedAt }, deleted)
+func mergeScratches(left, right []scratch.Entry, deleted map[string]int64) []scratch.Entry {
+	return mergeItems(left, right,
+		func(entry scratch.Entry) string { return "scratch:" + entry.ID },
+		func(entry scratch.Entry) int64 { return entry.UpdatedAt }, deleted)
 }
 
-func mergeItems[T any](a, b []T, key func(T) string, updated func(T) int64, deleted map[string]int64) []T {
-	out := make([]T, 0, len(a)+len(b))
-	at := make(map[string]int, len(a)+len(b))
-	for _, list := range [][]T{a, b} {
-		for _, item := range list {
-			k := key(item)
-			if k == "" {
+func mergeItems[T any](left, right []T, key func(T) string, updated func(T) int64, deleted map[string]int64) []T {
+	merged := make([]T, 0, len(left)+len(right))
+	positions := make(map[string]int, len(left)+len(right))
+	for _, items := range [][]T{left, right} {
+		for _, item := range items {
+			itemKey := key(item)
+			if itemKey == "" {
 				continue
 			}
-			if ts, gone := deleted[k]; gone && ts >= updated(item) {
+			if deletedAt, gone := deleted[itemKey]; gone && deletedAt >= updated(item) {
 				continue
 			}
-			if i, ok := at[k]; ok {
-				if updated(item) > updated(out[i]) {
-					out[i] = item
+			if index, ok := positions[itemKey]; ok {
+				if updated(item) > updated(merged[index]) {
+					merged[index] = item
 				}
 				continue
 			}
-			at[k] = len(out)
-			out = append(out, item)
+			positions[itemKey] = len(merged)
+			merged = append(merged, item)
 		}
 	}
-	sort.SliceStable(out, func(i, j int) bool { return key(out[i]) < key(out[j]) })
-	return out
+	sort.SliceStable(merged, func(i, j int) bool { return key(merged[i]) < key(merged[j]) })
+	return merged
 }
 
-func mergeDeleted(a, b map[string]int64) map[string]int64 {
-	out := make(map[string]int64, len(a)+len(b))
-	for k, v := range a {
-		out[k] = v
+func mergeDeleted(left, right map[string]int64) map[string]int64 {
+	merged := make(map[string]int64, len(left)+len(right))
+	for itemKey, deletedAt := range left {
+		merged[itemKey] = deletedAt
 	}
-	for k, v := range b {
-		if v > out[k] {
-			out[k] = v
+	for itemKey, deletedAt := range right {
+		if deletedAt > merged[itemKey] {
+			merged[itemKey] = deletedAt
 		}
 	}
-	if len(out) == 0 {
+	if len(merged) == 0 {
 		return nil
 	}
-	return out
+	return merged
 }
 
 // missingItems lists records that were known at the previous sync but are
@@ -616,48 +616,48 @@ func missingItems(known map[string]bool, local Bundle) map[string]int64 {
 	}
 	now := time.Now().UnixMilli()
 	present := itemSet(local)
-	out := map[string]int64{}
-	for k := range known {
-		if !present[k] {
-			out[k] = now
+	missing := map[string]int64{}
+	for itemKey := range known {
+		if !present[itemKey] {
+			missing[itemKey] = now
 		}
 	}
-	if len(out) == 0 {
+	if len(missing) == 0 {
 		return nil
 	}
-	return out
+	return missing
 }
 
-func itemSet(b Bundle) map[string]bool {
-	out := make(map[string]bool, len(b.Connections)+len(b.Folders)+len(b.ScratchList()))
-	for _, c := range b.Connections {
-		out["conn:"+c.ID] = true
+func itemSet(bundle Bundle) map[string]bool {
+	items := make(map[string]bool, len(bundle.Connections)+len(bundle.Folders)+len(bundle.ScratchList()))
+	for _, config := range bundle.Connections {
+		items["conn:"+config.ID] = true
 	}
-	for _, f := range b.Folders {
-		out["folder:"+f.ID] = true
+	for _, item := range bundle.Folders {
+		items["folder:"+item.ID] = true
 	}
-	for _, s := range b.ScratchList() {
-		out["scratch:"+s.ID] = true
+	for _, entry := range bundle.ScratchList() {
+		items["scratch:"+entry.ID] = true
 	}
-	return out
+	return items
 }
 
 // ---------- local state ----------
 
 func (s *Service) loadState() syncState {
-	var st syncState
-	if b, err := os.ReadFile(s.statePath); err == nil {
-		_ = json.Unmarshal(b, &st)
+	var state syncState
+	if data, err := os.ReadFile(s.statePath); err == nil {
+		_ = json.Unmarshal(data, &state)
 	}
-	return st
+	return state
 }
 
-func (s *Service) saveState(st syncState) error {
-	b, err := json.MarshalIndent(st, "", "  ")
+func (s *Service) saveState(state syncState) error {
+	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return err
 	}
-	return atomicfile.Write(s.statePath, b, 0o600)
+	return atomicfile.Write(s.statePath, data, 0o600)
 }
 
 func exists(path string) bool {

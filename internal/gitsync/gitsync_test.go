@@ -84,11 +84,11 @@ func TestSyncBetweenTwoMachines(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := aStores.conns.Save(driver.Config{Name: "shop", Kind: driver.SQLite, FilePath: "/tmp/shop.db", FolderID: f.ID})
+	config, err := aStores.connections.Save(driver.Config{Name: "shop", Kind: driver.SQLite, FilePath: "/tmp/shop.db", FolderID: f.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := aStores.scratches.Create("a1", "users.sql", cfg.ID, "", "", "", "select * from users;"); err != nil {
+	if _, err := aStores.scratches.Create("a1", "users.sql", config.ID, "", "", "", "select * from users;"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := a.Sync(""); err != nil {
@@ -99,9 +99,9 @@ func TestSyncBetweenTwoMachines(t *testing.T) {
 	if _, err := b.Sync(""); err != nil {
 		t.Fatalf("second machine sync: %v", err)
 	}
-	conns, err := bStores.conns.List()
-	if err != nil || len(conns) != 1 || conns[0].Name != "shop" {
-		t.Fatalf("connections = %+v, err = %v", conns, err)
+	connections, err := bStores.connections.List()
+	if err != nil || len(connections) != 1 || connections[0].Name != "shop" {
+		t.Fatalf("connections = %+v, err = %v", connections, err)
 	}
 	folders, _ := bStores.folders.List()
 	if len(folders) != 1 || folders[0].Name != "Work" {
@@ -159,7 +159,7 @@ func TestEncryptedSync(t *testing.T) {
 	url := "file://" + remote
 
 	a, aStores := newTestService(t, url)
-	if _, err := aStores.conns.Save(driver.Config{Name: "secret", Kind: driver.SQLite, FilePath: "/tmp/s.db", Password: "hunter2"}); err != nil {
+	if _, err := aStores.connections.Save(driver.Config{Name: "secret", Kind: driver.SQLite, FilePath: "/tmp/s.db", Password: "hunter2"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := a.SaveConfig(Config{Enabled: true, Remote: url, Branch: "main", Encrypted: true}); err != nil {
@@ -193,16 +193,16 @@ func TestEncryptedSync(t *testing.T) {
 	if _, err := b.Sync("master"); err != nil {
 		t.Fatalf("decrypting on the second machine: %v", err)
 	}
-	conns, _ := bStores.conns.List()
-	if len(conns) != 1 || conns[0].Password != "hunter2" {
-		t.Fatalf("connections = %+v", conns)
+	connections, _ := bStores.connections.List()
+	if len(connections) != 1 || connections[0].Password != "hunter2" {
+		t.Fatalf("connections = %+v", connections)
 	}
 }
 
 type testStores struct {
-	conns     *conn.Store
-	folders   *folder.Store
-	scratches *scratch.Store
+	connections *conn.Store
+	folders     *folder.Store
+	scratches   *scratch.Store
 }
 
 func newTestService(t *testing.T, remote string) (*Service, *testStores) {
@@ -212,8 +212,8 @@ func newTestService(t *testing.T, remote string) (*Service, *testStores) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stores := &testStores{conns: conn.NewStore(dir), folders: folder.NewStore(dir), scratches: sc}
-	svc := NewService(dir, stores.conns, stores.folders, stores.scratches)
+	stores := &testStores{connections: conn.NewStore(dir), folders: folder.NewStore(dir), scratches: sc}
+	svc := NewService(dir, stores.connections, stores.folders, stores.scratches)
 	if _, err := svc.SaveConfig(Config{Enabled: true, Remote: remote, Branch: "main"}); err != nil {
 		t.Fatal(err)
 	}

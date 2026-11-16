@@ -115,59 +115,59 @@ type session struct {
 	txSince      time.Time
 }
 
-func (s *session) txStatus() TxStatus {
-	if s.tx == nil {
+func (tabSession *session) txStatus() TxStatus {
+	if tabSession.tx == nil {
 		return TxStatus{}
 	}
-	return TxStatus{Open: true, Statements: s.txStatements, StartedAt: s.txSince.UnixMilli()}
+	return TxStatus{Open: true, Statements: tabSession.txStatements, StartedAt: tabSession.txSince.UnixMilli()}
 }
 
 // beginTx opens the manual transaction if needed. It is not bound to any
 // run's context, so cancelling a statement does not end it by itself.
-func (s *session) beginTx() error {
-	if s.tx != nil {
+func (tabSession *session) beginTx() error {
+	if tabSession.tx != nil {
 		return nil
 	}
-	tx, err := s.connection.BeginTx(context.Background(), nil)
+	tx, err := tabSession.connection.BeginTx(context.Background(), nil)
 	if err != nil {
 		return err
 	}
-	s.tx, s.txStatements, s.txSince = tx, 0, time.Now()
+	tabSession.tx, tabSession.txStatements, tabSession.txSince = tx, 0, time.Now()
 	return nil
 }
 
-func (s *session) endTx(commit bool) error {
-	if s.tx == nil {
+func (tabSession *session) endTx(commit bool) error {
+	if tabSession.tx == nil {
 		return errors.New("no open transaction")
 	}
 	var err error
 	if commit {
-		err = s.tx.Commit()
+		err = tabSession.tx.Commit()
 	} else {
-		err = s.tx.Rollback()
+		err = tabSession.tx.Rollback()
 	}
-	s.tx = nil
+	tabSession.tx = nil
 	return err
 }
 
 // reset discards the database session (and any transaction on it).
-func (s *session) reset() {
-	s.closeCursor()
-	if s.tx != nil {
-		s.tx.Rollback()
-		s.tx = nil
+func (tabSession *session) reset() {
+	tabSession.closeCursor()
+	if tabSession.tx != nil {
+		tabSession.tx.Rollback()
+		tabSession.tx = nil
 	}
-	if s.connection != nil {
-		s.connection.Close()
-		s.connection = nil
+	if tabSession.connection != nil {
+		tabSession.connection.Close()
+		tabSession.connection = nil
 	}
 }
 
-func (s *session) closeCursor() {
-	if s.cursor != nil {
-		s.cursor.close()
-		s.cursor = nil
-		s.cancel.Store(nil)
+func (tabSession *session) closeCursor() {
+	if tabSession.cursor != nil {
+		tabSession.cursor.close()
+		tabSession.cursor = nil
+		tabSession.cancel.Store(nil)
 	}
 }
 
@@ -189,73 +189,73 @@ func (e *Executor) newID() string { return "r" + strconv.FormatInt(e.counter.Add
 func (e *Executor) sessionFor(tabID, connID, database string) *session {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	s := e.tabs[tabID]
-	if s != nil && s.connID == connID && s.database == database {
-		return s
+	tabSession := e.tabs[tabID]
+	if tabSession != nil && tabSession.connID == connID && tabSession.database == database {
+		return tabSession
 	}
-	if s != nil {
-		go e.dropSession(s)
+	if tabSession != nil {
+		go e.dropSession(tabSession)
 	}
-	s = &session{connID: connID, database: database, results: map[string]*cached{}}
-	e.tabs[tabID] = s
-	return s
+	tabSession = &session{connID: connID, database: database, results: map[string]*cached{}}
+	e.tabs[tabID] = tabSession
+	return tabSession
 }
 
-func (e *Executor) dropSession(s *session) {
-	if cancel := s.cancel.Load(); cancel != nil {
+func (e *Executor) dropSession(tabSession *session) {
+	if cancel := tabSession.cancel.Load(); cancel != nil {
 		(*cancel)()
 	}
-	s.busy.Lock()
-	defer s.busy.Unlock()
-	s.reset()
+	tabSession.busy.Lock()
+	defer tabSession.busy.Unlock()
+	tabSession.reset()
 }
 
 // CloseTab releases the tab's session.
 func (e *Executor) CloseTab(tabID string) {
 	e.mu.Lock()
-	s := e.tabs[tabID]
+	tabSession := e.tabs[tabID]
 	delete(e.tabs, tabID)
 	e.mu.Unlock()
-	if s != nil {
-		e.dropSession(s)
+	if tabSession != nil {
+		e.dropSession(tabSession)
 	}
 }
 
 // CloseConnection releases every session bound to a connection.
 func (e *Executor) CloseConnection(connID string) {
-	e.closeWhere(func(s *session) bool { return s.connID == connID })
+	e.closeWhere(func(tabSession *session) bool { return tabSession.connID == connID })
 }
 
 // CloseDatabase releases the sessions bound to one database of a connection
 // (not its main one), before that database is dropped.
 func (e *Executor) CloseDatabase(connID, database string) {
-	e.closeWhere(func(s *session) bool { return s.connID == connID && s.database == database })
+	e.closeWhere(func(tabSession *session) bool { return tabSession.connID == connID && tabSession.database == database })
 }
 
 func (e *Executor) closeWhere(match func(*session) bool) {
 	e.mu.Lock()
 	var drop []*session
-	for id, s := range e.tabs {
-		if match(s) {
-			drop = append(drop, s)
+	for id, tabSession := range e.tabs {
+		if match(tabSession) {
+			drop = append(drop, tabSession)
 			delete(e.tabs, id)
 		}
 	}
 	e.mu.Unlock()
-	for _, s := range drop {
-		e.dropSession(s)
+	for _, tabSession := range drop {
+		e.dropSession(tabSession)
 	}
 }
 
 // Cancel stops the running statement of a tab, if any.
 func (e *Executor) Cancel(tabID string) {
 	e.mu.Lock()
-	s := e.tabs[tabID]
+	tabSession := e.tabs[tabID]
 	e.mu.Unlock()
-	if s == nil {
+	if tabSession == nil {
 		return
 	}
-	if cancel := s.cancel.Load(); cancel != nil {
+	if cancel := tabSession.cancel.Load(); cancel != nil {
 		(*cancel)()
 	}
 }
@@ -298,41 +298,41 @@ func (e *Executor) Execute(request ExecRequest) (*ExecResponse, error) {
 		maxRows = DefaultMaxRows
 	}
 
-	s := e.sessionFor(request.TabID, request.ConnID, database)
-	if !s.busy.TryLock() {
+	tabSession := e.sessionFor(request.TabID, request.ConnID, database)
+	if !tabSession.busy.TryLock() {
 		return nil, errors.New("a query is already running in this tab")
 	}
-	defer s.busy.Unlock()
-	s.closeCursor()
-	s.results = map[string]*cached{}
+	defer tabSession.busy.Unlock()
+	tabSession.closeCursor()
+	tabSession.results = map[string]*cached{}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	s.cancel.Store(&cancel)
+	tabSession.cancel.Store(&cancel)
 	keepContext := false // true when the last result's cursor stays open
 	defer func() {
 		if !keepContext {
-			s.cancel.Store(nil)
+			tabSession.cancel.Store(nil)
 			cancel()
 		}
 	}()
 
-	if s.connection == nil {
+	if tabSession.connection == nil {
 		connection, err := opened.DB.Conn(ctx)
 		if err != nil {
 			return nil, err
 		}
-		s.connection = connection
+		tabSession.connection = connection
 	}
 
 	manual := request.Manual && !opened.Config.ReadOnly
-	if !manual && s.tx != nil {
+	if !manual && tabSession.tx != nil {
 		return nil, errors.New("this tab has an open transaction: commit or roll back before switching to auto-commit")
 	}
 
-	var queryRunner querier = s.connection
+	var queryRunner querier = tabSession.connection
 	var tx *sql.Tx // per-run read-only transaction (Oracle), not the manual one
 	if stmt := opened.Driver.ReadOnlyTxStatement(); opened.Config.ReadOnly && stmt != "" {
-		tx, err = s.connection.BeginTx(ctx, nil)
+		tx, err = tabSession.connection.BeginTx(ctx, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -353,7 +353,7 @@ func (e *Executor) Execute(request ExecRequest) (*ExecResponse, error) {
 		if manual {
 			// COMMIT / ROLLBACK / BEGIN typed by the user act on the tab's transaction.
 			if control := sqlsplit.TxControl(dialect, statement.Text); control != "" {
-				result = e.txControl(s, control, statement.Text)
+				result = e.txControl(tabSession, control, statement.Text)
 				result.DurationMs = time.Since(start).Milliseconds()
 				result.End = end
 				response.Results = append(response.Results, result)
@@ -362,12 +362,12 @@ func (e *Executor) Execute(request ExecRequest) (*ExecResponse, error) {
 				}
 				continue
 			}
-			if err := s.beginTx(); err != nil {
+			if err := tabSession.beginTx(); err != nil {
 				response.Results = append(response.Results, Result{ID: e.newID(), Statement: statement.Text, RowsAffected: -1, Error: err.Error(), End: end})
 				break
 			}
-			queryRunner = s.tx
-			s.txStatements++
+			queryRunner = tabSession.tx
+			tabSession.txStatements++
 		}
 		result, resultCursor = e.runOne(ctx, queryRunner, dialect, statement.Text, maxRows, last)
 		result.DurationMs = time.Since(start).Milliseconds()
@@ -375,11 +375,11 @@ func (e *Executor) Execute(request ExecRequest) (*ExecResponse, error) {
 		response.Results = append(response.Results, result)
 		e.record(request.ConnID, result, ctx.Err() != nil)
 		if result.Error == "" && result.IsQuery {
-			s.results[result.ID] = &cached{columns: result.Columns, rows: result.Rows}
+			tabSession.results[result.ID] = &cached{columns: result.Columns, rows: result.Rows}
 		}
 		if resultCursor != nil {
 			resultCursor.tx, resultCursor.cancel = tx, cancel
-			s.cursor = resultCursor
+			tabSession.cursor = resultCursor
 			keepContext = true
 		}
 		if result.Error != "" {
@@ -390,42 +390,42 @@ func (e *Executor) Execute(request ExecRequest) (*ExecResponse, error) {
 	if ctx.Err() != nil {
 		response.Cancelled = true
 		response.Notice = "Query cancelled. The tab's database session was reset."
-		if s.tx != nil {
+		if tabSession.tx != nil {
 			response.Notice = "Query cancelled. The tab's database session was reset and its open transaction rolled back."
 		}
 		keepContext = false
-		s.reset() // the driver may have left the connection unusable
+		tabSession.reset() // the driver may have left the connection unusable
 	} else if !keepContext && tx != nil {
 		tx.Rollback()
 	}
-	if n := len(response.Results); n > 0 && response.Results[n-1].Error != "" && isBadConn(response.Results[n-1].Error) {
-		s.reset()
+	if resultCount := len(response.Results); resultCount > 0 && response.Results[resultCount-1].Error != "" && isBadConn(response.Results[resultCount-1].Error) {
+		tabSession.reset()
 	}
-	response.Tx = s.txStatus()
+	response.Tx = tabSession.txStatus()
 	return response, nil
 }
 
 // txControl runs a COMMIT / ROLLBACK / BEGIN typed in manual mode.
-func (e *Executor) txControl(s *session, control, statement string) Result {
+func (e *Executor) txControl(tabSession *session, control, statement string) Result {
 	result := Result{ID: e.newID(), Statement: statement, RowsAffected: -1, Rows: [][]any{}, Columns: []Column{}}
 	switch control {
 	case "begin":
-		if s.tx != nil {
+		if tabSession.tx != nil {
 			result.Message = "Already in a transaction (manual mode starts one automatically)."
 			return result
 		}
-		if err := s.beginTx(); err != nil {
+		if err := tabSession.beginTx(); err != nil {
 			result.Error = err.Error()
 			return result
 		}
 		result.Message = "Transaction started."
 	case "commit", "rollback":
-		if s.tx == nil {
+		if tabSession.tx == nil {
 			result.Message = "No open transaction."
 			return result
 		}
-		statementCount := s.txStatements
-		if err := s.endTx(control == "commit"); err != nil {
+		statementCount := tabSession.txStatements
+		if err := tabSession.endTx(control == "commit"); err != nil {
 			result.Error = err.Error()
 			return result
 		}
@@ -448,45 +448,45 @@ func plural(count int) string {
 // EndTx commits or rolls back a tab's manual transaction.
 func (e *Executor) EndTx(tabID string, commit bool) (TxStatus, error) {
 	e.mu.Lock()
-	s := e.tabs[tabID]
+	tabSession := e.tabs[tabID]
 	e.mu.Unlock()
-	if s == nil {
+	if tabSession == nil {
 		return TxStatus{}, errors.New("no open transaction")
 	}
-	if !s.busy.TryLock() {
-		return s.txStatus(), errors.New("a query is running in this tab")
+	if !tabSession.busy.TryLock() {
+		return tabSession.txStatus(), errors.New("a query is running in this tab")
 	}
-	defer s.busy.Unlock()
-	s.closeCursor() // an open result set would block the commit
-	err := s.endTx(commit)
-	return s.txStatus(), err
+	defer tabSession.busy.Unlock()
+	tabSession.closeCursor() // an open result set would block the commit
+	err := tabSession.endTx(commit)
+	return tabSession.txStatus(), err
 }
 
 // TxStatusOf reports a tab's manual transaction.
 func (e *Executor) TxStatusOf(tabID string) TxStatus {
 	e.mu.Lock()
-	s := e.tabs[tabID]
+	tabSession := e.tabs[tabID]
 	e.mu.Unlock()
-	if s == nil || !s.busy.TryLock() {
+	if tabSession == nil || !tabSession.busy.TryLock() {
 		return TxStatus{}
 	}
-	defer s.busy.Unlock()
-	return s.txStatus()
+	defer tabSession.busy.Unlock()
+	return tabSession.txStatus()
 }
 
 // Querier runs statements; *sql.Conn and *sql.Tx both satisfy it.
 type Querier = querier
 
-// WithSession runs fn on the tab's database session, so data tabs share the
+// WithSession runs operation on the tab's database session, so data tabs share the
 // manual-transaction behaviour of SQL tabs:
-//   - manual: fn runs inside the tab's open transaction (begun if needed);
+//   - manual: operation runs inside the tab's open transaction (begun if needed);
 //     writes are protected by a savepoint so a failed batch is undone alone;
-//   - auto, write: fn runs in its own transaction, committed on success;
-//   - auto, read: fn runs directly on the session.
+//   - auto, write: operation runs in its own transaction, committed on success;
+//   - auto, read: operation runs directly on the session.
 //
-// fn returns how many statements it executed (counted in the transaction).
+// operation returns how many statements it executed (counted in the transaction).
 func (e *Executor) WithSession(ctx context.Context, tabID, connID, database string, manual, write bool,
-	fn func(ctx context.Context, open *conn.Open, runner Querier) (int, error)) (TxStatus, error) {
+	operation func(ctx context.Context, open *conn.Open, runner Querier) (int, error)) (TxStatus, error) {
 	mainConnection, err := e.connections.Get(connID)
 	if err != nil {
 		return TxStatus{}, err
@@ -499,60 +499,60 @@ func (e *Executor) WithSession(ctx context.Context, tabID, connID, database stri
 		return TxStatus{}, err
 	}
 	manual = manual && !opened.Config.ReadOnly
-	s := e.sessionFor(tabID, connID, database)
-	if !s.busy.TryLock() {
+	tabSession := e.sessionFor(tabID, connID, database)
+	if !tabSession.busy.TryLock() {
 		return TxStatus{}, errors.New("this tab is busy")
 	}
-	defer s.busy.Unlock()
-	if !manual && s.tx != nil {
-		return s.txStatus(), errors.New("this tab has an open transaction: commit or roll back before switching to auto-commit")
+	defer tabSession.busy.Unlock()
+	if !manual && tabSession.tx != nil {
+		return tabSession.txStatus(), errors.New("this tab has an open transaction: commit or roll back before switching to auto-commit")
 	}
-	if s.connection == nil {
-		if s.connection, err = opened.DB.Conn(ctx); err != nil {
+	if tabSession.connection == nil {
+		if tabSession.connection, err = opened.DB.Conn(ctx); err != nil {
 			return TxStatus{}, err
 		}
 	}
 
 	switch {
 	case manual && write:
-		if err := s.beginTx(); err != nil {
+		if err := tabSession.beginTx(); err != nil {
 			return TxStatus{}, err
 		}
-		if _, err := s.tx.ExecContext(ctx, "SAVEPOINT dolmen_apply"); err != nil {
-			return s.txStatus(), err
+		if _, err := tabSession.tx.ExecContext(ctx, "SAVEPOINT dolmen_apply"); err != nil {
+			return tabSession.txStatus(), err
 		}
-		statementCount, err := fn(ctx, opened, s.tx)
+		statementCount, err := operation(ctx, opened, tabSession.tx)
 		if err != nil {
-			s.tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT dolmen_apply")
-			return s.txStatus(), err
+			tabSession.tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT dolmen_apply")
+			return tabSession.txStatus(), err
 		}
-		s.txStatements += statementCount
-	case manual && s.tx != nil:
+		tabSession.txStatements += statementCount
+	case manual && tabSession.tx != nil:
 		// Reads go through the open transaction so they see its changes.
-		if _, err := fn(ctx, opened, s.tx); err != nil {
-			return s.txStatus(), err
+		if _, err := operation(ctx, opened, tabSession.tx); err != nil {
+			return tabSession.txStatus(), err
 		}
 	case write:
-		tx, err := s.connection.BeginTx(ctx, nil)
+		tx, err := tabSession.connection.BeginTx(ctx, nil)
 		if err != nil {
 			return TxStatus{}, err
 		}
 		defer tx.Rollback()
-		if _, err := fn(ctx, opened, tx); err != nil {
+		if _, err := operation(ctx, opened, tx); err != nil {
 			return TxStatus{}, err
 		}
 		if err := tx.Commit(); err != nil {
 			return TxStatus{}, err
 		}
 	default:
-		if _, err := fn(ctx, opened, s.connection); err != nil {
+		if _, err := operation(ctx, opened, tabSession.connection); err != nil {
 			if isBadConn(err.Error()) {
-				s.reset()
+				tabSession.reset()
 			}
-			return s.txStatus(), err
+			return tabSession.txStatus(), err
 		}
 	}
-	return s.txStatus(), nil
+	return tabSession.txStatus(), nil
 }
 
 func (e *Executor) runOne(ctx context.Context, runner querier, dialect sqlsplit.Dialect, statement string, maxRows int, last bool) (Result, *cursor) {
@@ -629,23 +629,23 @@ type FetchResult struct {
 
 // FetchMore reads the next page of the tab's open cursor.
 func (e *Executor) FetchMore(tabID, resultID string, limit int) (*FetchResult, error) {
-	s, openCursor, err := e.lockCursor(tabID, resultID)
+	tabSession, openCursor, err := e.lockCursor(tabID, resultID)
 	if err != nil {
 		return nil, err
 	}
-	defer s.busy.Unlock()
+	defer tabSession.busy.Unlock()
 	if limit <= 0 {
 		limit = DefaultMaxRows
 	}
 	// The pending row was already advanced to by the previous peek.
 	first, err := ScanRow(openCursor.rows, openCursor.columnCount)
 	if err != nil {
-		s.closeCursor()
+		tabSession.closeCursor()
 		return &FetchResult{Rows: [][]any{}, Error: err.Error()}, nil
 	}
 	rest, more, err := fetch(openCursor.rows, openCursor.columnCount, limit-1)
 	rows := append([][]any{first}, rest...)
-	if cachedResult := s.results[resultID]; cachedResult != nil {
+	if cachedResult := tabSession.results[resultID]; cachedResult != nil {
 		cachedResult.rows = append(cachedResult.rows, rows...)
 	}
 	result := &FetchResult{Rows: rows, HasMore: more}
@@ -653,42 +653,42 @@ func (e *Executor) FetchMore(tabID, resultID string, limit int) (*FetchResult, e
 		result.Error = err.Error()
 	}
 	if !more || err != nil {
-		s.closeCursor()
+		tabSession.closeCursor()
 	}
 	return result, nil
 }
 
 func (e *Executor) lockCursor(tabID, resultID string) (*session, *cursor, error) {
 	e.mu.Lock()
-	s := e.tabs[tabID]
+	tabSession := e.tabs[tabID]
 	e.mu.Unlock()
-	if s == nil {
+	if tabSession == nil {
 		return nil, nil, errors.New("no session for this tab")
 	}
-	if !s.busy.TryLock() {
+	if !tabSession.busy.TryLock() {
 		return nil, nil, errors.New("a query is running in this tab")
 	}
-	if s.cursor == nil || s.cursor.resultID != resultID {
-		s.busy.Unlock()
+	if tabSession.cursor == nil || tabSession.cursor.resultID != resultID {
+		tabSession.busy.Unlock()
 		return nil, nil, errors.New("the result set is no longer open; run the query again")
 	}
-	return s, s.cursor, nil
+	return tabSession, tabSession.cursor, nil
 }
 
 // Rows streams every row of a result: the rows already fetched, then the
 // rest of the open cursor when there is one (the cursor is consumed).
 func (e *Executor) Rows(tabID, resultID string, header func([]Column) error, emit func([]any) error) error {
 	e.mu.Lock()
-	s := e.tabs[tabID]
+	tabSession := e.tabs[tabID]
 	e.mu.Unlock()
-	if s == nil {
+	if tabSession == nil {
 		return errors.New("no session for this tab")
 	}
-	if !s.busy.TryLock() {
+	if !tabSession.busy.TryLock() {
 		return errors.New("a query is running in this tab")
 	}
-	defer s.busy.Unlock()
-	cachedResult := s.results[resultID]
+	defer tabSession.busy.Unlock()
+	cachedResult := tabSession.results[resultID]
 	if cachedResult == nil {
 		return errors.New("result not found; run the query again")
 	}
@@ -700,11 +700,11 @@ func (e *Executor) Rows(tabID, resultID string, header func([]Column) error, emi
 			return err
 		}
 	}
-	if s.cursor == nil || s.cursor.resultID != resultID {
+	if tabSession.cursor == nil || tabSession.cursor.resultID != resultID {
 		return nil
 	}
-	defer s.closeCursor()
-	openCursor := s.cursor
+	defer tabSession.closeCursor()
+	openCursor := tabSession.cursor
 	for {
 		row, err := ScanRow(openCursor.rows, openCursor.columnCount) // starts with the peeked row
 		if err != nil {

@@ -28,55 +28,55 @@ func (a *App) Version() VersionInfo {
 // newerVersion reports whether candidate is a later semantic version than
 // current. Development builds ("dev", "0.0.0-dev…") are always older.
 func newerVersion(candidate, current string) bool {
-	c, ok1 := parseVersion(candidate)
-	cur, ok2 := parseVersion(current)
-	if !ok1 {
+	candidateVersion, candidateOK := parseVersion(candidate)
+	currentVersion, currentOK := parseVersion(current)
+	if !candidateOK {
 		return false
 	}
-	if !ok2 {
+	if !currentOK {
 		return true
 	}
-	for i := range 3 {
-		if c.nums[i] != cur.nums[i] {
-			return c.nums[i] > cur.nums[i]
+	for index := range 3 {
+		if candidateVersion.numbers[index] != currentVersion.numbers[index] {
+			return candidateVersion.numbers[index] > currentVersion.numbers[index]
 		}
 	}
 	// 1.2.0 > 1.2.0-rc.1; two pre-releases compare as strings.
 	switch {
-	case c.pre == cur.pre:
+	case candidateVersion.prerelease == currentVersion.prerelease:
 		return false
-	case c.pre == "":
+	case candidateVersion.prerelease == "":
 		return true
-	case cur.pre == "":
+	case currentVersion.prerelease == "":
 		return false
 	}
-	return c.pre > cur.pre
+	return candidateVersion.prerelease > currentVersion.prerelease
 }
 
 type semver struct {
-	nums [3]int
-	pre  string
+	numbers    [3]int
+	prerelease string
 }
 
-func parseVersion(v string) (semver, bool) {
-	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
-	if i := strings.IndexByte(v, '+'); i >= 0 {
-		v = v[:i] // build metadata does not affect precedence
+func parseVersion(text string) (semver, bool) {
+	text = strings.TrimPrefix(strings.TrimSpace(text), "v")
+	if index := strings.IndexByte(text, '+'); index >= 0 {
+		text = text[:index] // build metadata does not affect precedence
 	}
-	var s semver
-	if i := strings.IndexByte(v, '-'); i >= 0 {
-		v, s.pre = v[:i], v[i+1:]
+	var parsed semver
+	if index := strings.IndexByte(text, '-'); index >= 0 {
+		text, parsed.prerelease = text[:index], text[index+1:]
 	}
-	parts := strings.Split(v, ".")
+	parts := strings.Split(text, ".")
 	if len(parts) == 0 || len(parts) > 3 {
-		return s, false
+		return parsed, false
 	}
-	for i, p := range parts {
-		n, err := strconv.Atoi(p)
-		if err != nil || n < 0 {
-			return s, false
+	for index, part := range parts {
+		number, err := strconv.Atoi(part)
+		if err != nil || number < 0 {
+			return parsed, false
 		}
-		s.nums[i] = n
+		parsed.numbers[index] = number
 	}
-	return s, true
+	return parsed, true
 }

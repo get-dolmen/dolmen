@@ -17,6 +17,9 @@ import (
 	"dolmen/internal/selfupdate"
 )
 
+// githubAPI is the REST root for this project's releases.
+const githubAPI = "https://api.github.com/repos/"
+
 type UpdateInfo struct {
 	Current string `json:"current"`
 	Latest  string `json:"latest"`
@@ -56,54 +59,54 @@ func fetchRelease(tag string) (release, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	endpoint := "https://api.github.com/repos/" + repo + "/releases/latest"
+	endpoint := githubAPI + repo + "/releases/latest"
 	if tag != "" {
-		endpoint = "https://api.github.com/repos/" + repo + "/releases/tags/" + url.PathEscape(tag)
+		endpoint = githubAPI + repo + "/releases/tags/" + url.PathEscape(tag)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return release{}, err
 	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "Dolmen-update-check")
-	resp, err := http.DefaultClient.Do(req)
+	request.Header.Set("Accept", "application/vnd.github+json")
+	request.Header.Set("User-Agent", "Dolmen-update-check")
+	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		return release{}, fmt.Errorf("could not reach GitHub: %w", err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
+	defer response.Body.Close()
+	if response.StatusCode == http.StatusNotFound {
 		if tag == "" {
 			return release{}, errors.New("no release has been published yet")
 		}
 		return release{}, fmt.Errorf("release %s was not found", tag)
 	}
-	if resp.StatusCode != http.StatusOK {
-		return release{}, fmt.Errorf("GitHub answered %s", resp.Status)
+	if response.StatusCode != http.StatusOK {
+		return release{}, fmt.Errorf("GitHub answered %s", response.Status)
 	}
-	var rel release
-	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+	var published release
+	if err := json.NewDecoder(response.Body).Decode(&published); err != nil {
 		return release{}, err
 	}
-	return rel, nil
+	return published, nil
 }
 
 // CheckForUpdate asks GitHub for the latest published release of this
 // project. It only runs when the user clicks the version button.
 func (a *App) CheckForUpdate() (UpdateInfo, error) {
 	info := UpdateInfo{Current: version}
-	rel, err := fetchRelease("")
+	latest, err := fetchRelease("")
 	if err != nil {
 		return info, err
 	}
-	info.Latest, info.URL = rel.TagName, rel.HTMLURL
-	if len(rel.Body) > 2000 {
-		rel.Body = rel.Body[:2000] + "…"
+	info.Latest, info.URL = latest.TagName, latest.HTMLURL
+	if len(latest.Body) > 2000 {
+		latest.Body = latest.Body[:2000] + "…"
 	}
-	info.Notes = rel.Body
-	info.Newer = newerVersion(rel.TagName, version)
+	info.Notes = latest.Body
+	info.Newer = newerVersion(latest.TagName, version)
 	if info.Newer {
-		if name, ok := selfupdate.AssetName(rel.TagName, runtime.GOOS, runtime.GOARCH); ok {
-			for _, asset := range rel.Assets {
+		if name, ok := selfupdate.AssetName(latest.TagName, runtime.GOOS, runtime.GOARCH); ok {
+			for _, asset := range latest.Assets {
 				if asset.Name == name {
 					info.Asset = &UpdateAsset{Name: asset.Name, Size: asset.Size, URL: asset.URL}
 					break
@@ -116,8 +119,8 @@ func (a *App) CheckForUpdate() (UpdateInfo, error) {
 
 // OpenReleasePage opens a GitHub page of this project in the browser.
 func (a *App) OpenReleasePage(link string) error {
-	u, err := url.Parse(link)
-	if err != nil || u.Scheme != "https" || u.Host != "github.com" || (repo != "" && !strings.HasPrefix(u.Path, "/"+repo+"/")) {
+	parsed, err := url.Parse(link)
+	if err != nil || parsed.Scheme != "https" || parsed.Host != "github.com" || (repo != "" && !strings.HasPrefix(parsed.Path, "/"+repo+"/")) {
 		return errors.New("refusing to open a non-release link")
 	}
 	wailsruntime.BrowserOpenURL(a.ctx, link)
@@ -165,26 +168,26 @@ func (a *App) InstallUpdate(tag string) (InstallResult, error) {
 	}
 	// Make sure the release still exists and carries the asset before
 	// downloading anything.
-	rel, err := fetchRelease(tag)
+	latest, err := fetchRelease(tag)
 	if err != nil {
 		return InstallResult{}, err
 	}
-	found := false
-	for _, asset := range rel.Assets {
+	assetFound := false
+	for _, asset := range latest.Assets {
 		if asset.Name == name {
-			found = true
+			assetFound = true
 			break
 		}
 	}
-	if !found {
+	if !assetFound {
 		return InstallResult{}, fmt.Errorf("%s is missing from the release; open the release page instead", name)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
-	out, err := selfupdate.Apply(ctx, selfupdate.Options{
+	outcome, err := selfupdate.Apply(ctx, selfupdate.Options{
 		Repo:  repo,
-		Tag:   rel.TagName,
+		Tag:   latest.TagName,
 		Asset: name,
 		Progress: func(phase string, done, total int64) {
 			wailsruntime.EventsEmit(a.ctx, "update:progress", InstallProgress{Phase: phase, Received: done, Total: total})
@@ -194,10 +197,10 @@ func (a *App) InstallUpdate(tag string) (InstallResult, error) {
 		return InstallResult{}, err
 	}
 	a.updateMu.Lock()
-	a.pendingRestart = out.Command
+	a.pendingRestart = outcome.Command
 	a.updateInstalled = true
 	a.updateMu.Unlock()
-	return InstallResult{Version: rel.TagName, Relaunch: len(out.Command) > 0, Message: out.Message}, nil
+	return InstallResult{Version: latest.TagName, Relaunch: len(outcome.Command) > 0, Message: outcome.Message}, nil
 }
 
 // RestartApp starts the freshly installed build and quits this one.

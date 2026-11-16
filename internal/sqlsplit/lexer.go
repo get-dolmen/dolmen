@@ -30,193 +30,195 @@ type token struct {
 	word       string
 }
 
-func isIdentStart(c byte) bool {
-	return c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c >= 0x80
+func isIdentStart(character byte) bool {
+	return character == '_' || (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') || character >= 0x80
 }
 
-func isIdentChar(c byte) bool {
-	return isIdentStart(c) || (c >= '0' && c <= '9') || c == '$' || c == '#'
+func isIdentChar(character byte) bool {
+	return isIdentStart(character) || (character >= '0' && character <= '9') || character == '$' || character == '#'
 }
 
-func isSpace(c byte) bool { return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\f' }
+func isSpace(character byte) bool {
+	return character == ' ' || character == '\t' || character == '\r' || character == '\n' || character == '\f'
+}
 
 // lex tokenizes source, dropping whitespace and comments.
 func lex(dialect Dialect, source string) []token {
 	var tokens []token
-	n := len(source)
+	length := len(source)
 	lineStart := true // only whitespace seen since the last newline
-	for i := 0; i < n; {
-		c := source[i]
+	for index := 0; index < length; {
+		character := source[index]
 		switch {
-		case c == '\n':
+		case character == '\n':
 			lineStart = true
-			i++
+			index++
 			continue
-		case isSpace(c):
-			i++
+		case isSpace(character):
+			index++
 			continue
-		case c == '-' && i+1 < n && source[i+1] == '-', c == '#' && dialect == MySQL:
-			for i < n && source[i] != '\n' {
-				i++
+		case character == '-' && index+1 < length && source[index+1] == '-', character == '#' && dialect == MySQL:
+			for index < length && source[index] != '\n' {
+				index++
 			}
 			continue
-		case c == '/' && i+1 < n && source[i+1] == '*':
-			end := strings.Index(source[i+2:], "*/")
-			if end < 0 {
-				i = n
+		case character == '/' && index+1 < length && source[index+1] == '*':
+			commentEnd := strings.Index(source[index+2:], "*/")
+			if commentEnd < 0 {
+				index = length
 			} else {
-				i += end + 4
+				index += commentEnd + 4
 			}
 			continue
 		}
 
-		start := i
+		start := index
 		wasLineStart := lineStart
 		lineStart = false
 
 		switch {
-		case c == '/' && dialect == Oracle && wasLineStart && restOfLineBlank(source, i+1):
-			j := i + 1
-			for j < n && source[j] != '\n' {
-				j++
+		case character == '/' && dialect == Oracle && wasLineStart && restOfLineBlank(source, index+1):
+			lineEnd := index + 1
+			for lineEnd < length && source[lineEnd] != '\n' {
+				lineEnd++
 			}
-			tokens = append(tokens, token{kind: tokenSlashLine, start: start, end: j})
-			i = j
-		case c == ';':
-			tokens = append(tokens, token{kind: tokenSemicolon, start: i, end: i + 1})
-			i++
-		case c == '\'':
-			i = scanQuoted(source, i, '\'', backslashEscapes(dialect, source, i))
-			tokens = append(tokens, token{kind: tokenQuoted, start: start, end: i})
-		case c == '"':
-			i = scanQuoted(source, i, '"', dialect == MySQL)
-			tokens = append(tokens, token{kind: tokenQuoted, start: start, end: i})
-		case c == '`' && dialect == MySQL:
-			i = scanQuoted(source, i, '`', false)
-			tokens = append(tokens, token{kind: tokenQuoted, start: start, end: i})
-		case c == '$' && dialect == Postgres && (i == 0 || !isIdentChar(source[i-1])):
-			if end, ok := scanDollar(source, i); ok {
-				i = end
-				tokens = append(tokens, token{kind: tokenQuoted, start: start, end: i})
+			tokens = append(tokens, token{kind: tokenSlashLine, start: start, end: lineEnd})
+			index = lineEnd
+		case character == ';':
+			tokens = append(tokens, token{kind: tokenSemicolon, start: index, end: index + 1})
+			index++
+		case character == '\'':
+			index = scanQuoted(source, index, '\'', backslashEscapes(dialect, source, index))
+			tokens = append(tokens, token{kind: tokenQuoted, start: start, end: index})
+		case character == '"':
+			index = scanQuoted(source, index, '"', dialect == MySQL)
+			tokens = append(tokens, token{kind: tokenQuoted, start: start, end: index})
+		case character == '`' && dialect == MySQL:
+			index = scanQuoted(source, index, '`', false)
+			tokens = append(tokens, token{kind: tokenQuoted, start: start, end: index})
+		case character == '$' && dialect == Postgres && (index == 0 || !isIdentChar(source[index-1])):
+			if dollarEnd, ok := scanDollar(source, index); ok {
+				index = dollarEnd
+				tokens = append(tokens, token{kind: tokenQuoted, start: start, end: index})
 			} else {
-				tokens = append(tokens, token{kind: tokenPunctuation, start: i, end: i + 1})
-				i++
+				tokens = append(tokens, token{kind: tokenPunctuation, start: index, end: index + 1})
+				index++
 			}
-		case dialect == Oracle && isOracleQQuote(source, i):
-			i = scanOracleQQuote(source, i)
-			tokens = append(tokens, token{kind: tokenQuoted, start: start, end: i})
-		case isIdentStart(c):
-			for i < n && isIdentChar(source[i]) {
-				i++
+		case dialect == Oracle && isOracleQQuote(source, index):
+			index = scanOracleQQuote(source, index)
+			tokens = append(tokens, token{kind: tokenQuoted, start: start, end: index})
+		case isIdentStart(character):
+			for index < length && isIdentChar(source[index]) {
+				index++
 			}
 			// E'...' (Postgres) / N'...' / X'...' prefixes become part of the literal.
-			if i < n && source[i] == '\'' && i-start == 1 {
-				i = scanQuoted(source, i, '\'', backslashEscapes(dialect, source, i))
-				tokens = append(tokens, token{kind: tokenQuoted, start: start, end: i})
+			if index < length && source[index] == '\'' && index-start == 1 {
+				index = scanQuoted(source, index, '\'', backslashEscapes(dialect, source, index))
+				tokens = append(tokens, token{kind: tokenQuoted, start: start, end: index})
 				continue
 			}
-			tokens = append(tokens, token{kind: tokenWord, start: start, end: i, word: strings.ToUpper(source[start:i])})
+			tokens = append(tokens, token{kind: tokenWord, start: start, end: index, word: strings.ToUpper(source[start:index])})
 		default:
-			tokens = append(tokens, token{kind: tokenPunctuation, start: i, end: i + 1})
-			i++
+			tokens = append(tokens, token{kind: tokenPunctuation, start: index, end: index + 1})
+			index++
 		}
 	}
 	return tokens
 }
 
-func restOfLineBlank(source string, i int) bool {
-	for ; i < len(source) && source[i] != '\n'; i++ {
-		if !isSpace(source[i]) {
+func restOfLineBlank(source string, index int) bool {
+	for ; index < len(source) && source[index] != '\n'; index++ {
+		if !isSpace(source[index]) {
 			return false
 		}
 	}
 	return true
 }
 
-// backslashEscapes reports whether the quote at i is a string where
+// backslashEscapes reports whether the quote at index is a string where
 // backslash escapes the next character.
-func backslashEscapes(dialect Dialect, source string, i int) bool {
+func backslashEscapes(dialect Dialect, source string, index int) bool {
 	if dialect == MySQL {
 		return true
 	}
-	if dialect == Postgres && i > 0 && (source[i-1] == 'E' || source[i-1] == 'e') {
-		return i < 2 || !isIdentChar(source[i-2])
+	if dialect == Postgres && index > 0 && (source[index-1] == 'E' || source[index-1] == 'e') {
+		return index < 2 || !isIdentChar(source[index-2])
 	}
 	return false
 }
 
 // scanQuoted returns the offset just past the closing quote. Doubled quotes
 // are an escape in every dialect.
-func scanQuoted(source string, i int, q byte, backslash bool) int {
-	n := len(source)
-	for i++; i < n; i++ {
-		switch source[i] {
+func scanQuoted(source string, index int, quote byte, backslash bool) int {
+	length := len(source)
+	for index++; index < length; index++ {
+		switch source[index] {
 		case '\\':
 			if backslash {
-				i++
+				index++
 			}
-		case q:
-			if i+1 < n && source[i+1] == q {
-				i++
+		case quote:
+			if index+1 < length && source[index+1] == quote {
+				index++
 				continue
 			}
-			return i + 1
+			return index + 1
 		}
 	}
-	return n
+	return length
 }
 
 // scanDollar handles Postgres $tag$ ... $tag$ strings.
-func scanDollar(source string, i int) (int, bool) {
-	j := i + 1
-	for j < len(source) && source[j] != '$' {
-		if !isIdentChar(source[j]) || source[j] == '$' || (j == i+1 && source[j] >= '0' && source[j] <= '9') {
+func scanDollar(source string, index int) (int, bool) {
+	tagEnd := index + 1
+	for tagEnd < len(source) && source[tagEnd] != '$' {
+		if !isIdentChar(source[tagEnd]) || source[tagEnd] == '$' || (tagEnd == index+1 && source[tagEnd] >= '0' && source[tagEnd] <= '9') {
 			return 0, false
 		}
-		j++
+		tagEnd++
 	}
-	if j >= len(source) {
+	if tagEnd >= len(source) {
 		return 0, false
 	}
-	tag := source[i : j+1]
-	end := strings.Index(source[j+1:], tag)
-	if end < 0 {
+	tag := source[index : tagEnd+1]
+	bodyEnd := strings.Index(source[tagEnd+1:], tag)
+	if bodyEnd < 0 {
 		return len(source), true
 	}
-	return j + 1 + end + len(tag), true
+	return tagEnd + 1 + bodyEnd + len(tag), true
 }
 
-func isOracleQQuote(source string, i int) bool {
-	if i > 0 && isIdentChar(source[i-1]) {
+func isOracleQQuote(source string, index int) bool {
+	if index > 0 && isIdentChar(source[index-1]) {
 		return false
 	}
-	j := i
-	if j < len(source) && (source[j] == 'n' || source[j] == 'N') {
-		j++
+	cursor := index
+	if cursor < len(source) && (source[cursor] == 'n' || source[cursor] == 'N') {
+		cursor++
 	}
-	return j+2 < len(source) && (source[j] == 'q' || source[j] == 'Q') && source[j+1] == '\''
+	return cursor+2 < len(source) && (source[cursor] == 'q' || source[cursor] == 'Q') && source[cursor+1] == '\''
 }
 
-func scanOracleQQuote(source string, i int) int {
-	j := i
-	if source[j] == 'n' || source[j] == 'N' {
-		j++
+func scanOracleQQuote(source string, index int) int {
+	cursor := index
+	if source[cursor] == 'n' || source[cursor] == 'N' {
+		cursor++
 	}
-	open := source[j+2]
-	closing := open
-	switch open {
+	opener := source[cursor+2]
+	closer := opener
+	switch opener {
 	case '[':
-		closing = ']'
+		closer = ']'
 	case '(':
-		closing = ')'
+		closer = ')'
 	case '{':
-		closing = '}'
+		closer = '}'
 	case '<':
-		closing = '>'
+		closer = '>'
 	}
-	end := strings.Index(source[j+3:], string(closing)+"'")
+	end := strings.Index(source[cursor+3:], string(closer)+"'")
 	if end < 0 {
 		return len(source)
 	}
-	return j + 3 + end + 2
+	return cursor + 3 + end + 2
 }

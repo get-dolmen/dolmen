@@ -322,9 +322,7 @@ export class Commands {
   public async selectTop(connectionId: string, table: DbTable, database = '') {
     const connection = this.connectionStore.get(connectionId);
     if (!connection) return;
-    const defaultSchema = this.schemaStore.get(
-      this.schemaStore.scopeFor(connectionId, database),
-    )?.defaultSchema;
+    const defaultSchema = this.schemaStore.defaultSchemaFor(connectionId, database);
     const statement = selectTop(
       connection.kind,
       qualified(connection.kind, table.schema, table.name, defaultSchema),
@@ -341,22 +339,13 @@ export class Commands {
   }
 
   public async showDDL(connectionId: string, table: DbTable, database = '') {
-    try {
-      const definition = await this.api.tableDDL(
-        connectionId,
-        database,
-        table.schema,
-        table.name,
-        table.type,
-      );
-      await this.scratchStore.createIn(
-        { connId: connectionId, database, schema: table.schema, table: table.name },
-        definition.trim() + '\n',
-        this.scratchStore.freeName(`${table.name}.ddl`),
-      );
-    } catch (error) {
-      this.toastService.error(errorText(error));
-    }
+    const definition = await this.tableDefinition(connectionId, table, database);
+    if (definition === null) return;
+    await this.scratchStore.createIn(
+      { connId: connectionId, database, schema: table.schema, table: table.name },
+      definition.trim() + '\n',
+      this.scratchStore.freeName(`${table.name}.ddl`),
+    );
   }
 
   /** Drops a table or view after a confirmation, then refreshes the explorer. */
@@ -397,18 +386,23 @@ export class Commands {
 
   /** Copies a table's or view's DDL to the clipboard. */
   public async copyDDL(connectionId: string, table: DbTable, database = '') {
+    const definition = await this.tableDefinition(connectionId, table, database);
+    if (definition === null) return;
+    if (await this.copy(definition.trim() + '\n'))
+      this.toastService.success(`Copied the DDL of ${table.name}`);
+  }
+
+  /** Fetches a table's or view's DDL, reporting the error and returning null when it fails. */
+  private async tableDefinition(
+    connectionId: string,
+    table: DbTable,
+    database: string,
+  ): Promise<string | null> {
     try {
-      const definition = await this.api.tableDDL(
-        connectionId,
-        database,
-        table.schema,
-        table.name,
-        table.type,
-      );
-      if (await this.copy(definition.trim() + '\n'))
-        this.toastService.success(`Copied the DDL of ${table.name}`);
+      return await this.api.tableDDL(connectionId, database, table.schema, table.name, table.type);
     } catch (error) {
       this.toastService.error(errorText(error));
+      return null;
     }
   }
 
@@ -423,9 +417,7 @@ export class Commands {
       confirmLabel: 'Open script',
     });
     if (!name) return;
-    const defaultSchema = this.schemaStore.get(
-      this.schemaStore.scopeFor(connectionId, database),
-    )?.defaultSchema;
+    const defaultSchema = this.schemaStore.defaultSchemaFor(connectionId, database);
     const statement = createTableTemplate(
       connection.kind,
       qualified(connection.kind, schema, name, defaultSchema),
@@ -501,7 +493,7 @@ export class Commands {
         connection.kind,
         schema,
         name,
-        this.schemaStore.get(this.schemaStore.scopeFor(connectionId, database))?.defaultSchema,
+        this.schemaStore.defaultSchemaFor(connectionId, database),
       ),
     );
     this.editorBridge.focus();

@@ -150,10 +150,7 @@ export class Statusbar implements OnDestroy {
   public readonly schemaName = computed(() => {
     const connection = this.connection();
     if (!connection) return '';
-    return (
-      this.schemaStore.get(this.schemaStore.scopeFor(connection.id, this.database()))
-        ?.defaultSchema ?? ''
-    );
+    return this.schemaStore.defaultSchemaFor(connection.id, this.database()) ?? '';
   });
 
   public readonly transaction = computed(() => this.transactionStore.get(this.tabStore.activeId()));

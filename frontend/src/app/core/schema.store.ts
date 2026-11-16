@@ -69,6 +69,11 @@ export class SchemaStore {
     return connectionScope(connectionId, database && database !== current ? database : '');
   }
 
+  /** The default schema of a tab's scope, when it is already cached. */
+  public defaultSchemaFor(connectionId: string, database = ''): string | undefined {
+    return this.get(this.scopeFor(connectionId, database))?.defaultSchema;
+  }
+
   /** Forgets everything cached for a connection, including its other databases. */
   public invalidate(connId: string) {
     const belongsToConnection = (key: string) =>

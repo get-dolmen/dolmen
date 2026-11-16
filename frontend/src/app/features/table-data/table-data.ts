@@ -35,7 +35,8 @@ import type { Cell, DbKind, TablePage } from '../../core/models';
 import { Confirm } from '../../shared/confirm';
 import { Icon } from '../../shared/icon';
 import { ClickOutside, clampMenu } from '../../shared/click-outside';
-import { displayCell, gridTheme } from '../results/result-grid';
+import { displayCell } from '../../shared/cell';
+import { gridTheme } from '../results/result-grid';
 import { COPY_FORMATS, formatRows, type CopyFormat } from '../results/copy';
 import { CellRangeSelection, rangeClassRules } from '../../shared/cell-range';
 import {

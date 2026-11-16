@@ -1,4 +1,5 @@
 import type { Cell, ResultColumn } from '../../core/models';
+import { cellText } from '../../shared/cell';
 import { rowsToTSV } from './tsv';
 
 export type CopyFormat = 'tsv' | 'csv' | 'json' | 'markdown';
@@ -9,8 +10,6 @@ export const COPY_FORMATS: { id: CopyFormat; label: string }[] = [
   { id: 'json', label: 'JSON' },
   { id: 'markdown', label: 'Markdown' },
 ];
-
-const cellText = (cell: Cell) => (cell === null || cell === undefined ? '' : String(cell));
 
 function csvCell(cell: Cell): string {
   const text = cellText(cell);

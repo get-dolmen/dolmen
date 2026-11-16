@@ -13,6 +13,7 @@ import {
 import { Commands } from '../../core/commands';
 import { isMac } from '../../core/ui';
 import type { Cell, QueryResult } from '../../core/models';
+import { cellText, displayCell } from '../../shared/cell';
 import { rowsToTSV } from './tsv';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -54,16 +55,6 @@ const ROW_NUMBER_COLUMN: ColDef = {
   suppressMovable: true,
   cellClass: 'rownum',
 };
-
-/** A cell never shows more than this: long text would be laid out in full on every scroll. */
-const MAX_SHOWN_CHARACTERS = 500;
-
-/** Text shown in a grid cell. Copy, export and tooltips read the full value. */
-export function displayCell(value: Cell): string {
-  if (value === null || value === undefined) return 'NULL';
-  const text = typeof value === 'string' ? value : String(value);
-  return text.length > MAX_SHOWN_CHARACTERS ? text.slice(0, MAX_SHOWN_CHARACTERS) + '…' : text;
-}
 
 /** Estimates a column width from the header and a sample of values. */
 function estimateColumnWidth(name: string, rows: Cell[][], columnIndex: number): number {
@@ -179,8 +170,7 @@ export class ResultGrid {
     if (selectedRows && selectedRows.length > 1) {
       void this.commandService.copy(rowsToTSV(this.result().columns, selectedRows, true));
     } else if (event.column.getColId() !== '__row') {
-      const value = event.value as Cell;
-      void this.commandService.copy(value === null ? '' : String(value));
+      void this.commandService.copy(cellText(event.value as Cell));
     } else if (event.data) {
       void this.commandService.copy(
         rowsToTSV(this.result().columns, [event.data as Cell[]], false),

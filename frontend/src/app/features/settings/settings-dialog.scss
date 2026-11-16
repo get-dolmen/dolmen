@@ -43,3 +43,14 @@ h3 { margin: 2px 0 10px; font-size: var(--fs-xs); font-weight: 700; letter-spaci
 .note.err { color: var(--danger); white-space: pre-wrap; word-break: break-word; max-height: 90px; overflow: auto; }
 .note.ok { color: var(--accent); }
 .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+
+.two-col.even { grid-template-columns: 1fr 1fr; align-items: start; }
+.mcp-grid { display: grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: start; }
+.permissions { display: flex; flex-direction: column; gap: 6px; }
+.permissions > .label { font-size: var(--fs-sm); color: var(--text-muted); }
+.token-row { display: flex; align-items: center; gap: 6px; }
+.token-row .input { flex: 1; min-width: 0; }
+.snippet { display: flex; flex-direction: column; gap: 6px; }
+.snippet-head { display: flex; align-items: center; justify-content: space-between; }
+.snippet pre { margin: 0; padding: 8px; max-height: 150px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius);
+               background: var(--bg); font-size: var(--fs-xs); line-height: 1.45; user-select: text; }

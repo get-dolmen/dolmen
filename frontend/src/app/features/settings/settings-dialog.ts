@@ -8,7 +8,8 @@ import { SyncStore } from '../../core/sync.store';
 import { TabStore } from '../../core/tab.store';
 import { Toasts } from '../../core/toast';
 import { Ui, type Theme } from '../../core/ui';
-import type { SyncConfig } from '../../core/models';
+import type { McpStatus, SyncConfig } from '../../core/models';
+import { ClipboardSetText } from '../../../../wailsjs/runtime/runtime';
 
 /** Application settings. Appearance applies as soon as it is picked. */
 @Component({
@@ -38,8 +39,13 @@ export class SettingsDialog {
   public readonly password = signal('');
   public readonly busy = signal<'save' | 'sync' | null>(null);
 
+  public readonly mcpForm = { enabled: false, port: 8770, read: true, write: false, databases: '', schemas: '' };
+  public readonly mcpStatus = signal<McpStatus | null>(null);
+  public readonly mcpBusy = signal<'save' | 'token' | null>(null);
+
   public constructor() {
     void this.loadForm();
+    void this.loadMcp();
   }
 
   public async loadForm() {
@@ -95,6 +101,106 @@ export class SettingsDialog {
     }
   }
 
+  public async loadMcp() {
+    try {
+      this.applyMcp(await this.api.mcpStatus());
+    } catch (error) {
+      this.toastService.error(errorText(error));
+    }
+  }
+
+  private applyMcp(status: McpStatus) {
+    this.mcpStatus.set(status);
+    Object.assign(this.mcpForm, {
+      enabled: status.enabled,
+      port: status.port,
+      read: status.read,
+      write: status.write,
+      databases: status.databases.join(', '),
+      schemas: status.schemas.join(', '),
+    });
+  }
+
+  /** Write access implies read access, so ticking it ticks Read too. */
+  public setMcpWrite(write: boolean) {
+    this.mcpForm.write = write;
+    if (write) this.mcpForm.read = true;
+  }
+
+  public async saveMcp() {
+    this.mcpBusy.set('save');
+    try {
+      const status = await this.api.saveMcpConfig({
+        enabled: this.mcpForm.enabled,
+        port: Number(this.mcpForm.port),
+        token: this.mcpStatus()?.token ?? '',
+        read: this.mcpForm.read,
+        write: this.mcpForm.write,
+        databases: splitList(this.mcpForm.databases),
+        schemas: splitList(this.mcpForm.schemas),
+      });
+      this.applyMcp(status);
+      if (status.lastError) this.toastService.error(status.lastError);
+      else this.toastService.success(status.running ? 'MCP server is listening' : 'MCP settings saved');
+    } catch (error) {
+      this.toastService.error(errorText(error));
+    } finally {
+      this.mcpBusy.set(null);
+    }
+  }
+
+  public async regenerateMcpToken() {
+    this.mcpBusy.set('token');
+    try {
+      this.applyMcp(await this.api.regenerateMcpToken());
+      this.toastService.success('New MCP access token generated');
+    } catch (error) {
+      this.toastService.error(errorText(error));
+    } finally {
+      this.mcpBusy.set(null);
+    }
+  }
+
+  public async copyMcpToken() {
+    const token = this.mcpStatus()?.token;
+    if (token && (await this.copyText(token))) this.toastService.success('Access token copied');
+  }
+
+  public async copyMcpConfig() {
+    const status = this.mcpStatus();
+    if (status && (await this.copyText(this.mcpSnippet(status)))) {
+      this.toastService.success('MCP client configuration copied');
+    }
+  }
+
+  /** A ready-to-paste mcpServers entry for the configured endpoint. */
+  public mcpSnippet(status: McpStatus): string {
+    return JSON.stringify({
+      mcpServers: {
+        dolmen: {
+          type: 'http',
+          url: status.url,
+          headers: { Authorization: `Bearer ${status.token}` },
+        },
+      },
+    }, null, 2);
+  }
+
+  private async copyText(text: string): Promise<boolean> {
+    try {
+      if (await ClipboardSetText(text)) return true;
+    } catch {
+      // Fall through to the browser clipboard.
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      this.toastService.error('Clipboard is not available');
+      return false;
+    }
+  }
+
   public relativeTime(timestamp: number): string {
     const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
     if (seconds < 45) return 'just now';
@@ -102,4 +208,9 @@ export class SettingsDialog {
     if (seconds < 86400) return `${Math.round(seconds / 3600)} h ago`;
     return new Date(timestamp).toLocaleDateString();
   }
+}
+
+/** Splits a comma- or newline-separated allow-list. */
+function splitList(value: string): string[] {
+  return value.split(/[\n,]/).map((part) => part.trim()).filter((part) => part.length > 0);
 }

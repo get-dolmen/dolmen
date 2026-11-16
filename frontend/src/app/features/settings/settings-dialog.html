@@ -126,6 +126,88 @@
         </button>
       </div>
     </section>
+
+    <section class="group">
+      <h3>MCP server</h3>
+      <div class="form">
+        <label class="check">
+          <input type="checkbox" name="mcpEnabled" [(ngModel)]="mcpForm.enabled" />
+          <span>
+            <b>Let MCP clients use this computer's connections</b>
+            <small class="muted">Listens on 127.0.0.1 only; every client must send the access token.</small>
+          </span>
+        </label>
+
+        @if (mcpStatus(); as mcp) {
+          <div class="mcp-grid">
+            <label class="stack">Port
+              <input class="input mono" type="number" min="1" max="65535" name="mcpPort" [(ngModel)]="mcpForm.port" />
+            </label>
+            <div class="permissions">
+              <span class="label">Permissions</span>
+              <label class="check inline">
+                <input type="checkbox" name="mcpRead" [(ngModel)]="mcpForm.read" />
+                <span>
+                  <b>Read</b>
+                  <small class="muted">Browse schemas and run read-only SQL</small>
+                </span>
+              </label>
+              <label class="check inline">
+                <input type="checkbox" name="mcpWrite" [ngModel]="mcpForm.write" (ngModelChange)="setMcpWrite($event)" />
+                <span>
+                  <b>Write</b>
+                  <small class="muted">INSERT, UPDATE, DDL… (also turns Read on)</small>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div class="two-col even">
+            <label class="stack">Allowed databases
+              <input class="input mono" name="mcpDatabases" [(ngModel)]="mcpForm.databases"
+                     placeholder="all — or sales, analytics" spellcheck="false" />
+            </label>
+            <label class="stack">Allowed schemas
+              <input class="input mono" name="mcpSchemas" [(ngModel)]="mcpForm.schemas"
+                     placeholder="all — or public, reporting" spellcheck="false" />
+            </label>
+          </div>
+          <p class="note">Comma-separated allow-lists; leave a field empty to allow every database or schema. On MySQL a schema is a database.</p>
+
+          <label class="stack">Access token
+            <div class="token-row">
+              <input class="input mono" name="mcpToken" [value]="mcp.token" readonly />
+              <button type="button" class="btn sm" (click)="copyMcpToken()" [disabled]="mcpBusy() !== null">Copy</button>
+              <button type="button" class="btn sm" (click)="regenerateMcpToken()" [disabled]="mcpBusy() !== null">Regenerate</button>
+            </div>
+          </label>
+
+          @if (mcp.running) {
+            <p class="note ok">Listening on <span class="mono">{{ mcp.url }}</span></p>
+          } @else if (mcp.enabled) {
+            <p class="note warn">Not listening.</p>
+          } @else {
+            <p class="note">Stopped.</p>
+          }
+          @if (mcp.lastError) {
+            <p class="note err mono">{{ mcp.lastError }}</p>
+          }
+
+          <div class="snippet">
+            <div class="snippet-head">
+              <span class="label">Client configuration</span>
+              <button type="button" class="btn sm" (click)="copyMcpConfig()" [disabled]="mcpBusy() !== null">Copy</button>
+            </div>
+            <pre class="mono">{{ mcpSnippet(mcp) }}</pre>
+          </div>
+        }
+      </div>
+      <div class="actions">
+        <button type="button" class="btn primary" (click)="saveMcp()" [disabled]="mcpBusy() !== null">
+          {{ mcpBusy() === 'save' ? 'Saving…' : 'Save MCP settings' }}
+        </button>
+      </div>
+    </section>
   </div>
   <footer>
     <span class="spacer"></span>

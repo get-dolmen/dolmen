@@ -231,9 +231,10 @@ func (t *Tools) withReadOnly(ctx context.Context, o *conn.Open, fn func(context.
 		return fn(ctx, tx)
 	}
 	if stmt, reset := readOnlySession(o.Config.Kind); stmt != "" {
-		if _, err := c.ExecContext(ctx, stmt); err == nil {
-			defer c.ExecContext(context.Background(), reset)
+		if _, err := c.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("could not make the session read-only: %w", err)
 		}
+		defer c.ExecContext(context.Background(), reset)
 	}
 	return fn(ctx, c)
 }

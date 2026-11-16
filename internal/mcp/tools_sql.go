@@ -78,9 +78,11 @@ func (t *Tools) readQuery(ctx context.Context, cfg Config, args queryArgs) (quer
 
 	out := queryResult{Database: tg.database, Results: []statementResult{}}
 	err = t.withReadOnly(ctx, tg.open, func(ctx context.Context, q querier) error {
-		if err := pinSearchPath(ctx, q, tg.open, cfg.Normalize().Schemas); err != nil {
+		reset, err := pinSearchPath(ctx, q, tg.open, cfg.Normalize().Schemas)
+		if err != nil {
 			return err
 		}
+		defer reset()
 		for _, st := range stmts {
 			res := runStatement(ctx, q, dialect, st.Text, maxRows)
 			t.record(tg.cfg.ID, res)
@@ -120,6 +122,13 @@ func (t *Tools) writeQuery(ctx context.Context, cfg Config, args queryArgs) (que
 		return queryResult{}, err
 	}
 	defer c.Close()
+	// Pin the session's search path before opening the transaction, and undo
+	// it when the connection goes back to the shared pool.
+	reset, err := pinSearchPath(ctx, c, tg.open, cfg.Normalize().Schemas)
+	if err != nil {
+		return queryResult{}, err
+	}
+	defer reset()
 	tx, err := c.BeginTx(ctx, nil)
 	if err != nil {
 		return queryResult{}, err
@@ -130,9 +139,6 @@ func (t *Tools) writeQuery(ctx context.Context, cfg Config, args queryArgs) (que
 			tx.Rollback()
 		}
 	}()
-	if err := pinSearchPath(ctx, tx, tg.open, cfg.Normalize().Schemas); err != nil {
-		return queryResult{}, err
-	}
 	for _, st := range stmts {
 		res := runStatement(ctx, tx, dialect, st.Text, defaultQueryRows)
 		t.record(tg.cfg.ID, res)
@@ -255,17 +261,23 @@ func readOnlySession(kind driver.Kind) (on, off string) {
 
 // pinSearchPath keeps unqualified table names inside the allowed schemas on
 // Postgres, where the server's default search_path would otherwise expose
-// schemas the policy hides.
-func pinSearchPath(ctx context.Context, q querier, o *conn.Open, schemas []string) error {
+// schemas the policy hides. The returned function restores the default path
+// before the connection rejoins the shared pool.
+func pinSearchPath(ctx context.Context, q querier, o *conn.Open, schemas []string) (func(), error) {
+	noop := func() {}
 	if len(schemas) == 0 || o.Config.Kind != driver.Postgres {
-		return nil
+		return noop, nil
 	}
 	quoted := make([]string, len(schemas))
 	for i, schema := range schemas {
 		quoted[i] = o.Driver.QuoteIdent(schema)
 	}
-	_, err := q.ExecContext(ctx, "SET search_path TO "+strings.Join(quoted, ", "))
-	return err
+	if _, err := q.ExecContext(ctx, "SET search_path TO "+strings.Join(quoted, ", ")); err != nil {
+		return noop, err
+	}
+	return func() {
+		_, _ = q.ExecContext(context.Background(), "SET search_path TO DEFAULT")
+	}, nil
 }
 
 func runStatement(ctx context.Context, q querier, d sqlsplit.Dialect, stmt string, maxRows int) (res statementResult) {

@@ -71,6 +71,8 @@ Permissions are enforced by the app, not merely advertised:
 - **Allowed databases** and **allowed schemas** are allow-lists: an empty list allows everything. Metadata is filtered, SQL that names a hidden schema explicitly is refused, and on Postgres the session's `search_path` is pinned to the allowed schemas. On engines whose default schema cannot be swapped (Oracle, SQLite), SQL is refused when the connection's default schema is outside the list.
 - The access token can be regenerated from the dialog; old tokens stop working on the next request.
 
+For SQLite, the database name used by the allow-list is the file's base name.
+
 The endpoint binds to `127.0.0.1` only. Settings and the token live in `mcp.json` (mode 0600) in the app data directory.
 
 ## Development

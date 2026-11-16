@@ -25,16 +25,16 @@ func installArchive(archive string) (Outcome, error) {
 		return Outcome{}, err
 	}
 	parent := filepath.Dir(bundle)
-	work, err := os.MkdirTemp(parent, ".dolmen-update-")
+	workDir, err := os.MkdirTemp(parent, ".dolmen-update-")
 	if err != nil {
 		return Outcome{}, fmt.Errorf("cannot write to %s: %w (install the release with install.sh instead)", parent, err)
 	}
-	defer os.RemoveAll(work)
+	defer os.RemoveAll(workDir)
 
-	if out, err := exec.Command("ditto", "-x", "-k", archive, work).CombinedOutput(); err != nil {
-		return Outcome{}, fmt.Errorf("could not extract the update: %v: %s", err, strings.TrimSpace(string(out)))
+	if output, err := exec.Command("ditto", "-x", "-k", archive, workDir).CombinedOutput(); err != nil {
+		return Outcome{}, fmt.Errorf("could not extract the update: %v: %s", err, strings.TrimSpace(string(output)))
 	}
-	fresh, err := findApp(work)
+	extracted, err := findApp(workDir)
 	if err != nil {
 		return Outcome{}, err
 	}
@@ -43,7 +43,7 @@ func installArchive(archive string) (Outcome, error) {
 	if err := os.Rename(bundle, backup); err != nil {
 		return Outcome{}, fmt.Errorf("could not replace %s: %w", bundle, err)
 	}
-	if err := os.Rename(fresh, bundle); err != nil {
+	if err := os.Rename(extracted, bundle); err != nil {
 		_ = os.Rename(backup, bundle)
 		return Outcome{}, fmt.Errorf("could not replace %s: %w", bundle, err)
 	}
@@ -59,17 +59,14 @@ func installArchive(archive string) (Outcome, error) {
 
 // appBundle returns the .app directory this process runs from.
 func appBundle() (string, error) {
-	exe, err := os.Executable()
+	executable, err := executablePath()
 	if err != nil {
 		return "", err
 	}
-	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
-		exe = resolved
-	}
-	bundle := filepath.Dir(filepath.Dir(filepath.Dir(exe)))
+	bundle := filepath.Dir(filepath.Dir(filepath.Dir(executable)))
 	if !strings.HasSuffix(bundle, ".app") ||
-		filepath.Base(filepath.Dir(exe)) != "MacOS" ||
-		filepath.Base(filepath.Dir(filepath.Dir(exe))) != "Contents" {
+		filepath.Base(filepath.Dir(executable)) != "MacOS" ||
+		filepath.Base(filepath.Dir(filepath.Dir(executable))) != "Contents" {
 		return "", errors.New("Dolmen is not running from an app bundle; install the release with install.sh")
 	}
 	if strings.Contains(bundle, "/AppTranslocation/") {
@@ -84,17 +81,17 @@ func findApp(dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var found []string
-	for _, e := range entries {
-		if e.IsDir() && strings.HasSuffix(e.Name(), ".app") {
-			found = append(found, filepath.Join(dir, e.Name()))
+	var bundles []string
+	for _, entry := range entries {
+		if entry.IsDir() && strings.HasSuffix(entry.Name(), ".app") {
+			bundles = append(bundles, filepath.Join(dir, entry.Name()))
 		}
 	}
-	if len(found) != 1 {
+	if len(bundles) != 1 {
 		return "", fmt.Errorf("the update archive does not contain an app bundle")
 	}
-	if _, err := os.Stat(filepath.Join(found[0], "Contents", "Info.plist")); err != nil {
+	if _, err := os.Stat(filepath.Join(bundles[0], "Contents", "Info.plist")); err != nil {
 		return "", fmt.Errorf("the update archive does not contain a valid app bundle")
 	}
-	return found[0], nil
+	return bundles[0], nil
 }

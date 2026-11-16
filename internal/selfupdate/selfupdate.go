@@ -62,8 +62,8 @@ func AssetName(tag, goos, goarch string) (name string, ok bool) {
 }
 
 // Apply downloads the release asset, verifies its checksum and installs it.
-func Apply(ctx context.Context, o Options) (Outcome, error) {
-	if o.Repo == "" || o.Tag == "" || o.Asset == "" {
+func Apply(ctx context.Context, options Options) (Outcome, error) {
+	if options.Repo == "" || options.Tag == "" || options.Asset == "" {
 		return Outcome{}, errors.New("no release to install")
 	}
 	dir, err := os.MkdirTemp("", "dolmen-update-")
@@ -72,15 +72,15 @@ func Apply(ctx context.Context, o Options) (Outcome, error) {
 	}
 	defer os.RemoveAll(dir)
 
-	archive := filepath.Join(dir, o.Asset)
-	base := "https://github.com/" + o.Repo + "/releases/download/" + o.Tag + "/"
-	report := o.Progress
+	archive := filepath.Join(dir, options.Asset)
+	base := "https://github.com/" + options.Repo + "/releases/download/" + options.Tag + "/"
+	report := options.Progress
 	if report == nil {
 		report = func(string, int64, int64) {}
 	}
 	report("download", 0, 0)
 
-	if _, err := Download(ctx, base+o.Asset, archive, func(done, total int64) {
+	if _, err := Download(ctx, base+options.Asset, archive, func(done, total int64) {
 		report("download", done, total)
 	}); err != nil {
 		return Outcome{}, err
@@ -91,9 +91,9 @@ func Apply(ctx context.Context, o Options) (Outcome, error) {
 	if err != nil {
 		return Outcome{}, fmt.Errorf("could not download SHA256SUMS.txt: %w", err)
 	}
-	expected, ok := ChecksumFor(sums, o.Asset)
+	expected, ok := ChecksumFor(sums, options.Asset)
 	if !ok {
-		return Outcome{}, fmt.Errorf("%s is not listed in SHA256SUMS.txt", o.Asset)
+		return Outcome{}, fmt.Errorf("%s is not listed in SHA256SUMS.txt", options.Asset)
 	}
 	actual, err := SHA256File(archive)
 	if err != nil {
@@ -107,72 +107,81 @@ func Apply(ctx context.Context, o Options) (Outcome, error) {
 	return installArchive(archive)
 }
 
-// Download fetches url into dest, calling progress as bytes arrive.
-func Download(ctx context.Context, url, dest string, progress func(done, total int64)) (int64, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+// newRequest builds the GET request used to reach the release, with the
+// updater's User-Agent.
+func newRequest(ctx context.Context, url string) (*http.Request, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("User-Agent", "Dolmen-updater")
+	return request, nil
+}
+
+// Download fetches url into destination, calling progress as bytes arrive.
+func Download(ctx context.Context, url, destination string, progress func(done, total int64)) (int64, error) {
+	request, err := newRequest(ctx, url)
 	if err != nil {
 		return 0, err
 	}
-	req.Header.Set("User-Agent", "Dolmen-updater")
-	resp, err := http.DefaultClient.Do(req)
+	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		return 0, fmt.Errorf("could not download the update: %w", err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("could not download the update: %s", resp.Status)
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("could not download the update: %s", response.Status)
 	}
-	f, err := os.Create(dest)
+	file, err := os.Create(destination)
 	if err != nil {
 		return 0, err
 	}
-	defer f.Close()
+	defer file.Close()
 
-	buf := make([]byte, 64<<10)
+	buffer := make([]byte, 64<<10)
 	var done int64
-	last := time.Time{}
+	lastReport := time.Time{}
 	for {
-		n, rerr := resp.Body.Read(buf)
-		if n > 0 {
-			if _, werr := f.Write(buf[:n]); werr != nil {
-				return done, werr
+		read, readErr := response.Body.Read(buffer)
+		if read > 0 {
+			if _, writeErr := file.Write(buffer[:read]); writeErr != nil {
+				return done, writeErr
 			}
-			done += int64(n)
-			if progress != nil && (time.Since(last) > 150*time.Millisecond || done == resp.ContentLength) {
-				progress(done, resp.ContentLength)
-				last = time.Now()
+			done += int64(read)
+			if progress != nil && (time.Since(lastReport) > 150*time.Millisecond || done == response.ContentLength) {
+				progress(done, response.ContentLength)
+				lastReport = time.Now()
 			}
 		}
-		if rerr == io.EOF {
+		if readErr == io.EOF {
 			break
 		}
-		if rerr != nil {
-			return done, fmt.Errorf("could not download the update: %w", rerr)
+		if readErr != nil {
+			return done, fmt.Errorf("could not download the update: %w", readErr)
 		}
 	}
 	if progress != nil {
-		progress(done, resp.ContentLength)
+		progress(done, response.ContentLength)
 	}
-	return done, f.Close()
+	return done, file.Close()
 }
 
 // FetchText downloads a small text file, such as SHA256SUMS.txt.
 func FetchText(ctx context.Context, url string, limit int64) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	request, err := newRequest(ctx, url)
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("User-Agent", "Dolmen-updater")
-	resp, err := http.DefaultClient.Do(req)
+	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("%s", resp.Status)
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("%s", response.Status)
 	}
-	b, err := io.ReadAll(io.LimitReader(resp.Body, limit))
-	return string(b), err
+	data, err := io.ReadAll(io.LimitReader(response.Body, limit))
+	return string(data), err
 }
 
 // ChecksumFor returns the SHA-256 listed for name in a sha256sum file.
@@ -190,71 +199,84 @@ func ChecksumFor(sums, name string) (string, bool) {
 }
 
 // SHA256File hashes a file.
-func SHA256File(name string) (string, error) {
-	f, err := os.Open(name)
+func SHA256File(filename string) (string, error) {
+	file, err := os.Open(filename)
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
+	defer file.Close()
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, file); err != nil {
 		return "", err
 	}
-	return hex.EncodeToString(h.Sum(nil)), nil
+	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-// ExtractFile writes one regular file from a .tar.gz archive to dest.
-func ExtractFile(archive, name, dest string, mode os.FileMode) error {
-	f, err := os.Open(archive)
+// ExtractFile writes one regular file from a .tar.gz archive to destination.
+func ExtractFile(archive, name, destination string, mode os.FileMode) error {
+	file, err := os.Open(archive)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	gz, err := gzip.NewReader(f)
+	defer file.Close()
+	gzipReader, err := gzip.NewReader(file)
 	if err != nil {
 		return fmt.Errorf("could not read the update archive: %w", err)
 	}
-	defer gz.Close()
-	tr := tar.NewReader(gz)
+	defer gzipReader.Close()
+	tarReader := tar.NewReader(gzipReader)
 	for {
-		h, err := tr.Next()
+		header, err := tarReader.Next()
 		if err == io.EOF {
 			return fmt.Errorf("%s is missing from the update archive", name)
 		}
 		if err != nil {
 			return fmt.Errorf("could not read the update archive: %w", err)
 		}
-		if path.Clean(h.Name) != name || h.Typeflag != tar.TypeReg {
+		if path.Clean(header.Name) != name || header.Typeflag != tar.TypeReg {
 			continue
 		}
-		out, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+		output, err := os.OpenFile(destination, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 		if err != nil {
 			return err
 		}
-		if _, err := io.Copy(out, tr); err != nil {
-			out.Close()
+		if _, err := io.Copy(output, tarReader); err != nil {
+			output.Close()
 			return err
 		}
-		if err := out.Close(); err != nil {
+		if err := output.Close(); err != nil {
 			return err
 		}
-		return os.Chmod(dest, mode)
+		return os.Chmod(destination, mode)
 	}
 }
 
-func copyFile(src, dest string) error {
-	in, err := os.Open(src)
+// executablePath returns the path of the running binary, with symlinks
+// resolved.
+func executablePath() (string, error) {
+	executable, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	if resolved, err := filepath.EvalSymlinks(executable); err == nil {
+		return resolved, nil
+	}
+	return executable, nil
+}
+
+func copyFile(source, destination string) error {
+	input, err := os.Open(source)
 	if err != nil {
 		return err
 	}
-	defer in.Close()
-	out, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o700)
+	defer input.Close()
+	output, err := os.OpenFile(destination, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o700)
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
+	if _, err := io.Copy(output, input); err != nil {
+		output.Close()
 		return err
 	}
-	return out.Close()
+	return output.Close()
 }

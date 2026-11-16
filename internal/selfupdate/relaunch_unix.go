@@ -12,23 +12,23 @@ import (
 
 // Relaunch starts argv once this process has exited. A detached shell waits
 // for the current PID, so the old and new versions never run together.
-func Relaunch(argv []string) error {
-	if len(argv) == 0 {
+func Relaunch(arguments []string) error {
+	if len(arguments) == 0 {
 		return nil
 	}
-	script := fmt.Sprintf("while kill -0 %d 2>/dev/null; do sleep 0.2; done; exec %s", os.Getpid(), shellQuote(argv))
-	cmd := exec.Command("/bin/sh", "-c", script)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	if err := cmd.Start(); err != nil {
+	script := fmt.Sprintf("while kill -0 %d 2>/dev/null; do sleep 0.2; done; exec %s", os.Getpid(), shellQuote(arguments))
+	command := exec.Command("/bin/sh", "-c", script)
+	command.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := command.Start(); err != nil {
 		return err
 	}
-	return cmd.Process.Release()
+	return command.Process.Release()
 }
 
-func shellQuote(argv []string) string {
-	quoted := make([]string, len(argv))
-	for i, arg := range argv {
-		quoted[i] = "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
+func shellQuote(arguments []string) string {
+	quoted := make([]string, len(arguments))
+	for index, argument := range arguments {
+		quoted[index] = "'" + strings.ReplaceAll(argument, "'", `'\''`) + "'"
 	}
 	return strings.Join(quoted, " ")
 }

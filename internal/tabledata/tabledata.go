@@ -76,6 +76,15 @@ func isBinary(columnType string) bool {
 	return false
 }
 
+// whereClause returns the " WHERE ..." suffix of a page request, or "" when
+// the request has no filter.
+func whereClause(request PageRequest) string {
+	if where := strings.TrimSpace(request.Where); where != "" {
+		return " WHERE " + where
+	}
+	return ""
+}
+
 func qualified(dialect driver.Driver, schema, table string) string {
 	if schema == "" {
 		return dialect.QuoteIdent(table)
@@ -113,9 +122,7 @@ func Read(ctx context.Context, opened *conn.Open, querier Querier, request PageR
 		}
 	}
 	sqlText := "SELECT " + strings.Join(quotedNames, ", ") + " FROM " + qualified(dialect, request.Schema, request.Table)
-	if where := strings.TrimSpace(request.Where); where != "" {
-		sqlText += " WHERE " + where
-	}
+	sqlText += whereClause(request)
 	if orderBy := strings.TrimSpace(request.OrderBy); orderBy != "" {
 		sqlText += " ORDER BY " + orderBy
 	} else if len(primaryKeys) > 0 {
@@ -169,9 +176,7 @@ func Read(ctx context.Context, opened *conn.Open, querier Querier, request PageR
 // uncommitted changes.
 func Count(ctx context.Context, opened *conn.Open, querier Querier, request PageRequest) (int64, error) {
 	sqlText := "SELECT COUNT(*) FROM " + qualified(opened.Driver, request.Schema, request.Table)
-	if where := strings.TrimSpace(request.Where); where != "" {
-		sqlText += " WHERE " + where
-	}
+	sqlText += whereClause(request)
 	var rowCount int64
 	rows, err := querier.QueryContext(ctx, sqlText)
 	if err != nil {

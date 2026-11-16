@@ -4,11 +4,9 @@ package conn
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -18,8 +16,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"dolmen/internal/atomicfile"
 	"dolmen/internal/driver"
+	"dolmen/internal/jsonfile"
 	"dolmen/internal/sshtunnel"
 )
 
@@ -127,16 +125,13 @@ func (s *Store) Replace(configs []driver.Config) error {
 }
 
 func (s *Store) load() ([]driver.Config, error) {
-	data, err := os.ReadFile(s.path)
-	if errors.Is(err, os.ErrNotExist) {
-		return []driver.Config{}, nil
-	}
+	var configs []driver.Config
+	found, err := jsonfile.Read(s.path, &configs)
 	if err != nil {
 		return nil, err
 	}
-	var configs []driver.Config
-	if err := json.Unmarshal(data, &configs); err != nil {
-		return nil, fmt.Errorf("reading %s: %w", s.path, err)
+	if !found {
+		return []driver.Config{}, nil
 	}
 	sortConfigs(configs)
 	return configs, nil
@@ -150,11 +145,7 @@ func sortConfigs(configs []driver.Config) {
 }
 
 func (s *Store) write(configs []driver.Config) error {
-	data, err := json.MarshalIndent(configs, "", "  ")
-	if err != nil {
-		return err
-	}
-	return atomicfile.Write(s.path, data, 0o600)
+	return jsonfile.Write(s.path, configs, 0o600)
 }
 
 func validate(config driver.Config) error {

@@ -2,10 +2,8 @@
 package folder
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -13,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"dolmen/internal/atomicfile"
+	"dolmen/internal/jsonfile"
 )
 
 // Folder is a named group of connections. ParentID creates nesting; an
@@ -149,24 +147,17 @@ func checkParent(folders []Folder, id, parent string) error {
 }
 
 func (s *Store) load() ([]Folder, error) {
-	data, err := os.ReadFile(s.path)
-	if errors.Is(err, os.ErrNotExist) {
-		return []Folder{}, nil
-	}
+	var folders []Folder
+	found, err := jsonfile.Read(s.path, &folders)
 	if err != nil {
 		return nil, err
 	}
-	var folders []Folder
-	if err := json.Unmarshal(data, &folders); err != nil {
-		return nil, fmt.Errorf("reading %s: %w", s.path, err)
+	if !found {
+		return []Folder{}, nil
 	}
 	return folders, nil
 }
 
 func (s *Store) write(folders []Folder) error {
-	data, err := json.MarshalIndent(folders, "", "  ")
-	if err != nil {
-		return err
-	}
-	return atomicfile.Write(s.path, data, 0o600)
+	return jsonfile.Write(s.path, folders, 0o600)
 }

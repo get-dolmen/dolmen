@@ -3,14 +3,11 @@ package mcp
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
-	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 
-	"dolmen/internal/atomicfile"
+	"dolmen/internal/jsonfile"
 )
 
 // Store persists the MCP settings as mcp.json next to Dolmen's other files.
@@ -44,16 +41,13 @@ func (s *Store) Load() (Config, error) {
 }
 
 func (s *Store) load() (Config, error) {
-	data, err := os.ReadFile(s.path)
-	if errors.Is(err, os.ErrNotExist) {
-		return DefaultConfig(), nil
-	}
+	var config Config
+	found, err := jsonfile.Read(s.path, &config)
 	if err != nil {
 		return Config{}, err
 	}
-	var config Config
-	if err := json.Unmarshal(data, &config); err != nil {
-		return Config{}, fmt.Errorf("reading %s: %w", s.path, err)
+	if !found {
+		return DefaultConfig(), nil
 	}
 	return config.Normalize(), nil
 }
@@ -68,16 +62,12 @@ func (s *Store) Save(config Config) error {
 		}
 		config.Token = token
 	}
-	data, err := json.MarshalIndent(config, "", "  ")
-	if err != nil {
-		return err
-	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o700); err != nil {
 		return err
 	}
-	return atomicfile.Write(s.path, data, 0o600)
+	return jsonfile.Write(s.path, config, 0o600)
 }
 
 // NewToken returns a random bearer token for local MCP clients.

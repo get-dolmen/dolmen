@@ -23,6 +23,7 @@ import (
 	"unicode/utf8"
 
 	"dolmen/internal/atomicfile"
+	"dolmen/internal/jsonfile"
 )
 
 // Tab is an open editor tab. SQL tabs share their ID with a scratch file.
@@ -175,11 +176,7 @@ func exists(path string) bool {
 }
 
 func (s *Store) writeIndex() error {
-	data, err := json.MarshalIndent(s.index, "", "  ")
-	if err != nil {
-		return err
-	}
-	return atomicfile.Write(s.indexPath(), data, 0o600)
+	return jsonfile.Write(s.indexPath(), s.index, 0o600)
 }
 
 // Load returns the open tabs; SQL tabs carry their scratch's content and link.
@@ -261,11 +258,7 @@ func (s *Store) SaveLayout(workspace Workspace) error {
 			return err
 		}
 	}
-	data, err := json.MarshalIndent(saved, "", "  ")
-	if err != nil {
-		return err
-	}
-	return atomicfile.Write(s.manifestPath(), data, 0o600)
+	return jsonfile.Write(s.manifestPath(), saved, 0o600)
 }
 
 // SaveContent writes a scratch's content.

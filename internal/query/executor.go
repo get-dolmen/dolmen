@@ -74,8 +74,8 @@ type ExecResponse struct {
 }
 
 type querier interface {
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, arguments ...any) (*sql.Rows, error)
+	ExecContext(ctx context.Context, query string, arguments ...any) (sql.Result, error)
 }
 
 // cursor is the open result set of the last statement of a run.

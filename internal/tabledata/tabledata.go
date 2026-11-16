@@ -85,8 +85,8 @@ func qualified(dialect driver.Driver, schema, table string) string {
 
 // Querier runs statements: a connection, a session or a transaction.
 type Querier interface {
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, arguments ...any) (*sql.Rows, error)
+	ExecContext(ctx context.Context, query string, arguments ...any) (sql.Result, error)
 }
 
 // Read returns one page of a table, reading through querier (so an open

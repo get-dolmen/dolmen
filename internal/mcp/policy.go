@@ -37,48 +37,48 @@ func DefaultConfig() Config {
 
 // Normalize applies the defaults and tidies the allow-lists: names are
 // trimmed, blank entries dropped and duplicates (case-insensitively) removed.
-func (c Config) Normalize() Config {
-	if c.Port == 0 {
-		c.Port = DefaultPort
+func (config Config) Normalize() Config {
+	if config.Port == 0 {
+		config.Port = DefaultPort
 	}
-	if c.Write {
-		c.Read = true
+	if config.Write {
+		config.Read = true
 	}
-	c.Databases = cleanNames(c.Databases)
-	c.Schemas = cleanNames(c.Schemas)
-	return c
+	config.Databases = cleanNames(config.Databases)
+	config.Schemas = cleanNames(config.Schemas)
+	return config
 }
 
 // Validate rejects settings that would leave the server with nothing to do.
-func (c Config) Validate() error {
-	c = c.Normalize()
-	if c.Port < 1 || c.Port > 65535 {
-		return fmt.Errorf("port %d is out of range", c.Port)
+func (config Config) Validate() error {
+	config = config.Normalize()
+	if config.Port < 1 || config.Port > 65535 {
+		return fmt.Errorf("port %d is out of range", config.Port)
 	}
-	if c.Enabled && !c.Read && !c.Write {
+	if config.Enabled && !config.Read && !config.Write {
 		return errors.New("enable read or write access before starting the MCP server")
 	}
-	if c.Enabled && strings.TrimSpace(c.Token) == "" {
+	if config.Enabled && strings.TrimSpace(config.Token) == "" {
 		return errors.New("an access token is required")
 	}
 	return nil
 }
 
 // AllowsRead reports whether clients may browse and query data.
-func (c Config) AllowsRead() bool { return c.Normalize().Read }
+func (config Config) AllowsRead() bool { return config.Normalize().Read }
 
 // AllowsWrite reports whether clients may run statements that change data.
-func (c Config) AllowsWrite() bool { return c.Normalize().Write }
+func (config Config) AllowsWrite() bool { return config.Normalize().Write }
 
 // AllowsDatabase reports whether a client may open a database. For MySQL a
 // schema and a database are the same level, so a schema allow-list also
 // narrows the databases that can be opened.
-func (c Config) AllowsDatabase(kind driver.Kind, database string) bool {
-	c = c.Normalize()
-	if database != "" && len(c.Databases) > 0 && !containsName(c.Databases, database) {
+func (config Config) AllowsDatabase(kind driver.Kind, database string) bool {
+	config = config.Normalize()
+	if database != "" && len(config.Databases) > 0 && !containsName(config.Databases, database) {
 		return false
 	}
-	if database != "" && kind == driver.MySQL && len(c.Schemas) > 0 && !containsName(c.Schemas, database) {
+	if database != "" && kind == driver.MySQL && len(config.Schemas) > 0 && !containsName(config.Schemas, database) {
 		return false
 	}
 	return true
@@ -87,30 +87,30 @@ func (c Config) AllowsDatabase(kind driver.Kind, database string) bool {
 // AllowsSchema reports whether a client may read a schema's metadata or use
 // it in a qualified name. An empty name (the connection's default) is allowed;
 // the caller resolves it first.
-func (c Config) AllowsSchema(schema string) bool {
-	c = c.Normalize()
-	if schema == "" || len(c.Schemas) == 0 {
+func (config Config) AllowsSchema(schema string) bool {
+	config = config.Normalize()
+	if schema == "" || len(config.Schemas) == 0 {
 		return true
 	}
-	return containsName(c.Schemas, schema)
+	return containsName(config.Schemas, schema)
 }
 
 // DescribePermissions is the instruction text MCP clients receive when they
 // initialize a session.
-func (c Config) DescribePermissions() string {
-	c = c.Normalize()
+func (config Config) DescribePermissions() string {
+	config = config.Normalize()
 	var access []string
-	if c.Read {
+	if config.Read {
 		access = append(access, "read data")
 	}
-	if c.Write {
+	if config.Write {
 		access = append(access, "write data")
 	}
 	if len(access) == 0 {
 		access = append(access, "nothing")
 	}
 	scope := "every database and schema"
-	if len(c.Databases) > 0 || len(c.Schemas) > 0 {
+	if len(config.Databases) > 0 || len(config.Schemas) > 0 {
 		scope = "only the databases and schemas allowed in Dolmen's MCP settings"
 	}
 	return fmt.Sprintf(
@@ -121,19 +121,19 @@ func (c Config) DescribePermissions() string {
 		strings.Join(access, " and "), scope)
 }
 
-func cleanNames(in []string) []string {
-	out := make([]string, 0, len(in))
-	for _, raw := range in {
+func cleanNames(names []string) []string {
+	cleaned := make([]string, 0, len(names))
+	for _, raw := range names {
 		name := strings.TrimSpace(raw)
 		if name == "" {
 			continue
 		}
-		if containsName(out, name) {
+		if containsName(cleaned, name) {
 			continue
 		}
-		out = append(out, name)
+		cleaned = append(cleaned, name)
 	}
-	return out
+	return cleaned
 }
 
 func containsName(list []string, name string) bool {

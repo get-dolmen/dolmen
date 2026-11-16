@@ -31,7 +31,7 @@ func TestReadQuery(t *testing.T) {
 
 	// Read queries are recorded in the app's history.
 	connections := call[[]connectionInfo](t, tools, "list_connections", "")
-	entries, err := tools.hist.List(context.Background(), connections[0].ID, "", 10)
+	entries, err := tools.historyStore.List(context.Background(), connections[0].ID, "", 10)
 	if err != nil {
 		t.Fatal(err)
 	}

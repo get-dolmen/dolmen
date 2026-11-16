@@ -167,9 +167,9 @@ func TestServiceReportsBusyPort(t *testing.T) {
 
 func TestServicePersistsAcrossRestarts(t *testing.T) {
 	dir := t.TempDir()
-	conns := conn.NewManager()
-	saved := conn.NewStore(t.TempDir())
-	first, err := NewService(dir, conns, saved, nil, "test")
+	connections := conn.NewManager()
+	savedConnections := conn.NewStore(t.TempDir())
+	first, err := NewService(dir, connections, savedConnections, nil, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestServicePersistsAcrossRestarts(t *testing.T) {
 	}
 	first.Stop()
 
-	second, err := NewService(dir, conns, saved, nil, "test")
+	second, err := NewService(dir, connections, savedConnections, nil, "test")
 	if err != nil {
 		t.Fatal(err)
 	}

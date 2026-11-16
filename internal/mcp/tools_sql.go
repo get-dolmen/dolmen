@@ -49,24 +49,24 @@ type queryResult struct {
 
 // querier runs statements on a dedicated connection or transaction.
 type querier interface {
-	QueryContext(ctx context.Context, q string, args ...any) (*sql.Rows, error)
-	ExecContext(ctx context.Context, q string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
-func (t *Tools) readQuery(ctx context.Context, cfg Config, args queryArgs) (queryResult, error) {
-	tg, dialect, stmts, err := t.statements(ctx, args.Connection, args.Database, args.SQL)
+func (t *Tools) readQuery(ctx context.Context, config Config, args queryArgs) (queryResult, error) {
+	connection, dialect, statements, err := t.statements(ctx, args.Connection, args.Database, args.SQL)
 	if err != nil {
 		return queryResult{}, err
 	}
-	for _, st := range stmts {
-		if err := sqlsplit.CheckReadOnly(dialect, st.Text); err != nil {
-			return queryResult{}, fmt.Errorf("%s: %w", st.Text, err)
+	for _, statement := range statements {
+		if err := sqlsplit.CheckReadOnly(dialect, statement.Text); err != nil {
+			return queryResult{}, fmt.Errorf("%s: %w", statement.Text, err)
 		}
 	}
-	if err := t.checkSchemas(ctx, cfg, tg, dialect, stmts); err != nil {
+	if err := t.checkSchemas(ctx, config, connection, dialect, statements); err != nil {
 		return queryResult{}, err
 	}
-	if err := t.checkDefaultSchema(ctx, cfg, tg); err != nil {
+	if err := t.checkDefaultSchema(ctx, config, connection); err != nil {
 		return queryResult{}, err
 	}
 
@@ -76,18 +76,18 @@ func (t *Tools) readQuery(ctx context.Context, cfg Config, args queryArgs) (quer
 	}
 	maxRows = min(maxRows, maxQueryRows)
 
-	out := queryResult{Database: tg.database, Results: []statementResult{}}
-	err = t.withReadOnly(ctx, tg.open, func(ctx context.Context, q querier) error {
-		reset, err := pinSearchPath(ctx, q, tg.open, cfg.Normalize().Schemas)
+	output := queryResult{Database: connection.database, Results: []statementResult{}}
+	err = t.withReadOnly(ctx, connection.opened, func(ctx context.Context, runner querier) error {
+		reset, err := pinSearchPath(ctx, runner, connection.opened, config.Normalize().Schemas)
 		if err != nil {
 			return err
 		}
 		defer reset()
-		for _, st := range stmts {
-			res := runStatement(ctx, q, dialect, st.Text, maxRows)
-			t.record(tg.cfg.ID, res)
-			out.Results = append(out.Results, res)
-			if res.Error != "" {
+		for _, statement := range statements {
+			result := runStatement(ctx, runner, dialect, statement.Text, maxRows)
+			t.record(connection.config.ID, result)
+			output.Results = append(output.Results, result)
+			if result.Error != "" {
 				break
 			}
 		}
@@ -96,40 +96,40 @@ func (t *Tools) readQuery(ctx context.Context, cfg Config, args queryArgs) (quer
 	if err != nil {
 		return queryResult{}, err
 	}
-	return out, nil
+	return output, nil
 }
 
-func (t *Tools) writeQuery(ctx context.Context, cfg Config, args queryArgs) (queryResult, error) {
-	tg, dialect, stmts, err := t.statements(ctx, args.Connection, args.Database, args.SQL)
+func (t *Tools) writeQuery(ctx context.Context, config Config, args queryArgs) (queryResult, error) {
+	connection, dialect, statements, err := t.statements(ctx, args.Connection, args.Database, args.SQL)
 	if err != nil {
 		return queryResult{}, err
 	}
-	for _, st := range stmts {
-		if ctl := sqlsplit.TxControl(dialect, st.Text); ctl != "" {
-			return queryResult{}, fmt.Errorf("%s: transaction control is not allowed; every write_query call is its own transaction", st.Text)
+	for _, statement := range statements {
+		if control := sqlsplit.TxControl(dialect, statement.Text); control != "" {
+			return queryResult{}, fmt.Errorf("%s: transaction control is not allowed; every write_query call is its own transaction", statement.Text)
 		}
 	}
-	if err := t.checkSchemas(ctx, cfg, tg, dialect, stmts); err != nil {
+	if err := t.checkSchemas(ctx, config, connection, dialect, statements); err != nil {
 		return queryResult{}, err
 	}
-	if err := t.checkDefaultSchema(ctx, cfg, tg); err != nil {
+	if err := t.checkDefaultSchema(ctx, config, connection); err != nil {
 		return queryResult{}, err
 	}
 
-	out := queryResult{Database: tg.database, Results: []statementResult{}}
-	c, err := tg.open.DB.Conn(ctx)
+	output := queryResult{Database: connection.database, Results: []statementResult{}}
+	session, err := connection.opened.DB.Conn(ctx)
 	if err != nil {
 		return queryResult{}, err
 	}
-	defer c.Close()
+	defer session.Close()
 	// Pin the session's search path before opening the transaction, and undo
 	// it when the connection goes back to the shared pool.
-	reset, err := pinSearchPath(ctx, c, tg.open, cfg.Normalize().Schemas)
+	reset, err := pinSearchPath(ctx, session, connection.opened, config.Normalize().Schemas)
 	if err != nil {
 		return queryResult{}, err
 	}
 	defer reset()
-	tx, err := c.BeginTx(ctx, nil)
+	tx, err := session.BeginTx(ctx, nil)
 	if err != nil {
 		return queryResult{}, err
 	}
@@ -139,47 +139,47 @@ func (t *Tools) writeQuery(ctx context.Context, cfg Config, args queryArgs) (que
 			tx.Rollback()
 		}
 	}()
-	for _, st := range stmts {
-		res := runStatement(ctx, tx, dialect, st.Text, defaultQueryRows)
-		t.record(tg.cfg.ID, res)
-		out.Results = append(out.Results, res)
-		if res.Error != "" {
-			return out, nil // rolled back by the deferred call
+	for _, statement := range statements {
+		result := runStatement(ctx, tx, dialect, statement.Text, defaultQueryRows)
+		t.record(connection.config.ID, result)
+		output.Results = append(output.Results, result)
+		if result.Error != "" {
+			return output, nil // rolled back by the deferred call
 		}
 	}
 	if err := tx.Commit(); err != nil {
 		return queryResult{}, err
 	}
 	committed = true
-	out.Committed = true
-	return out, nil
+	output.Committed = true
+	return output, nil
 }
 
-func (t *Tools) statements(ctx context.Context, connection, database, sqlText string) (*target, sqlsplit.Dialect, []sqlsplit.Statement, error) {
+func (t *Tools) statements(ctx context.Context, connectionRef, database, sqlText string) (*target, sqlsplit.Dialect, []sqlsplit.Statement, error) {
 	if strings.TrimSpace(sqlText) == "" {
 		return nil, "", nil, errors.New("sql is required")
 	}
-	tg, err := t.target(ctx, connection, database)
+	connection, err := t.target(ctx, connectionRef, database)
 	if err != nil {
 		return nil, "", nil, err
 	}
-	dialect := sqlsplit.Dialect(tg.cfg.Kind)
-	stmts := sqlsplit.Split(dialect, sqlText)
-	if len(stmts) == 0 {
+	dialect := sqlsplit.Dialect(connection.config.Kind)
+	statements := sqlsplit.Split(dialect, sqlText)
+	if len(statements) == 0 {
 		return nil, "", nil, errors.New("no SQL statement found")
 	}
-	return tg, dialect, stmts, nil
+	return connection, dialect, statements, nil
 }
 
 // checkSchemas rejects explicit references to known schemas outside the
 // allow-list. The session's search path is pinned separately, so unqualified
 // names cannot reach them through the server's defaults either.
-func (t *Tools) checkSchemas(ctx context.Context, cfg Config, tg *target, dialect sqlsplit.Dialect, stmts []sqlsplit.Statement) error {
-	allowed := cfg.Normalize().Schemas
+func (t *Tools) checkSchemas(ctx context.Context, config Config, connection *target, dialect sqlsplit.Dialect, statements []sqlsplit.Statement) error {
+	allowed := config.Normalize().Schemas
 	if len(allowed) == 0 {
 		return nil
 	}
-	known, err := tg.open.Driver.ListSchemas(ctx, tg.open.DB)
+	known, err := connection.opened.Driver.ListSchemas(ctx, connection.opened.DB)
 	if err != nil {
 		return err
 	}
@@ -187,11 +187,11 @@ func (t *Tools) checkSchemas(ctx context.Context, cfg Config, tg *target, dialec
 	for _, schema := range known {
 		isKnown[strings.ToLower(schema)] = true
 	}
-	for _, st := range stmts {
-		for _, ref := range sqlsplit.References(dialect, st.Text) {
-			name := strings.ToLower(ref.Schema)
-			if isKnown[name] && !containsName(allowed, ref.Schema) {
-				return fmt.Errorf("schema %q is not allowed by the MCP permissions", ref.Schema)
+	for _, statement := range statements {
+		for _, reference := range sqlsplit.References(dialect, statement.Text) {
+			name := strings.ToLower(reference.Schema)
+			if isKnown[name] && !containsName(allowed, reference.Schema) {
+				return fmt.Errorf("schema %q is not allowed by the MCP permissions", reference.Schema)
 			}
 		}
 	}
@@ -202,47 +202,47 @@ func (t *Tools) checkSchemas(ctx context.Context, cfg Config, tg *target, dialec
 // on engines where the session's default schema cannot be swapped for an
 // allowed one, running SQL would still reach it. Postgres gets its search
 // path pinned and MySQL's default database is already checked.
-func (t *Tools) checkDefaultSchema(ctx context.Context, cfg Config, tg *target) error {
-	allowed := cfg.Normalize().Schemas
-	if len(allowed) == 0 || tg.cfg.Kind == driver.Postgres || tg.cfg.Kind == driver.MySQL {
+func (t *Tools) checkDefaultSchema(ctx context.Context, config Config, connection *target) error {
+	allowed := config.Normalize().Schemas
+	if len(allowed) == 0 || connection.config.Kind == driver.Postgres || connection.config.Kind == driver.MySQL {
 		return nil
 	}
-	def, err := tg.open.Driver.DefaultSchema(ctx, tg.open.DB)
+	defaultSchema, err := connection.opened.Driver.DefaultSchema(ctx, connection.opened.DB)
 	if err != nil {
 		return err
 	}
-	if !cfg.AllowsSchema(def) {
-		return fmt.Errorf("the connection's default schema %q is not allowed; add it to the schema allow-list", def)
+	if !config.AllowsSchema(defaultSchema) {
+		return fmt.Errorf("the connection's default schema %q is not allowed; add it to the schema allow-list", defaultSchema)
 	}
 	return nil
 }
 
 // withReadOnly runs fn on a dedicated connection with the engine's read-only
 // protection on top of the statement guard.
-func (t *Tools) withReadOnly(ctx context.Context, o *conn.Open, fn func(context.Context, querier) error) error {
-	c, err := o.DB.Conn(ctx)
+func (t *Tools) withReadOnly(ctx context.Context, opened *conn.Open, fn func(context.Context, querier) error) error {
+	session, err := opened.DB.Conn(ctx)
 	if err != nil {
 		return err
 	}
-	defer c.Close()
-	if o.Config.Kind == driver.Oracle {
-		tx, err := c.BeginTx(ctx, nil)
+	defer session.Close()
+	if opened.Config.Kind == driver.Oracle {
+		tx, err := session.BeginTx(ctx, nil)
 		if err != nil {
 			return err
 		}
 		defer tx.Rollback()
-		if _, err := tx.ExecContext(ctx, o.Driver.ReadOnlyTxStatement()); err != nil {
+		if _, err := tx.ExecContext(ctx, opened.Driver.ReadOnlyTxStatement()); err != nil {
 			return err
 		}
 		return fn(ctx, tx)
 	}
-	if stmt, reset := readOnlySession(o.Config.Kind); stmt != "" {
-		if _, err := c.ExecContext(ctx, stmt); err != nil {
+	if readOnlyStatement, reset := readOnlySession(opened.Config.Kind); readOnlyStatement != "" {
+		if _, err := session.ExecContext(ctx, readOnlyStatement); err != nil {
 			return fmt.Errorf("could not make the session read-only: %w", err)
 		}
-		defer c.ExecContext(context.Background(), reset)
+		defer session.ExecContext(context.Background(), reset)
 	}
-	return fn(ctx, c)
+	return fn(ctx, session)
 }
 
 // readOnlySession returns the statements that make one connection read-only,
@@ -263,99 +263,99 @@ func readOnlySession(kind driver.Kind) (on, off string) {
 // Postgres, where the server's default search_path would otherwise expose
 // schemas the policy hides. The returned function restores the default path
 // before the connection rejoins the shared pool.
-func pinSearchPath(ctx context.Context, q querier, o *conn.Open, schemas []string) (func(), error) {
+func pinSearchPath(ctx context.Context, runner querier, opened *conn.Open, schemas []string) (func(), error) {
 	noop := func() {}
-	if len(schemas) == 0 || o.Config.Kind != driver.Postgres {
+	if len(schemas) == 0 || opened.Config.Kind != driver.Postgres {
 		return noop, nil
 	}
 	quoted := make([]string, len(schemas))
 	for i, schema := range schemas {
-		quoted[i] = o.Driver.QuoteIdent(schema)
+		quoted[i] = opened.Driver.QuoteIdent(schema)
 	}
-	if _, err := q.ExecContext(ctx, "SET search_path TO "+strings.Join(quoted, ", ")); err != nil {
+	if _, err := runner.ExecContext(ctx, "SET search_path TO "+strings.Join(quoted, ", ")); err != nil {
 		return noop, err
 	}
 	return func() {
-		_, _ = q.ExecContext(context.Background(), "SET search_path TO DEFAULT")
+		_, _ = runner.ExecContext(context.Background(), "SET search_path TO DEFAULT")
 	}, nil
 }
 
-func runStatement(ctx context.Context, q querier, d sqlsplit.Dialect, stmt string, maxRows int) (res statementResult) {
-	res = statementResult{Statement: stmt, RowsAffected: -1}
+func runStatement(ctx context.Context, runner querier, dialect sqlsplit.Dialect, statement string, maxRows int) (result statementResult) {
+	result = statementResult{Statement: statement, RowsAffected: -1}
 	start := time.Now()
-	defer func() { res.DurationMs = time.Since(start).Milliseconds() }()
+	defer func() { result.DurationMs = time.Since(start).Milliseconds() }()
 
-	if !sqlsplit.ReturnsRows(d, stmt) {
-		r, err := q.ExecContext(ctx, stmt)
+	if !sqlsplit.ReturnsRows(dialect, statement) {
+		execution, err := runner.ExecContext(ctx, statement)
 		if err != nil {
-			res.Error = err.Error()
-			return res
+			result.Error = err.Error()
+			return result
 		}
-		if n, err := r.RowsAffected(); err == nil {
-			res.RowsAffected = n
+		if rowCount, err := execution.RowsAffected(); err == nil {
+			result.RowsAffected = rowCount
 		}
-		return res
+		return result
 	}
 
-	rows, err := q.QueryContext(ctx, stmt)
+	rows, err := runner.QueryContext(ctx, statement)
 	if err != nil {
-		res.Error = err.Error()
-		return res
+		result.Error = err.Error()
+		return result
 	}
 	defer rows.Close()
-	types, err := rows.ColumnTypes()
+	columnTypes, err := rows.ColumnTypes()
 	if err != nil {
-		res.Error = err.Error()
-		return res
+		result.Error = err.Error()
+		return result
 	}
-	for _, typ := range types {
-		res.Columns = append(res.Columns, resultColumn{Name: typ.Name(), Type: typ.DatabaseTypeName()})
+	for _, columnType := range columnTypes {
+		result.Columns = append(result.Columns, resultColumn{Name: columnType.Name(), Type: columnType.DatabaseTypeName()})
 	}
-	res.Rows = [][]any{}
-	for len(res.Rows) < maxRows {
+	result.Rows = [][]any{}
+	for len(result.Rows) < maxRows {
 		if !rows.Next() {
 			if err := rows.Err(); err != nil {
-				res.Error = err.Error()
+				result.Error = err.Error()
 			}
-			return res
+			return result
 		}
-		row, err := query.ScanRow(rows, len(types))
+		row, err := query.ScanRow(rows, len(columnTypes))
 		if err != nil {
-			res.Error = err.Error()
-			return res
+			result.Error = err.Error()
+			return result
 		}
-		res.Rows = append(res.Rows, row)
+		result.Rows = append(result.Rows, row)
 	}
 	// One more row means the output was cut; the discarded row is not read
 	// again because read_query never resumes a result.
 	if rows.Next() {
-		res.Truncated = true
+		result.Truncated = true
 	} else if err := rows.Err(); err != nil {
-		res.Error = err.Error()
+		result.Error = err.Error()
 	}
-	return res
+	return result
 }
 
-func (t *Tools) record(connID string, res statementResult) {
-	if t.hist == nil {
+func (t *Tools) record(connID string, result statementResult) {
+	if t.historyStore == nil {
 		return
 	}
 	status := "ok"
-	if res.Error != "" {
+	if result.Error != "" {
 		status = "error"
 	}
-	n := res.RowsAffected
-	if len(res.Columns) > 0 {
-		n = int64(len(res.Rows))
+	rowCount := result.RowsAffected
+	if len(result.Columns) > 0 {
+		rowCount = int64(len(result.Rows))
 	}
 	now := time.Now().UnixMilli()
-	t.hist.Record(history.Entry{
+	t.historyStore.Record(history.Entry{
 		ConnID:     connID,
-		SQL:        res.Statement,
-		StartedAt:  now - res.DurationMs,
-		DurationMs: res.DurationMs,
-		Rows:       n,
+		SQL:        result.Statement,
+		StartedAt:  now - result.DurationMs,
+		DurationMs: result.DurationMs,
+		Rows:       rowCount,
 		Status:     status,
-		Error:      res.Error,
+		Error:      result.Error,
 	})
 }

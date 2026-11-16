@@ -40,14 +40,14 @@ func newSQLiteTools(t *testing.T) (*Tools, *Config) {
 	}
 	manager := conn.NewManager()
 	t.Cleanup(manager.CloseAll)
-	hist, err := history.Open(filepath.Join(dir, "history.db"))
+	historyStore, err := history.Open(filepath.Join(dir, "history.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { hist.Close() })
+	t.Cleanup(func() { historyStore.Close() })
 	cfg := DefaultConfig()
 	cfg.Enabled = true
-	return NewTools(manager, store, hist, func() Config { return cfg }), &cfg
+	return NewTools(manager, store, historyStore, func() Config { return cfg }), &cfg
 }
 
 func call[T any](t *testing.T, tools *Tools, name, args string) T {

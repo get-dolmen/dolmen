@@ -72,71 +72,71 @@ type server struct {
 	version string
 }
 
-func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.Header().Set("Allow", http.MethodPost)
-		http.Error(w, "the MCP endpoint accepts POST requests only", http.StatusMethodNotAllowed)
+func (s *server) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodPost {
+		writer.Header().Set("Allow", http.MethodPost)
+		http.Error(writer, "the MCP endpoint accepts POST requests only", http.StatusMethodNotAllowed)
 		return
 	}
-	cfg := s.policy()
-	if !authorized(r, cfg.Token) {
-		w.Header().Set("WWW-Authenticate", `Bearer realm="dolmen"`)
-		http.Error(w, "a valid bearer token is required", http.StatusUnauthorized)
+	config := s.policy()
+	if !authorized(request, config.Token) {
+		writer.Header().Set("WWW-Authenticate", `Bearer realm="dolmen"`)
+		http.Error(writer, "a valid bearer token is required", http.StatusUnauthorized)
 		return
 	}
 
-	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
+	body, err := io.ReadAll(http.MaxBytesReader(writer, request.Body, maxBodyBytes))
 	if err != nil {
-		s.write(w, rpcResponse{JSONRPC: "2.0", ID: json.RawMessage("null"),
+		s.write(writer, rpcResponse{JSONRPC: "2.0", ID: json.RawMessage("null"),
 			Error: &rpcError{Code: -32700, Message: "could not read the request body"}})
 		return
 	}
-	var req rpcRequest
-	if err := json.Unmarshal(body, &req); err != nil {
-		s.write(w, rpcResponse{JSONRPC: "2.0", ID: json.RawMessage("null"),
+	var message rpcRequest
+	if err := json.Unmarshal(body, &message); err != nil {
+		s.write(writer, rpcResponse{JSONRPC: "2.0", ID: json.RawMessage("null"),
 			Error: &rpcError{Code: -32700, Message: "invalid JSON: " + err.Error()}})
 		return
 	}
-	if strings.TrimSpace(req.JSONRPC) != "2.0" {
-		s.write(w, rpcResponse{JSONRPC: "2.0", ID: req.ID,
+	if strings.TrimSpace(message.JSONRPC) != "2.0" {
+		s.write(writer, rpcResponse{JSONRPC: "2.0", ID: message.ID,
 			Error: &rpcError{Code: -32600, Message: `jsonrpc must be "2.0"`}})
 		return
 	}
-	if len(req.ID) == 0 {
+	if len(message.ID) == 0 {
 		// Notifications (initialized, cancelled, …) need no body.
-		w.WriteHeader(http.StatusAccepted)
+		writer.WriteHeader(http.StatusAccepted)
 		return
 	}
-	s.write(w, s.handle(r.Context(), req))
+	s.write(writer, s.handle(request.Context(), message))
 }
 
-func (s *server) handle(ctx context.Context, req rpcRequest) rpcResponse {
-	resp := rpcResponse{JSONRPC: "2.0", ID: req.ID}
-	switch req.Method {
+func (s *server) handle(ctx context.Context, message rpcRequest) rpcResponse {
+	response := rpcResponse{JSONRPC: "2.0", ID: message.ID}
+	switch message.Method {
 	case "initialize":
-		resp.Result = s.initialize(req.Params)
+		response.Result = s.initialize(message.Params)
 	case "ping":
-		resp.Result = map[string]any{}
+		response.Result = map[string]any{}
 	case "tools/list":
-		resp.Result = map[string]any{"tools": s.tools.ListTools()}
+		response.Result = map[string]any{"tools": s.tools.ListTools()}
 	case "tools/call":
-		resp.Result = s.callTool(ctx, req.Params)
+		response.Result = s.callTool(ctx, message.Params)
 	default:
-		resp.Error = &rpcError{Code: -32601, Message: fmt.Sprintf("method %q is not supported", req.Method)}
+		response.Error = &rpcError{Code: -32601, Message: fmt.Sprintf("method %q is not supported", message.Method)}
 	}
-	return resp
+	return response
 }
 
 func (s *server) initialize(params json.RawMessage) map[string]any {
-	var p struct {
+	var payload struct {
 		ProtocolVersion string `json:"protocolVersion"`
 	}
-	_ = json.Unmarshal(params, &p)
+	_ = json.Unmarshal(params, &payload)
 	version := latestProtocolVersion
-	if supportedProtocols[p.ProtocolVersion] {
-		version = p.ProtocolVersion
+	if supportedProtocols[payload.ProtocolVersion] {
+		version = payload.ProtocolVersion
 	}
-	cfg := s.policy()
+	config := s.policy()
 	return map[string]any{
 		"protocolVersion": version,
 		"capabilities": map[string]any{
@@ -147,47 +147,47 @@ func (s *server) initialize(params json.RawMessage) map[string]any {
 			"title":   "Dolmen",
 			"version": s.version,
 		},
-		"instructions": cfg.DescribePermissions(),
+		"instructions": config.DescribePermissions(),
 	}
 }
 
 func (s *server) callTool(ctx context.Context, params json.RawMessage) callResult {
-	var p struct {
+	var payload struct {
 		Name      string          `json:"name"`
 		Arguments json.RawMessage `json:"arguments"`
 	}
-	if err := json.Unmarshal(params, &p); err != nil || strings.TrimSpace(p.Name) == "" {
+	if err := json.Unmarshal(params, &payload); err != nil || strings.TrimSpace(payload.Name) == "" {
 		return toolError("tools/call needs a tool name")
 	}
-	out, err := s.tools.Call(ctx, p.Name, p.Arguments)
+	result, err := s.tools.Call(ctx, payload.Name, payload.Arguments)
 	if err != nil {
 		return toolError(err.Error())
 	}
-	b, err := json.MarshalIndent(out, "", "  ")
+	encoded, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		return toolError("could not encode the tool result: " + err.Error())
 	}
-	return callResult{Content: []content{{Type: "text", Text: string(b)}}}
+	return callResult{Content: []content{{Type: "text", Text: string(encoded)}}}
 }
 
 func toolError(text string) callResult {
 	return callResult{Content: []content{{Type: "text", Text: text}}, IsError: true}
 }
 
-func (s *server) write(w http.ResponseWriter, resp rpcResponse) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(resp)
+func (s *server) write(writer http.ResponseWriter, response rpcResponse) {
+	writer.Header().Set("Content-Type", "application/json")
+	writer.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(writer).Encode(response)
 }
 
 // authorized compares the bearer token without leaking its length through
 // early exits.
-func authorized(r *http.Request, token string) bool {
+func authorized(request *http.Request, token string) bool {
 	if token == "" {
 		return false
 	}
 	const prefix = "Bearer "
-	header := r.Header.Get("Authorization")
+	header := request.Header.Get("Authorization")
 	if len(header) <= len(prefix) || !strings.EqualFold(header[:len(prefix)], prefix) {
 		return false
 	}

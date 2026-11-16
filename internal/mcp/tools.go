@@ -16,14 +16,14 @@ import (
 // Tools implements the MCP tools. It reads the current policy on every call,
 // so changing permissions in the settings dialog applies immediately.
 type Tools struct {
-	conns  *conn.Manager
-	saved  *conn.Store
-	hist   *history.Store
-	policy func() Config
+	connections      *conn.Manager
+	savedConnections *conn.Store
+	historyStore     *history.Store
+	policy           func() Config
 }
 
-func NewTools(conns *conn.Manager, saved *conn.Store, hist *history.Store, policy func() Config) *Tools {
-	return &Tools{conns: conns, saved: saved, hist: hist, policy: policy}
+func NewTools(connections *conn.Manager, savedConnections *conn.Store, historyStore *history.Store, policy func() Config) *Tools {
+	return &Tools{connections: connections, savedConnections: savedConnections, historyStore: historyStore, policy: policy}
 }
 
 // Tool is one entry of the MCP tools/list result.
@@ -35,8 +35,8 @@ type Tool struct {
 
 // ListTools describes the tools available under the current permissions.
 func (t *Tools) ListTools() []Tool {
-	cfg := t.config()
-	if !cfg.AllowsRead() {
+	config := t.config()
+	if !config.AllowsRead() {
 		return []Tool{}
 	}
 	tools := []Tool{
@@ -101,7 +101,7 @@ func (t *Tools) ListTools() []Tool {
 			"maxRows":    number("Maximum rows per statement (default 100, at most 1000).", 1, maxQueryRows),
 		}, "connection", "sql"),
 	})
-	if cfg.AllowsWrite() {
+	if config.AllowsWrite() {
 		tools = append(tools, Tool{
 			Name:        "write_query",
 			Description: "Run SQL that changes data or schema. All statements run in one transaction unless the engine commits DDL implicitly.",
@@ -118,79 +118,79 @@ func (t *Tools) ListTools() []Tool {
 // Call runs one tool. Errors are reported to the client as tool errors, not
 // as JSON-RPC protocol errors.
 func (t *Tools) Call(ctx context.Context, name string, raw json.RawMessage) (any, error) {
-	cfg := t.config()
-	if !cfg.Enabled {
+	config := t.config()
+	if !config.Enabled {
 		return nil, errors.New("the MCP server is disabled")
 	}
 	switch name {
 	case "list_connections":
-		if err := requireRead(cfg); err != nil {
+		if err := requireRead(config); err != nil {
 			return nil, err
 		}
 		return t.listConnections()
 	case "list_databases":
-		if err := requireRead(cfg); err != nil {
+		if err := requireRead(config); err != nil {
 			return nil, err
 		}
 		var args targetArgs
 		if err := decodeArgs(raw, &args); err != nil {
 			return nil, err
 		}
-		return t.listDatabases(ctx, cfg, args)
+		return t.listDatabases(ctx, config, args)
 	case "list_schemas":
-		if err := requireRead(cfg); err != nil {
+		if err := requireRead(config); err != nil {
 			return nil, err
 		}
 		var args targetArgs
 		if err := decodeArgs(raw, &args); err != nil {
 			return nil, err
 		}
-		return t.listSchemas(ctx, cfg, args)
+		return t.listSchemas(ctx, config, args)
 	case "list_tables":
-		if err := requireRead(cfg); err != nil {
+		if err := requireRead(config); err != nil {
 			return nil, err
 		}
 		var args schemaArgs
 		if err := decodeArgs(raw, &args); err != nil {
 			return nil, err
 		}
-		return t.listTables(ctx, cfg, args)
+		return t.listTables(ctx, config, args)
 	case "describe_table":
-		if err := requireRead(cfg); err != nil {
+		if err := requireRead(config); err != nil {
 			return nil, err
 		}
 		var args tableArgs
 		if err := decodeArgs(raw, &args); err != nil {
 			return nil, err
 		}
-		return t.describeTable(ctx, cfg, args)
+		return t.describeTable(ctx, config, args)
 	case "get_table_ddl":
-		if err := requireRead(cfg); err != nil {
+		if err := requireRead(config); err != nil {
 			return nil, err
 		}
 		var args ddlArgs
 		if err := decodeArgs(raw, &args); err != nil {
 			return nil, err
 		}
-		return t.tableDDL(ctx, cfg, args)
+		return t.tableDDL(ctx, config, args)
 	case "read_query":
-		if err := requireRead(cfg); err != nil {
+		if err := requireRead(config); err != nil {
 			return nil, err
 		}
 		var args queryArgs
 		if err := decodeArgs(raw, &args); err != nil {
 			return nil, err
 		}
-		return t.readQuery(ctx, cfg, args)
+		return t.readQuery(ctx, config, args)
 	case "write_query":
-		if err := requireWrite(cfg); err != nil {
+		if err := requireWrite(config); err != nil {
 			return nil, err
 		}
 		var args queryArgs
 		if err := decodeArgs(raw, &args); err != nil {
 			return nil, err
 		}
-		return t.writeQuery(ctx, cfg, args)
+		return t.writeQuery(ctx, config, args)
 	}
 	return nil, fmt.Errorf("unknown tool %q", name)
 }
@@ -202,15 +202,15 @@ func (t *Tools) config() Config {
 	return t.policy()
 }
 
-func requireRead(cfg Config) error {
-	if !cfg.AllowsRead() {
+func requireRead(config Config) error {
+	if !config.AllowsRead() {
 		return errors.New("reading is disabled in Dolmen's MCP settings")
 	}
 	return nil
 }
 
-func requireWrite(cfg Config) error {
-	if !cfg.AllowsWrite() {
+func requireWrite(config Config) error {
+	if !config.AllowsWrite() {
 		return errors.New("writing is disabled in Dolmen's MCP settings")
 	}
 	return nil
@@ -238,86 +238,86 @@ type ddlArgs struct {
 
 // target is a saved connection open on one database.
 type target struct {
-	cfg      driver.Config
-	open     *conn.Open
+	config   driver.Config
+	opened   *conn.Open
 	database string
 }
 
-func (t *Tools) target(ctx context.Context, ref, database string) (*target, error) {
-	cfg, err := t.savedConnection(ref)
+func (t *Tools) target(ctx context.Context, reference, database string) (*target, error) {
+	config, err := t.savedConnection(reference)
 	if err != nil {
 		return nil, err
 	}
 	policy := t.config()
 	database = strings.TrimSpace(database)
 	if database == "" {
-		database = cfg.Database
+		database = config.Database
 	}
-	if !policy.AllowsDatabase(cfg.Kind, database) {
+	if !policy.AllowsDatabase(config.Kind, database) {
 		return nil, fmt.Errorf("database %q is not allowed by the MCP permissions", database)
 	}
-	o, err := t.conns.Get(cfg.ID)
+	opened, err := t.connections.Get(config.ID)
 	if err != nil {
 		// Saved connections are opened on demand, so clients do not need the
 		// user to connect first.
-		o, err = t.conns.Connect(ctx, cfg)
+		opened, err = t.connections.Connect(ctx, config)
 		if err != nil {
-			return nil, fmt.Errorf("connecting to %s: %w", cfg.Name, err)
+			return nil, fmt.Errorf("connecting to %s: %w", config.Name, err)
 		}
 	}
-	if database != "" && database != o.CurrentDB {
-		o, err = t.conns.GetDB(ctx, cfg.ID, database)
+	if database != "" && database != opened.CurrentDB {
+		opened, err = t.connections.GetDB(ctx, config.ID, database)
 		if err != nil {
 			return nil, err
 		}
 	}
-	actual := databaseName(cfg, o)
-	if !policy.AllowsDatabase(cfg.Kind, actual) {
+	actual := databaseName(config, opened)
+	if !policy.AllowsDatabase(config.Kind, actual) {
 		return nil, fmt.Errorf("database %q is not allowed by the MCP permissions", actual)
 	}
-	return &target{cfg: cfg, open: o, database: actual}, nil
+	return &target{config: config, opened: opened, database: actual}, nil
 }
 
 // savedConnection resolves a connection by id or by unique name.
-func (t *Tools) savedConnection(ref string) (driver.Config, error) {
-	ref = strings.TrimSpace(ref)
-	if ref == "" {
+func (t *Tools) savedConnection(reference string) (driver.Config, error) {
+	reference = strings.TrimSpace(reference)
+	if reference == "" {
 		return driver.Config{}, errors.New("a connection name or id is required")
 	}
-	cfgs, err := t.saved.List()
+	configs, err := t.savedConnections.List()
 	if err != nil {
 		return driver.Config{}, err
 	}
-	for _, c := range cfgs {
-		if c.ID == ref {
-			return c, nil
+	for _, config := range configs {
+		if config.ID == reference {
+			return config, nil
 		}
 	}
 	var found *driver.Config
-	for i := range cfgs {
-		if strings.EqualFold(cfgs[i].Name, ref) {
+	for i := range configs {
+		if strings.EqualFold(configs[i].Name, reference) {
 			if found != nil {
-				return driver.Config{}, fmt.Errorf("connection name %q is ambiguous; use its id", ref)
+				return driver.Config{}, fmt.Errorf("connection name %q is ambiguous; use its id", reference)
 			}
-			found = &cfgs[i]
+			found = &configs[i]
 		}
 	}
 	if found == nil {
-		return driver.Config{}, fmt.Errorf("connection %q not found", ref)
+		return driver.Config{}, fmt.Errorf("connection %q not found", reference)
 	}
 	return *found, nil
 }
 
 // databaseName is the database a pool is bound to, or the SQLite file's name.
-func databaseName(cfg driver.Config, o *conn.Open) string {
-	if o.CurrentDB != "" {
-		return o.CurrentDB
+func databaseName(config driver.Config, opened *conn.Open) string {
+	if opened.CurrentDB != "" {
+		return opened.CurrentDB
 	}
-	if cfg.Database != "" {
-		return cfg.Database
+	if config.Database != "" {
+		return config.Database
 	}
-	if cfg.Kind == driver.SQLite {
-		return filepath.Base(cfg.FilePath)
+	if config.Kind == driver.SQLite {
+		return filepath.Base(config.FilePath)
 	}
 	return ""
 }
@@ -332,23 +332,23 @@ type connectionInfo struct {
 }
 
 func (t *Tools) listConnections() ([]connectionInfo, error) {
-	cfgs, err := t.saved.List()
+	configs, err := t.savedConnections.List()
 	if err != nil {
 		return nil, err
 	}
-	out := make([]connectionInfo, 0, len(cfgs))
-	for _, c := range cfgs {
-		_, openErr := t.conns.Get(c.ID)
-		out = append(out, connectionInfo{
-			ID:        c.ID,
-			Name:      c.Name,
-			Kind:      c.Kind,
-			Database:  c.Database,
-			ReadOnly:  c.ReadOnly,
+	result := make([]connectionInfo, 0, len(configs))
+	for _, config := range configs {
+		_, openErr := t.connections.Get(config.ID)
+		result = append(result, connectionInfo{
+			ID:        config.ID,
+			Name:      config.Name,
+			Kind:      config.Kind,
+			Database:  config.Database,
+			ReadOnly:  config.ReadOnly,
 			Connected: openErr == nil,
 		})
 	}
-	return out, nil
+	return result, nil
 }
 
 type databaseList struct {
@@ -357,26 +357,26 @@ type databaseList struct {
 	Current   string   `json:"current,omitempty"`
 }
 
-func (t *Tools) listDatabases(ctx context.Context, cfg Config, args targetArgs) (databaseList, error) {
-	tg, err := t.target(ctx, args.Connection, args.Database)
+func (t *Tools) listDatabases(ctx context.Context, config Config, args targetArgs) (databaseList, error) {
+	connection, err := t.target(ctx, args.Connection, args.Database)
 	if err != nil {
 		return databaseList{}, err
 	}
-	l, ok := tg.open.Driver.(driver.DatabaseLister)
+	lister, ok := connection.opened.Driver.(driver.DatabaseLister)
 	if !ok {
-		return databaseList{Supported: false, Databases: []string{}, Current: tg.database}, nil
+		return databaseList{Supported: false, Databases: []string{}, Current: connection.database}, nil
 	}
-	dbs, err := l.ListDatabases(ctx, tg.open.DB)
+	databases, err := lister.ListDatabases(ctx, connection.opened.DB)
 	if err != nil {
 		return databaseList{}, err
 	}
-	allowed := make([]string, 0, len(dbs))
-	for _, db := range dbs {
-		if cfg.AllowsDatabase(tg.cfg.Kind, db) {
-			allowed = append(allowed, db)
+	allowed := make([]string, 0, len(databases))
+	for _, database := range databases {
+		if config.AllowsDatabase(connection.config.Kind, database) {
+			allowed = append(allowed, database)
 		}
 	}
-	return databaseList{Supported: true, Databases: allowed, Current: tg.database}, nil
+	return databaseList{Supported: true, Databases: allowed, Current: connection.database}, nil
 }
 
 type schemaList struct {
@@ -384,34 +384,34 @@ type schemaList struct {
 	Default string   `json:"default,omitempty"`
 }
 
-func (t *Tools) listSchemas(ctx context.Context, cfg Config, args targetArgs) (schemaList, error) {
-	tg, err := t.target(ctx, args.Connection, args.Database)
+func (t *Tools) listSchemas(ctx context.Context, config Config, args targetArgs) (schemaList, error) {
+	connection, err := t.target(ctx, args.Connection, args.Database)
 	if err != nil {
 		return schemaList{}, err
 	}
-	schemas, err := tg.open.Driver.ListSchemas(ctx, tg.open.DB)
+	schemas, err := connection.opened.Driver.ListSchemas(ctx, connection.opened.DB)
 	if err != nil {
 		return schemaList{}, err
 	}
 	allowed := make([]string, 0, len(schemas))
 	for _, schema := range schemas {
-		if cfg.AllowsSchema(schema) {
+		if config.AllowsSchema(schema) {
 			allowed = append(allowed, schema)
 		}
 	}
-	def, _ := tg.open.Driver.DefaultSchema(ctx, tg.open.DB)
-	if !cfg.AllowsSchema(def) {
-		def = ""
+	defaultSchema, _ := connection.opened.Driver.DefaultSchema(ctx, connection.opened.DB)
+	if !config.AllowsSchema(defaultSchema) {
+		defaultSchema = ""
 	}
-	return schemaList{Schemas: allowed, Default: def}, nil
+	return schemaList{Schemas: allowed, Default: defaultSchema}, nil
 }
 
-func (t *Tools) listTables(ctx context.Context, cfg Config, args schemaArgs) ([]driver.Table, error) {
-	schema, tg, err := t.schemaTarget(ctx, cfg, args)
+func (t *Tools) listTables(ctx context.Context, config Config, args schemaArgs) ([]driver.Table, error) {
+	schema, connection, err := t.schemaTarget(ctx, config, args)
 	if err != nil {
 		return nil, err
 	}
-	tables, err := tg.open.Driver.ListTables(ctx, tg.open.DB, schema)
+	tables, err := connection.opened.Driver.ListTables(ctx, connection.opened.DB, schema)
 	if err != nil {
 		return nil, err
 	}
@@ -421,25 +421,25 @@ func (t *Tools) listTables(ctx context.Context, cfg Config, args schemaArgs) ([]
 	return tables, nil
 }
 
-func (t *Tools) describeTable(ctx context.Context, cfg Config, args tableArgs) ([]driver.Column, error) {
+func (t *Tools) describeTable(ctx context.Context, config Config, args tableArgs) ([]driver.Column, error) {
 	if strings.TrimSpace(args.Table) == "" {
 		return nil, errors.New("a table name is required")
 	}
-	schema, tg, err := t.schemaTarget(ctx, cfg, args.schemaArgs)
+	schema, connection, err := t.schemaTarget(ctx, config, args.schemaArgs)
 	if err != nil {
 		return nil, err
 	}
-	cols, err := tg.open.Driver.Columns(ctx, tg.open.DB, schema, args.Table)
+	columns, err := connection.opened.Driver.Columns(ctx, connection.opened.DB, schema, args.Table)
 	if err != nil {
 		return nil, err
 	}
-	if cols == nil {
-		cols = []driver.Column{}
+	if columns == nil {
+		columns = []driver.Column{}
 	}
-	return cols, nil
+	return columns, nil
 }
 
-func (t *Tools) tableDDL(ctx context.Context, cfg Config, args ddlArgs) (string, error) {
+func (t *Tools) tableDDL(ctx context.Context, config Config, args ddlArgs) (string, error) {
 	if strings.TrimSpace(args.Table) == "" {
 		return "", errors.New("a table name is required")
 	}
@@ -450,58 +450,58 @@ func (t *Tools) tableDDL(ctx context.Context, cfg Config, args ddlArgs) (string,
 	if kind != "table" && kind != "view" {
 		return "", fmt.Errorf("unknown object kind %q", kind)
 	}
-	schema, tg, err := t.schemaTarget(ctx, cfg, args.schemaArgs)
+	schema, connection, err := t.schemaTarget(ctx, config, args.schemaArgs)
 	if err != nil {
 		return "", err
 	}
-	return tg.open.Driver.TableDDL(ctx, tg.open.DB, schema, args.Table, kind)
+	return connection.opened.Driver.TableDDL(ctx, connection.opened.DB, schema, args.Table, kind)
 }
 
 // schemaTarget resolves the connection and the schema, defaulting it and
 // enforcing the schema allow-list.
-func (t *Tools) schemaTarget(ctx context.Context, cfg Config, args schemaArgs) (string, *target, error) {
-	tg, err := t.target(ctx, args.Connection, args.Database)
+func (t *Tools) schemaTarget(ctx context.Context, config Config, args schemaArgs) (string, *target, error) {
+	connection, err := t.target(ctx, args.Connection, args.Database)
 	if err != nil {
 		return "", nil, err
 	}
 	schema := strings.TrimSpace(args.Schema)
 	if schema == "" {
 		var err error
-		if schema, err = tg.open.Driver.DefaultSchema(ctx, tg.open.DB); err != nil {
+		if schema, err = connection.opened.Driver.DefaultSchema(ctx, connection.opened.DB); err != nil {
 			return "", nil, err
 		}
 	}
-	if !cfg.AllowsSchema(schema) {
+	if !config.AllowsSchema(schema) {
 		return "", nil, fmt.Errorf("schema %q is not allowed by the MCP permissions", schema)
 	}
-	return schema, tg, nil
+	return schema, connection, nil
 }
 
-func decodeArgs(raw json.RawMessage, dst any) error {
+func decodeArgs(raw json.RawMessage, destination any) error {
 	if len(raw) == 0 || string(raw) == "null" {
 		return nil
 	}
-	if err := json.Unmarshal(raw, dst); err != nil {
+	if err := json.Unmarshal(raw, destination); err != nil {
 		return fmt.Errorf("invalid arguments: %w", err)
 	}
 	return nil
 }
 
-func object(props map[string]any, required ...string) map[string]any {
-	if props == nil {
-		props = map[string]any{}
+func object(properties map[string]any, required ...string) map[string]any {
+	if properties == nil {
+		properties = map[string]any{}
 	}
-	out := map[string]any{"type": "object", "properties": props, "additionalProperties": false}
+	result := map[string]any{"type": "object", "properties": properties, "additionalProperties": false}
 	if len(required) > 0 {
-		out["required"] = required
+		result["required"] = required
 	}
-	return out
+	return result
 }
 
 func text(description string) map[string]any {
 	return map[string]any{"type": "string", "description": description}
 }
 
-func number(description string, min, max int) map[string]any {
-	return map[string]any{"type": "integer", "description": description, "minimum": min, "maximum": max}
+func number(description string, minimum, maximum int) map[string]any {
+	return map[string]any{"type": "integer", "description": description, "minimum": minimum, "maximum": maximum}
 }

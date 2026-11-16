@@ -23,11 +23,11 @@ type Store struct {
 // access token on first use. The file is private (0600): it holds the token.
 func NewStore(dir string) (*Store, error) {
 	s := &Store{path: filepath.Join(dir, "mcp.json")}
-	cfg, err := s.Load()
+	config, err := s.Load()
 	if err != nil {
 		return nil, err
 	}
-	if err := s.Save(cfg); err != nil {
+	if err := s.Save(config); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -44,31 +44,31 @@ func (s *Store) Load() (Config, error) {
 }
 
 func (s *Store) load() (Config, error) {
-	b, err := os.ReadFile(s.path)
+	data, err := os.ReadFile(s.path)
 	if errors.Is(err, os.ErrNotExist) {
 		return DefaultConfig(), nil
 	}
 	if err != nil {
 		return Config{}, err
 	}
-	var cfg Config
-	if err := json.Unmarshal(b, &cfg); err != nil {
+	var config Config
+	if err := json.Unmarshal(data, &config); err != nil {
 		return Config{}, fmt.Errorf("reading %s: %w", s.path, err)
 	}
-	return cfg.Normalize(), nil
+	return config.Normalize(), nil
 }
 
 // Save writes the settings, generating an access token when none is set.
-func (s *Store) Save(cfg Config) error {
-	cfg = cfg.Normalize()
-	if cfg.Token == "" {
+func (s *Store) Save(config Config) error {
+	config = config.Normalize()
+	if config.Token == "" {
 		token, err := NewToken()
 		if err != nil {
 			return err
 		}
-		cfg.Token = token
+		config.Token = token
 	}
-	b, err := json.MarshalIndent(cfg, "", "  ")
+	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -77,14 +77,14 @@ func (s *Store) Save(cfg Config) error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o700); err != nil {
 		return err
 	}
-	return atomicfile.Write(s.path, b, 0o600)
+	return atomicfile.Write(s.path, data, 0o600)
 }
 
 // NewToken returns a random bearer token for local MCP clients.
 func NewToken() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
+	data := make([]byte, 32)
+	if _, err := rand.Read(data); err != nil {
 		return "", err
 	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
+	return base64.RawURLEncoding.EncodeToString(data), nil
 }

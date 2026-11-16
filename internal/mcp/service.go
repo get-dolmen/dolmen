@@ -23,18 +23,18 @@ type Status struct {
 
 // Service owns the settings file and the running HTTP listener.
 type Service struct {
-	store   *Store
-	conns   *conn.Manager
-	saved   *conn.Store
-	hist    *history.Store
-	version string
+	store            *Store
+	connections      *conn.Manager
+	savedConnections *conn.Store
+	historyStore     *history.Store
+	version          string
 
-	mu      sync.Mutex
-	cfg     Config
-	running bool
-	lastErr string
-	srv     *http.Server
-	ln      net.Listener
+	mu        sync.Mutex
+	config    Config
+	running   bool
+	lastError string
+	server    *http.Server
+	listener  net.Listener
 	// policy is the live snapshot read by tools and the HTTP handler, so
 	// saving permissions or a token does not require restarting the server.
 	policy atomic.Pointer[Config]
@@ -42,28 +42,28 @@ type Service struct {
 
 // NewService opens the settings file and prepares the server. Call Start to
 // listen when the settings enable it.
-func NewService(dir string, conns *conn.Manager, saved *conn.Store, hist *history.Store, version string) (*Service, error) {
+func NewService(dir string, connections *conn.Manager, savedConnections *conn.Store, historyStore *history.Store, version string) (*Service, error) {
 	store, err := NewStore(dir)
 	if err != nil {
 		return nil, err
 	}
-	cfg, err := store.Load()
+	config, err := store.Load()
 	if err != nil {
 		return nil, err
 	}
-	cfg = cfg.Normalize()
-	if cfg.Token == "" {
+	config = config.Normalize()
+	if config.Token == "" {
 		token, err := NewToken()
 		if err != nil {
 			return nil, err
 		}
-		cfg.Token = token
-		if err := store.Save(cfg); err != nil {
+		config.Token = token
+		if err := store.Save(config); err != nil {
 			return nil, err
 		}
 	}
-	s := &Service{store: store, conns: conns, saved: saved, hist: hist, version: version, cfg: cfg}
-	s.policy.Store(&cfg)
+	s := &Service{store: store, connections: connections, savedConnections: savedConnections, historyStore: historyStore, version: version, config: config}
+	s.policy.Store(&config)
 	return s, nil
 }
 
@@ -75,42 +75,42 @@ func (s *Service) Status() Status {
 }
 
 func (s *Service) statusLocked() Status {
-	st := Status{Config: s.cfg, Running: s.running, LastError: s.lastErr}
-	st.URL = fmt.Sprintf("http://127.0.0.1:%d%s", s.cfg.Port, EndpointPath)
-	return st
+	status := Status{Config: s.config, Running: s.running, LastError: s.lastError}
+	status.URL = fmt.Sprintf("http://127.0.0.1:%d%s", s.config.Port, EndpointPath)
+	return status
 }
 
 // Save validates and persists the settings, then applies them: the listener
 // starts, stops or moves to another port as needed. A failure to listen (a
 // busy port, for instance) is reported in Status.LastError rather than as an
 // error, because the settings themselves were saved.
-func (s *Service) Save(cfg Config) (Status, error) {
-	cfg = cfg.Normalize()
-	if cfg.Token == "" {
+func (s *Service) Save(config Config) (Status, error) {
+	config = config.Normalize()
+	if config.Token == "" {
 		token, err := NewToken()
 		if err != nil {
 			return s.Status(), err
 		}
-		cfg.Token = token
+		config.Token = token
 	}
-	if err := cfg.Validate(); err != nil {
+	if err := config.Validate(); err != nil {
 		return s.Status(), err
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.store.Save(cfg); err != nil {
+	if err := s.store.Save(config); err != nil {
 		return s.statusLocked(), err
 	}
-	previous := s.cfg
-	s.cfg = cfg
-	s.policy.Store(&cfg)
-	if s.running && (!cfg.Enabled || cfg.Port != previous.Port) {
+	previous := s.config
+	s.config = config
+	s.policy.Store(&config)
+	if s.running && (!config.Enabled || config.Port != previous.Port) {
 		s.stopLocked()
 	}
-	if cfg.Enabled && !s.running {
+	if config.Enabled && !s.running {
 		if err := s.startLocked(); err != nil {
-			s.lastErr = err.Error()
+			s.lastError = err.Error()
 		}
 	}
 	return s.statusLocked(), nil
@@ -123,15 +123,15 @@ func (s *Service) Start() error {
 	if s.running {
 		return nil
 	}
-	if !s.cfg.Enabled {
+	if !s.config.Enabled {
 		return errors.New("the MCP server is disabled")
 	}
-	if err := s.cfg.Validate(); err != nil {
-		s.lastErr = err.Error()
+	if err := s.config.Validate(); err != nil {
+		s.lastError = err.Error()
 		return err
 	}
 	if err := s.startLocked(); err != nil {
-		s.lastErr = err.Error()
+		s.lastError = err.Error()
 		return err
 	}
 	return nil
@@ -147,44 +147,44 @@ func (s *Service) Stop() {
 
 func (s *Service) startLocked() error {
 	policy := func() Config { return *s.policy.Load() }
-	tools := NewTools(s.conns, s.saved, s.hist, policy)
+	tools := NewTools(s.connections, s.savedConnections, s.historyStore, policy)
 	handler := NewHandler(tools, policy, s.version)
-	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", s.cfg.Port))
+	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", s.config.Port))
 	if err != nil {
-		return fmt.Errorf("listening on port %d: %w", s.cfg.Port, err)
+		return fmt.Errorf("listening on port %d: %w", s.config.Port, err)
 	}
-	srv := &http.Server{
+	server := &http.Server{
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      2 * time.Minute,
 		IdleTimeout:       2 * time.Minute,
 	}
-	s.ln, s.srv, s.running, s.lastErr = ln, srv, true, ""
+	s.listener, s.server, s.running, s.lastError = listener, server, true, ""
 	go func() {
 		// A closed listener ends Serve with ErrServerClosed; nothing to do.
-		_ = srv.Serve(ln)
+		_ = server.Serve(listener)
 	}()
 	return nil
 }
 
 func (s *Service) stopLocked() {
-	if s.srv != nil {
-		_ = s.srv.Close()
+	if s.server != nil {
+		_ = s.server.Close()
 	}
-	s.srv, s.ln, s.running = nil, nil, false
+	s.server, s.listener, s.running = nil, nil, false
 }
 
 // RegenerateToken replaces the bearer token clients must send. Connected
 // clients keep their session until their next request.
 func (s *Service) RegenerateToken() (Status, error) {
 	s.mu.Lock()
-	cfg := s.cfg
+	config := s.config
 	s.mu.Unlock()
 	token, err := NewToken()
 	if err != nil {
 		return s.Status(), err
 	}
-	cfg.Token = token
-	return s.Save(cfg)
+	config.Token = token
+	return s.Save(config)
 }

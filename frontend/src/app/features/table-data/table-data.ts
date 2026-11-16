@@ -31,7 +31,7 @@ import { Toasts } from '../../core/toast';
 import { TxStore } from '../../core/tx.store';
 import { MOD, isMac } from '../../core/ui';
 import { quoteIdentifier, qualified } from '../../core/sql';
-import type { Cell, DbKind, TablePage } from '../../core/models';
+import type { Cell, DbKind, TablePage, TablePageRequest } from '../../core/models';
 import { Confirm } from '../../shared/confirm';
 import { Icon } from '../../shared/icon';
 import { ClickOutside, clampMenu } from '../../shared/click-outside';
@@ -255,7 +255,7 @@ export class TableData implements TableHandle, OnDestroy {
     void this.reload(0);
   }
 
-  private tablePageRequest(offset: number) {
+  private tablePageRequest(offset: number): TablePageRequest {
     const table = this.tab().table!;
     return {
       schema: table.schema,

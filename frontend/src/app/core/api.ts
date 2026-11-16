@@ -17,6 +17,7 @@ import type {
   SchemaList,
   TableChange,
   TablePage,
+  TablePageRequest,
   Workspace,
   SyncConfig,
   SyncResult,
@@ -79,15 +80,7 @@ export class Api {
     connectionId: string,
     database: string,
     manual: boolean,
-    request: {
-      schema: string;
-      table: string;
-      type: string;
-      where: string;
-      orderBy: string;
-      offset: number;
-      limit: number;
-    },
+    request: TablePageRequest,
   ) =>
     App.ReadTable(tabId, connectionId, database, manual, request as any) as unknown as Promise<{
       page: TablePage;
@@ -98,15 +91,7 @@ export class Api {
     connectionId: string,
     database: string,
     manual: boolean,
-    request: {
-      schema: string;
-      table: string;
-      type: string;
-      where: string;
-      orderBy: string;
-      offset: number;
-      limit: number;
-    },
+    request: TablePageRequest,
   ) =>
     App.CountTableRows(
       tabId,

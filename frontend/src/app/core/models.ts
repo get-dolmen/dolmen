@@ -152,6 +152,16 @@ export interface TablePage {
   sql: string;
   durationMs: number;
 }
+/** Which page of a table to read, and how to filter and sort it. */
+export interface TablePageRequest {
+  schema: string;
+  table: string;
+  type: string;
+  where: string;
+  orderBy: string;
+  offset: number;
+  limit: number;
+}
 export interface TableChange {
   op: 'insert' | 'update' | 'delete';
   key?: Record<string, Cell>;

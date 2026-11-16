@@ -166,6 +166,16 @@ func TestServerTools(t *testing.T) {
 		t.Fatalf("list_connections = %+v", result)
 	}
 
+	got = decodeRPC(t, post(t, h, "secret-token",
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"read_query","arguments":{"connection":"local","sql":"select name from people order by id"}}}`))
+	result = callResult{}
+	if err := json.Unmarshal(got.Result, &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError || !strings.Contains(result.Content[0].Text, "Ada") {
+		t.Fatalf("read_query = %+v", result)
+	}
+
 	// Without write access the write tool is not even listed, and calling it
 	// by name reports a tool error rather than a protocol error.
 	got = decodeRPC(t, post(t, h, "secret-token",

@@ -1,4 +1,5 @@
 import type { CellClassParams, Column, GridApi } from 'ag-grid-community';
+import { isMac } from '../../core/ui';
 
 interface CellPosition {
   row: number;
@@ -306,9 +307,7 @@ export class CellRangeSelection<T> {
 
   private onKeyDown(event: KeyboardEvent) {
     if (this.gridApi.getEditingCells().length) return;
-    const modifierPressed = /Mac|iPhone|iPad/.test(navigator.platform)
-      ? event.metaKey
-      : event.ctrlKey;
+    const modifierPressed = isMac ? event.metaKey : event.ctrlKey;
     if (modifierPressed && !event.shiftKey && event.key.toLowerCase() === 'a') {
       event.preventDefault();
       event.stopPropagation();

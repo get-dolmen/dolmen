@@ -48,99 +48,99 @@ type Page struct {
 
 const maxLimit = 5000
 
-// columns loads table metadata and marks which columns can be edited.
-func columns(ctx context.Context, o *conn.Open, schema, table string) ([]Column, error) {
-	meta, err := o.Driver.Columns(ctx, o.DB, schema, table)
+// loadColumns loads table metadata and marks which columns can be edited.
+func loadColumns(ctx context.Context, opened *conn.Open, schema, table string) ([]Column, error) {
+	metadata, err := opened.Driver.Columns(ctx, opened.DB, schema, table)
 	if err != nil {
 		return nil, err
 	}
-	if len(meta) == 0 {
+	if len(metadata) == 0 {
 		return nil, fmt.Errorf("table %s.%s not found or has no columns", schema, table)
 	}
-	out := make([]Column, len(meta))
-	for i, c := range meta {
-		out[i] = Column{Name: c.Name, Type: c.Type, PK: c.PK, Nullable: c.Nullable, Editable: !isBinary(c.Type)}
+	result := make([]Column, len(metadata))
+	for index, column := range metadata {
+		result[index] = Column{Name: column.Name, Type: column.Type, PK: column.PK, Nullable: column.Nullable, Editable: !isBinary(column.Type)}
 	}
-	return out, nil
+	return result, nil
 }
 
 // isBinary reports column types whose values Dolmen only previews (hex), so
 // they must not be written back.
-func isBinary(t string) bool {
-	t = strings.ToLower(t)
-	for _, b := range []string{"bytea", "blob", "binary", "raw", "bfile", "image"} {
-		if strings.Contains(t, b) {
+func isBinary(columnType string) bool {
+	columnType = strings.ToLower(columnType)
+	for _, binaryType := range []string{"bytea", "blob", "binary", "raw", "bfile", "image"} {
+		if strings.Contains(columnType, binaryType) {
 			return true
 		}
 	}
 	return false
 }
 
-func qualified(d driver.Driver, schema, table string) string {
+func qualified(dialect driver.Driver, schema, table string) string {
 	if schema == "" {
-		return d.QuoteIdent(table)
+		return dialect.QuoteIdent(table)
 	}
-	return d.QuoteIdent(schema) + "." + d.QuoteIdent(table)
+	return dialect.QuoteIdent(schema) + "." + dialect.QuoteIdent(table)
 }
 
 // Querier runs statements: a connection, a session or a transaction.
 type Querier interface {
-	QueryContext(ctx context.Context, q string, args ...any) (*sql.Rows, error)
-	ExecContext(ctx context.Context, q string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
-// Read returns one page of a table, reading through q (so an open
+// Read returns one page of a table, reading through querier (so an open
 // transaction sees its own uncommitted changes).
-func Read(ctx context.Context, o *conn.Open, q Querier, req PageRequest) (*Page, error) {
-	cols, err := columns(ctx, o, req.Schema, req.Table)
+func Read(ctx context.Context, opened *conn.Open, querier Querier, request PageRequest) (*Page, error) {
+	columns, err := loadColumns(ctx, opened, request.Schema, request.Table)
 	if err != nil {
 		return nil, err
 	}
-	limit := req.Limit
+	limit := request.Limit
 	if limit <= 0 {
 		limit = 100
 	}
 	limit = min(limit, maxLimit)
-	offset := max(req.Offset, 0)
+	offset := max(request.Offset, 0)
 
-	d := o.Driver
-	names := make([]string, len(cols))
-	var pks []string
-	for i, c := range cols {
-		names[i] = d.QuoteIdent(c.Name)
-		if c.PK {
-			pks = append(pks, names[i])
+	dialect := opened.Driver
+	quotedNames := make([]string, len(columns))
+	var primaryKeys []string
+	for index, column := range columns {
+		quotedNames[index] = dialect.QuoteIdent(column.Name)
+		if column.PK {
+			primaryKeys = append(primaryKeys, quotedNames[index])
 		}
 	}
-	sqlText := "SELECT " + strings.Join(names, ", ") + " FROM " + qualified(d, req.Schema, req.Table)
-	if w := strings.TrimSpace(req.Where); w != "" {
-		sqlText += " WHERE " + w
+	sqlText := "SELECT " + strings.Join(quotedNames, ", ") + " FROM " + qualified(dialect, request.Schema, request.Table)
+	if where := strings.TrimSpace(request.Where); where != "" {
+		sqlText += " WHERE " + where
 	}
-	if ob := strings.TrimSpace(req.OrderBy); ob != "" {
-		sqlText += " ORDER BY " + ob
-	} else if len(pks) > 0 {
-		sqlText += " ORDER BY " + strings.Join(pks, ", ") // stable paging
+	if orderBy := strings.TrimSpace(request.OrderBy); orderBy != "" {
+		sqlText += " ORDER BY " + orderBy
+	} else if len(primaryKeys) > 0 {
+		sqlText += " ORDER BY " + strings.Join(primaryKeys, ", ") // stable paging
 	}
 	// One extra row tells whether another page exists.
-	if o.Config.Kind == driver.Oracle {
+	if opened.Config.Kind == driver.Oracle {
 		sqlText += fmt.Sprintf(" OFFSET %d ROWS FETCH NEXT %d ROWS ONLY", offset, limit+1)
 	} else {
 		sqlText += fmt.Sprintf(" LIMIT %d OFFSET %d", limit+1, offset)
 	}
 
 	start := time.Now()
-	rows, err := q.QueryContext(ctx, sqlText)
+	rows, err := querier.QueryContext(ctx, sqlText)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	page := &Page{Columns: cols, Rows: [][]any{}, Offset: offset, SQL: sqlText}
+	page := &Page{Columns: columns, Rows: [][]any{}, Offset: offset, SQL: sqlText}
 	for rows.Next() {
 		if len(page.Rows) == limit {
 			page.HasMore = true
 			break
 		}
-		row, err := query.ScanRow(rows, len(cols))
+		row, err := query.ScanRow(rows, len(columns))
 		if err != nil {
 			return nil, err
 		}
@@ -152,11 +152,11 @@ func Read(ctx context.Context, o *conn.Open, q Querier, req PageRequest) (*Page,
 	page.DurationMs = time.Since(start).Milliseconds()
 
 	switch {
-	case o.Config.ReadOnly:
+	case opened.Config.ReadOnly:
 		page.ReadOnly = "Read-only connection"
-	case req.Type == "view":
+	case request.Type == "view":
 		page.ReadOnly = "Views are not editable"
-	case len(pks) == 0:
+	case len(primaryKeys) == 0:
 		page.ReadOnly = "No primary key: rows cannot be identified safely"
 	default:
 		page.Editable = true
@@ -167,13 +167,13 @@ func Read(ctx context.Context, o *conn.Open, q Querier, req PageRequest) (*Page,
 // Count returns how many rows the table holds under the request's filter.
 // It runs on the same querier as Read so an open transaction sees its own
 // uncommitted changes.
-func Count(ctx context.Context, o *conn.Open, q Querier, req PageRequest) (int64, error) {
-	sqlText := "SELECT COUNT(*) FROM " + qualified(o.Driver, req.Schema, req.Table)
-	if w := strings.TrimSpace(req.Where); w != "" {
-		sqlText += " WHERE " + w
+func Count(ctx context.Context, opened *conn.Open, querier Querier, request PageRequest) (int64, error) {
+	sqlText := "SELECT COUNT(*) FROM " + qualified(opened.Driver, request.Schema, request.Table)
+	if where := strings.TrimSpace(request.Where); where != "" {
+		sqlText += " WHERE " + where
 	}
-	var n int64
-	rows, err := q.QueryContext(ctx, sqlText)
+	var rowCount int64
+	rows, err := querier.QueryContext(ctx, sqlText)
 	if err != nil {
 		return 0, err
 	}
@@ -184,10 +184,10 @@ func Count(ctx context.Context, o *conn.Open, q Querier, req PageRequest) (int64
 		}
 		return 0, errors.New("the count query returned no row")
 	}
-	if err := rows.Scan(&n); err != nil {
+	if err := rows.Scan(&rowCount); err != nil {
 		return 0, err
 	}
-	return n, rows.Err()
+	return rowCount, rows.Err()
 }
 
 // Change is one pending grid edit.
@@ -209,91 +209,91 @@ type ApplyResult struct {
 	Deleted  int `json:"deleted"`
 }
 
-// Apply runs every change through q and stops at the first failure. The
+// Apply runs every change through querier and stops at the first failure. The
 // caller owns the transaction (and rolls it back, or to a savepoint, on error).
-func Apply(ctx context.Context, o *conn.Open, q Querier, req ApplyRequest) (*ApplyResult, error) {
-	if o.Config.ReadOnly {
+func Apply(ctx context.Context, opened *conn.Open, querier Querier, request ApplyRequest) (*ApplyResult, error) {
+	if opened.Config.ReadOnly {
 		return nil, errors.New("read-only connection: changes are not allowed")
 	}
-	cols, err := columns(ctx, o, req.Schema, req.Table)
+	columns, err := loadColumns(ctx, opened, request.Schema, request.Table)
 	if err != nil {
 		return nil, err
 	}
-	byName := map[string]Column{}
-	var pks []Column
-	for _, c := range cols {
-		byName[c.Name] = c
-		if c.PK {
-			pks = append(pks, c)
+	columnsByName := map[string]Column{}
+	var primaryKeys []Column
+	for _, column := range columns {
+		columnsByName[column.Name] = column
+		if column.PK {
+			primaryKeys = append(primaryKeys, column)
 		}
 	}
-	if len(pks) == 0 {
+	if len(primaryKeys) == 0 {
 		return nil, errors.New("the table has no primary key: rows cannot be identified safely")
 	}
 
-	b := builder{kind: o.Config.Kind, d: o.Driver, target: qualified(o.Driver, req.Schema, req.Table), cols: byName, pks: pks}
-	type stmt struct {
-		op   string
-		sql  string
-		args []any
+	statementBuilder := builder{kind: opened.Config.Kind, dialect: opened.Driver, target: qualified(opened.Driver, request.Schema, request.Table), columns: columnsByName, primaryKeys: primaryKeys}
+	type statement struct {
+		op        string
+		sql       string
+		arguments []any
 	}
-	for _, ch := range req.Changes {
-		if ch.Op != "delete" && ch.Op != "update" && ch.Op != "insert" {
-			return nil, fmt.Errorf("unknown change %q", ch.Op)
+	for _, change := range request.Changes {
+		if change.Op != "delete" && change.Op != "update" && change.Op != "insert" {
+			return nil, fmt.Errorf("unknown change %q", change.Op)
 		}
 	}
-	var stmts []stmt
+	var statements []statement
 	// Deletes first, then updates, then inserts, so a re-inserted key does not collide.
 	for _, op := range []string{"delete", "update", "insert"} {
-		for _, ch := range req.Changes {
-			if ch.Op != op {
+		for _, change := range request.Changes {
+			if change.Op != op {
 				continue
 			}
-			s, args, err := b.build(ch)
+			sql, arguments, err := statementBuilder.build(change)
 			if err != nil {
 				return nil, err
 			}
-			stmts = append(stmts, stmt{op, s, args})
+			statements = append(statements, statement{op, sql, arguments})
 		}
 	}
 
-	res := &ApplyResult{}
-	for _, s := range stmts {
-		r, err := q.ExecContext(ctx, s.sql, s.args...)
+	result := &ApplyResult{}
+	for _, statement := range statements {
+		execution, err := querier.ExecContext(ctx, statement.sql, statement.arguments...)
 		if err != nil {
-			return nil, fmt.Errorf("%s failed: %w", s.op, err)
+			return nil, fmt.Errorf("%s failed: %w", statement.op, err)
 		}
-		n, err := r.RowsAffected()
-		if err == nil && s.op != "insert" && n != 1 {
-			return nil, fmt.Errorf("%s matched %d rows instead of 1: the row was changed or removed by someone else; refresh and try again", s.op, n)
+		affected, err := execution.RowsAffected()
+		if err == nil && statement.op != "insert" && affected != 1 {
+			return nil, fmt.Errorf("%s matched %d rows instead of 1: the row was changed or removed by someone else; refresh and try again", statement.op, affected)
 		}
-		switch s.op {
+		switch statement.op {
 		case "insert":
-			res.Inserted++
+			result.Inserted++
 		case "update":
-			res.Updated++
+			result.Updated++
 		case "delete":
-			res.Deleted++
+			result.Deleted++
 		}
 	}
-	return res, nil
+	return result, nil
 }
 
 type builder struct {
-	kind   driver.Kind
-	d      driver.Driver
-	target string
-	cols   map[string]Column
-	pks    []Column
-	n      int
-	args   []any
+	kind          driver.Kind
+	dialect       driver.Driver
+	target        string
+	columns       map[string]Column
+	primaryKeys   []Column
+	argumentIndex int
+	arguments     []any
 }
 
-func (b *builder) build(ch Change) (string, []any, error) {
-	b.n, b.args = 0, nil
-	switch ch.Op {
+func (b *builder) build(change Change) (string, []any, error) {
+	b.argumentIndex, b.arguments = 0, nil
+	switch change.Op {
 	case "insert":
-		if len(ch.Values) == 0 {
+		if len(change.Values) == 0 {
 			switch b.kind {
 			case driver.MySQL:
 				return "INSERT INTO " + b.target + " () VALUES ()", nil, nil
@@ -302,74 +302,74 @@ func (b *builder) build(ch Change) (string, []any, error) {
 			}
 			return "INSERT INTO " + b.target + " DEFAULT VALUES", nil, nil
 		}
-		var names, vals []string
-		for _, name := range sortedKeys(ch.Values) {
-			c, err := b.col(name)
+		var columnNames, valueExpressions []string
+		for _, name := range sortedKeys(change.Values) {
+			column, err := b.editableColumn(name)
 			if err != nil {
 				return "", nil, err
 			}
-			expr, err := b.bind(c, ch.Values[name])
+			expression, err := b.bind(column, change.Values[name])
 			if err != nil {
 				return "", nil, err
 			}
-			names = append(names, b.d.QuoteIdent(name))
-			vals = append(vals, expr)
+			columnNames = append(columnNames, b.dialect.QuoteIdent(name))
+			valueExpressions = append(valueExpressions, expression)
 		}
-		return fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", b.target, strings.Join(names, ", "), strings.Join(vals, ", ")), b.args, nil
+		return fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", b.target, strings.Join(columnNames, ", "), strings.Join(valueExpressions, ", ")), b.arguments, nil
 	case "update":
-		if len(ch.Values) == 0 {
+		if len(change.Values) == 0 {
 			return "", nil, errors.New("update without values")
 		}
-		var sets []string
-		for _, name := range sortedKeys(ch.Values) {
-			c, err := b.col(name)
+		var assignments []string
+		for _, name := range sortedKeys(change.Values) {
+			column, err := b.editableColumn(name)
 			if err != nil {
 				return "", nil, err
 			}
-			expr, err := b.bind(c, ch.Values[name])
+			expression, err := b.bind(column, change.Values[name])
 			if err != nil {
 				return "", nil, err
 			}
-			sets = append(sets, b.d.QuoteIdent(name)+" = "+expr)
+			assignments = append(assignments, b.dialect.QuoteIdent(name)+" = "+expression)
 		}
-		where, err := b.where(ch.Key)
+		where, err := b.where(change.Key)
 		if err != nil {
 			return "", nil, err
 		}
-		return fmt.Sprintf("UPDATE %s SET %s WHERE %s", b.target, strings.Join(sets, ", "), where), b.args, nil
+		return fmt.Sprintf("UPDATE %s SET %s WHERE %s", b.target, strings.Join(assignments, ", "), where), b.arguments, nil
 	case "delete":
-		where, err := b.where(ch.Key)
+		where, err := b.where(change.Key)
 		if err != nil {
 			return "", nil, err
 		}
-		return fmt.Sprintf("DELETE FROM %s WHERE %s", b.target, where), b.args, nil
+		return fmt.Sprintf("DELETE FROM %s WHERE %s", b.target, where), b.arguments, nil
 	}
-	return "", nil, fmt.Errorf("unknown change %q", ch.Op)
+	return "", nil, fmt.Errorf("unknown change %q", change.Op)
 }
 
-func (b *builder) col(name string) (Column, error) {
-	c, ok := b.cols[name]
+func (b *builder) editableColumn(name string) (Column, error) {
+	column, ok := b.columns[name]
 	if !ok {
-		return c, fmt.Errorf("unknown column %q", name)
+		return column, fmt.Errorf("unknown column %q", name)
 	}
-	if !c.Editable {
-		return c, fmt.Errorf("column %q is not editable", name)
+	if !column.Editable {
+		return column, fmt.Errorf("column %q is not editable", name)
 	}
-	return c, nil
+	return column, nil
 }
 
 func (b *builder) where(key map[string]any) (string, error) {
 	var parts []string
-	for _, pk := range b.pks {
-		v, ok := key[pk.Name]
-		if !ok || v == nil {
-			return "", fmt.Errorf("missing value for primary key %q", pk.Name)
+	for _, primaryKey := range b.primaryKeys {
+		value, ok := key[primaryKey.Name]
+		if !ok || value == nil {
+			return "", fmt.Errorf("missing value for primary key %q", primaryKey.Name)
 		}
-		expr, err := b.bind(pk, v)
+		expression, err := b.bind(primaryKey, value)
 		if err != nil {
 			return "", err
 		}
-		parts = append(parts, b.d.QuoteIdent(pk.Name)+" = "+expr)
+		parts = append(parts, b.dialect.QuoteIdent(primaryKey.Name)+" = "+expression)
 	}
 	return strings.Join(parts, " AND "), nil
 }
@@ -377,49 +377,49 @@ func (b *builder) where(key map[string]any) (string, error) {
 // bind adds a parameter and returns its SQL expression. Values travel as text
 // and are converted by the database, so every column type round-trips the
 // way the grid displays it.
-func (b *builder) bind(c Column, v any) (string, error) {
-	if v == nil {
+func (b *builder) bind(column Column, value any) (string, error) {
+	if value == nil {
 		return "NULL", nil
 	}
-	s, err := text(v)
+	textValue, err := text(value)
 	if err != nil {
 		return "", err
 	}
-	b.n++
+	b.argumentIndex++
 	switch b.kind {
 	case driver.Postgres:
-		b.args = append(b.args, s)
-		return fmt.Sprintf("CAST($%d AS text)::%s", b.n, c.Type), nil
+		b.arguments = append(b.arguments, textValue)
+		return fmt.Sprintf("CAST($%d AS text)::%s", b.argumentIndex, column.Type), nil
 	case driver.Oracle:
-		up := strings.ToUpper(c.Type)
-		if strings.HasPrefix(up, "DATE") || strings.HasPrefix(up, "TIMESTAMP") {
-			t, err := parseTime(s)
+		upperType := strings.ToUpper(column.Type)
+		if strings.HasPrefix(upperType, "DATE") || strings.HasPrefix(upperType, "TIMESTAMP") {
+			parsedTime, err := parseTime(textValue)
 			if err != nil {
-				return "", fmt.Errorf("column %q: %w", c.Name, err)
+				return "", fmt.Errorf("column %q: %w", column.Name, err)
 			}
-			b.args = append(b.args, t)
+			b.arguments = append(b.arguments, parsedTime)
 		} else {
-			b.args = append(b.args, s)
+			b.arguments = append(b.arguments, textValue)
 		}
-		return fmt.Sprintf(":%d", b.n), nil
+		return fmt.Sprintf(":%d", b.argumentIndex), nil
 	default:
-		b.args = append(b.args, s)
+		b.arguments = append(b.arguments, textValue)
 		return "?", nil
 	}
 }
 
-func text(v any) (string, error) {
-	switch x := v.(type) {
+func text(value any) (string, error) {
+	switch typed := value.(type) {
 	case string:
-		return x, nil
+		return typed, nil
 	case float64:
-		return strconv.FormatFloat(x, 'f', -1, 64), nil
+		return strconv.FormatFloat(typed, 'f', -1, 64), nil
 	case bool:
-		return strconv.FormatBool(x), nil
+		return strconv.FormatBool(typed), nil
 	case int, int64:
-		return fmt.Sprint(x), nil
+		return fmt.Sprint(typed), nil
 	}
-	return "", fmt.Errorf("unsupported value %T", v)
+	return "", fmt.Errorf("unsupported value %T", value)
 }
 
 var timeLayouts = []string{
@@ -431,19 +431,19 @@ var timeLayouts = []string{
 	"2006-01-02",
 }
 
-func parseTime(s string) (time.Time, error) {
-	for _, l := range timeLayouts {
-		if t, err := time.ParseInLocation(l, strings.TrimSpace(s), time.Local); err == nil {
-			return t, nil
+func parseTime(value string) (time.Time, error) {
+	for _, layout := range timeLayouts {
+		if parsed, err := time.ParseInLocation(layout, strings.TrimSpace(value), time.Local); err == nil {
+			return parsed, nil
 		}
 	}
-	return time.Time{}, fmt.Errorf("cannot read %q as a date (use YYYY-MM-DD HH:MM:SS)", s)
+	return time.Time{}, fmt.Errorf("cannot read %q as a date (use YYYY-MM-DD HH:MM:SS)", value)
 }
 
-func sortedKeys(m map[string]any) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
+func sortedKeys(values map[string]any) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
 	}
 	sort.Strings(keys) // deterministic SQL helps debugging and tests
 	return keys

@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"dolmen/internal/atomicfile"
 )
 
 // Store persists the MCP settings as mcp.json next to Dolmen's other files.
@@ -75,11 +77,7 @@ func (s *Store) Save(cfg Config) error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o700); err != nil {
 		return err
 	}
-	tmp := s.path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, s.path)
+	return atomicfile.Write(s.path, b, 0o600)
 }
 
 // NewToken returns a random bearer token for local MCP clients.

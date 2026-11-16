@@ -18,6 +18,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"dolmen/internal/atomicfile"
 	"dolmen/internal/driver"
 	"dolmen/internal/sshtunnel"
 )
@@ -146,11 +147,7 @@ func (s *Store) write(cfgs []driver.Config) error {
 	if err != nil {
 		return err
 	}
-	tmp := s.path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, s.path)
+	return atomicfile.Write(s.path, b, 0o600)
 }
 
 func validate(c driver.Config) error {

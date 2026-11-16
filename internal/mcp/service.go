@@ -126,7 +126,15 @@ func (s *Service) Start() error {
 	if !s.cfg.Enabled {
 		return errors.New("the MCP server is disabled")
 	}
-	return s.startLocked()
+	if err := s.cfg.Validate(); err != nil {
+		s.lastErr = err.Error()
+		return err
+	}
+	if err := s.startLocked(); err != nil {
+		s.lastErr = err.Error()
+		return err
+	}
+	return nil
 }
 
 // Stop closes the listener. The settings keep Enabled, so the next launch

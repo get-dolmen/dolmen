@@ -1,8 +1,11 @@
 package mcp
 
 import (
+	"encoding/json"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -195,5 +198,28 @@ func TestServicePersistsAcrossRestarts(t *testing.T) {
 	}
 	if code := ping(t, second.Status().URL, got.Token); code != http.StatusOK {
 		t.Fatalf("ping: status %d", code)
+	}
+}
+
+func TestServiceRefusesInvalidPersistedSettings(t *testing.T) {
+	dir := t.TempDir()
+	cfg := Config{Enabled: true, Port: freePort(t), Read: false, Write: false, Token: "token"}
+	b, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "mcp.json"), b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := NewService(dir, conn.NewManager(), conn.NewStore(t.TempDir()), nil, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(s.Stop)
+	if err := s.Start(); err == nil {
+		t.Fatal("Start accepted settings with no access at all")
+	}
+	if st := s.Status(); st.Running || st.LastError == "" {
+		t.Fatalf("status = %+v", st)
 	}
 }

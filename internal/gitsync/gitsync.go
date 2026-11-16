@@ -311,8 +311,8 @@ func hasGit() bool {
 	return err == nil
 }
 
-func (s *Service) git(args ...string) (string, error) {
-	cmd := exec.Command("git", append([]string{"-C", s.dir}, args...)...)
+func (s *Service) git(arguments ...string) (string, error) {
+	cmd := exec.Command("git", append([]string{"-C", s.dir}, arguments...)...)
 	// A desktop window cannot answer a password prompt on the terminal; rely
 	// on the user's credential helper or SSH agent instead.
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
@@ -322,7 +322,7 @@ func (s *Service) git(args ...string) (string, error) {
 		if message == "" {
 			message = err.Error()
 		}
-		return string(output), fmt.Errorf("git %s: %s", strings.Join(args, " "), message)
+		return string(output), fmt.Errorf("git %s: %s", strings.Join(arguments, " "), message)
 	}
 	return string(output), nil
 }

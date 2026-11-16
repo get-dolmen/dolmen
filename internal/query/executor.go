@@ -752,6 +752,6 @@ func errText(ctx context.Context, err error) string {
 	return err.Error()
 }
 
-func isBadConn(msg string) bool {
-	return msg == driver.ErrBadConn.Error() || msg == sql.ErrConnDone.Error() || msg == "invalid connection"
+func isBadConn(message string) bool {
+	return message == driver.ErrBadConn.Error() || message == sql.ErrConnDone.Error() || message == "invalid connection"
 }

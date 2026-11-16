@@ -74,19 +74,19 @@ func (s *Store) List(ctx context.Context, connID, search string, limit int) ([]E
 		limit = 200
 	}
 	query := `select id, conn_id, sql, started_at, duration_ms, rows, status, coalesce(error, '') from history where 1 = 1`
-	var args []any
+	var arguments []any
 	if connID != "" {
 		query += ` and conn_id = ?`
-		args = append(args, connID)
+		arguments = append(arguments, connID)
 	}
 	if search = strings.TrimSpace(search); search != "" {
 		query += ` and sql like ? escape '\'`
 		wildcardEscaper := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
-		args = append(args, "%"+wildcardEscaper.Replace(search)+"%")
+		arguments = append(arguments, "%"+wildcardEscaper.Replace(search)+"%")
 	}
 	query += ` order by started_at desc limit ?`
-	args = append(args, limit)
-	rows, err := s.database.QueryContext(ctx, query, args...)
+	arguments = append(arguments, limit)
+	rows, err := s.database.QueryContext(ctx, query, arguments...)
 	if err != nil {
 		return nil, err
 	}

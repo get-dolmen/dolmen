@@ -21,6 +21,8 @@ import (
 	"sync"
 	"time"
 	"unicode/utf8"
+
+	"dolmen/internal/atomicfile"
 )
 
 // Tab is an open editor tab. SQL tabs share their ID with a scratch file.
@@ -177,7 +179,7 @@ func (s *Store) writeIndex() error {
 	if err != nil {
 		return err
 	}
-	return atomicWrite(s.indexPath(), b)
+	return atomicfile.Write(s.indexPath(), b, 0o600)
 }
 
 // Load returns the open tabs; SQL tabs carry their scratch's content and link.
@@ -235,7 +237,7 @@ func (s *Store) SaveLayout(ws Workspace) error {
 				m = &meta{ConnID: t.ConnID, Database: t.Database, Locked: t.ConnID != "", CreatedAt: now(), UpdatedAt: now()}
 				s.index[t.ID] = m
 				if !exists(p) {
-					atomicWrite(p, nil)
+					_ = atomicfile.Write(p, nil, 0o600)
 				}
 			}
 			if m.Locked {
@@ -263,7 +265,7 @@ func (s *Store) SaveLayout(ws Workspace) error {
 	if err != nil {
 		return err
 	}
-	return atomicWrite(s.manifestPath(), b)
+	return atomicfile.Write(s.manifestPath(), b, 0o600)
 }
 
 // SaveContent writes a scratch's content.
@@ -272,7 +274,7 @@ func (s *Store) SaveContent(id, content string) error {
 	if err != nil {
 		return err
 	}
-	if err := atomicWrite(p, []byte(content)); err != nil {
+	if err := atomicfile.Write(p, []byte(content), 0o600); err != nil {
 		return err
 	}
 	s.mu.Lock()
@@ -351,7 +353,7 @@ func (s *Store) Create(id, name, connID, database, schema, table, content string
 	if err != nil {
 		return Tab{}, err
 	}
-	if err := atomicWrite(p, []byte(content)); err != nil {
+	if err := atomicfile.Write(p, []byte(content), 0o600); err != nil {
 		return Tab{}, err
 	}
 	s.mu.Lock()
@@ -474,7 +476,7 @@ func (s *Store) Replace(entries []Entry) error {
 		if err != nil {
 			return err
 		}
-		if err := atomicWrite(p, []byte(e.Content)); err != nil {
+		if err := atomicfile.Write(p, []byte(e.Content), 0o600); err != nil {
 			return err
 		}
 		index[e.ID] = &meta{
@@ -524,12 +526,4 @@ func (s *Store) IsBlank(id string) bool {
 	}
 	b, err := os.ReadFile(p)
 	return err != nil || strings.TrimSpace(string(b)) == ""
-}
-
-func atomicWrite(path string, b []byte) error {
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
 }

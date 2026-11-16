@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"dolmen/internal/atomicfile"
 	"dolmen/internal/conn"
 	"dolmen/internal/driver"
 	"dolmen/internal/folder"
@@ -120,7 +121,7 @@ func (s *Service) SaveConfig(c Config) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	return c, atomicWrite(s.configPath, b)
+	return c, atomicfile.Write(s.configPath, b, 0o600)
 }
 
 // Status reports the settings plus the last sync result.
@@ -516,7 +517,7 @@ func (s *Service) writeBundle(cfg Config, b Bundle, password string) error {
 		if err != nil {
 			return err
 		}
-		if err := atomicWrite(encPath, sealed); err != nil {
+		if err := atomicfile.Write(encPath, sealed, 0o600); err != nil {
 			return err
 		}
 		if err := os.Remove(plainPath); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -524,7 +525,7 @@ func (s *Service) writeBundle(cfg Config, b Bundle, password string) error {
 		}
 		return nil
 	}
-	if err := atomicWrite(plainPath, plain); err != nil {
+	if err := atomicfile.Write(plainPath, plain, 0o600); err != nil {
 		return err
 	}
 	if err := os.Remove(encPath); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -656,15 +657,7 @@ func (s *Service) saveState(st syncState) error {
 	if err != nil {
 		return err
 	}
-	return atomicWrite(s.statePath, b)
-}
-
-func atomicWrite(path string, b []byte) error {
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+	return atomicfile.Write(s.statePath, b, 0o600)
 }
 
 func exists(path string) bool {

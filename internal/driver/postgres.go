@@ -14,40 +14,40 @@ type postgres struct{}
 
 func init() { register(postgres{}) }
 
-func (postgres) Kind() Kind                  { return Postgres }
-func (postgres) SQLDriverName() string       { return "pgx" }
-func (postgres) ReadOnlyTxStatement() string { return "" }
-func (postgres) QuoteIdent(n string) string  { return quoteWith(n, `"`) }
+func (postgres) Kind() Kind                    { return Postgres }
+func (postgres) SQLDriverName() string         { return "pgx" }
+func (postgres) ReadOnlyTxStatement() string   { return "" }
+func (postgres) QuoteIdent(name string) string { return quoteWith(name, `"`) }
 
-func (postgres) DSN(cfg Config) (string, error) {
-	host := cfg.Host
+func (postgres) DSN(config Config) (string, error) {
+	host := config.Host
 	if host == "" {
 		host = "localhost"
 	}
-	port := cfg.Port
+	port := config.Port
 	if port == 0 {
 		port = 5432
 	}
-	u := url.URL{
+	target := url.URL{
 		Scheme: "postgres",
 		Host:   host + ":" + strconv.Itoa(port),
-		Path:   "/" + cfg.Database,
+		Path:   "/" + config.Database,
 	}
-	if cfg.User != "" {
-		u.User = url.UserPassword(cfg.User, cfg.Password)
+	if config.User != "" {
+		target.User = url.UserPassword(config.User, config.Password)
 	}
-	q := url.Values{}
-	q.Set("sslmode", "prefer")
-	q.Set("application_name", "dolmen")
-	for k, v := range cfg.Options {
-		q.Set(k, v)
+	parameters := url.Values{}
+	parameters.Set("sslmode", "prefer")
+	parameters.Set("application_name", "dolmen")
+	for key, value := range config.Options {
+		parameters.Set(key, value)
 	}
-	if cfg.ReadOnly {
+	if config.ReadOnly {
 		// Unknown parameters are sent by pgx as runtime parameters.
-		q.Set("default_transaction_read_only", "on")
+		parameters.Set("default_transaction_read_only", "on")
 	}
-	u.RawQuery = q.Encode()
-	return u.String(), nil
+	target.RawQuery = parameters.Encode()
+	return target.String(), nil
 }
 
 func (postgres) ListDatabases(ctx context.Context, db *sql.DB) ([]string, error) {
@@ -56,18 +56,18 @@ func (postgres) ListDatabases(ctx context.Context, db *sql.DB) ([]string, error)
 }
 
 func (postgres) CurrentDatabase(ctx context.Context, db *sql.DB) (string, error) {
-	var s string
-	err := db.QueryRowContext(ctx, "select current_database()").Scan(&s)
-	return s, err
+	var name string
+	err := db.QueryRowContext(ctx, "select current_database()").Scan(&name)
+	return name, err
 }
 
 func (postgres) DefaultSchema(ctx context.Context, db *sql.DB) (string, error) {
-	var s sql.NullString
-	err := db.QueryRowContext(ctx, "select current_schema()").Scan(&s)
-	if s.String == "" {
-		s.String = "public"
+	var schemaName sql.NullString
+	err := db.QueryRowContext(ctx, "select current_schema()").Scan(&schemaName)
+	if schemaName.String == "" {
+		schemaName.String = "public"
 	}
-	return s.String, err
+	return schemaName.String, err
 }
 
 func (postgres) ListSchemas(ctx context.Context, db *sql.DB) ([]string, error) {
@@ -104,20 +104,20 @@ func (postgres) Columns(ctx context.Context, db *sql.DB, schema, table string) (
 		order by c.relname, a.attnum`, schema, table)
 }
 
-func (d postgres) TableDDL(ctx context.Context, db *sql.DB, schema, table, typ string) (string, error) {
-	if typ == "view" {
-		var def string
+func (dialect postgres) TableDDL(ctx context.Context, db *sql.DB, schema, table, objectType string) (string, error) {
+	if objectType == "view" {
+		var definition string
 		err := db.QueryRowContext(ctx, `select pg_catalog.pg_get_viewdef(c.oid, true)
 			from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace
-			where n.nspname = $1 and c.relname = $2`, schema, table).Scan(&def)
+			where n.nspname = $1 and c.relname = $2`, schema, table).Scan(&definition)
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("CREATE OR REPLACE VIEW %s.%s AS\n%s", d.QuoteIdent(schema), d.QuoteIdent(table), def), nil
+		return fmt.Sprintf("CREATE OR REPLACE VIEW %s.%s AS\n%s", dialect.QuoteIdent(schema), dialect.QuoteIdent(table), definition), nil
 	}
-	cols, err := d.Columns(ctx, db, schema, table)
+	columns, err := dialect.Columns(ctx, db, schema, table)
 	if err != nil {
 		return "", err
 	}
-	return buildTableDDL(d, schema, table, cols), nil
+	return buildTableDDL(dialect, schema, table, columns), nil
 }

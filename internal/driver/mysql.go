@@ -14,45 +14,45 @@ type mysqlDriver struct{}
 
 func init() { register(mysqlDriver{}) }
 
-func (mysqlDriver) Kind() Kind                  { return MySQL }
-func (mysqlDriver) SQLDriverName() string       { return "mysql" }
-func (mysqlDriver) ReadOnlyTxStatement() string { return "" }
-func (mysqlDriver) QuoteIdent(n string) string  { return quoteWith(n, "`") }
+func (mysqlDriver) Kind() Kind                    { return MySQL }
+func (mysqlDriver) SQLDriverName() string         { return "mysql" }
+func (mysqlDriver) ReadOnlyTxStatement() string   { return "" }
+func (mysqlDriver) QuoteIdent(name string) string { return quoteWith(name, "`") }
 
-func (mysqlDriver) DSN(cfg Config) (string, error) {
-	host := cfg.Host
+func (mysqlDriver) DSN(config Config) (string, error) {
+	host := config.Host
 	if host == "" {
 		host = "localhost"
 	}
-	port := cfg.Port
+	port := config.Port
 	if port == 0 {
 		port = 3306
 	}
-	c := mysql.NewConfig()
-	c.Net = "tcp"
-	c.Addr = host + ":" + strconv.Itoa(port)
-	c.User = cfg.User
-	c.Passwd = cfg.Password
-	c.DBName = cfg.Database
-	c.ParseTime = true
-	c.Loc = time.Local
-	c.MultiStatements = false
-	c.InterpolateParams = false
-	c.Params = map[string]string{}
-	for k, v := range cfg.Options {
-		c.Params[k] = v
+	mysqlConfig := mysql.NewConfig()
+	mysqlConfig.Net = "tcp"
+	mysqlConfig.Addr = host + ":" + strconv.Itoa(port)
+	mysqlConfig.User = config.User
+	mysqlConfig.Passwd = config.Password
+	mysqlConfig.DBName = config.Database
+	mysqlConfig.ParseTime = true
+	mysqlConfig.Loc = time.Local
+	mysqlConfig.MultiStatements = false
+	mysqlConfig.InterpolateParams = false
+	mysqlConfig.Params = map[string]string{}
+	for key, value := range config.Options {
+		mysqlConfig.Params[key] = value
 	}
-	if cfg.ReadOnly {
+	if config.ReadOnly {
 		// Executed as SET transaction_read_only=1 on every new connection.
-		c.Params["transaction_read_only"] = "1"
+		mysqlConfig.Params["transaction_read_only"] = "1"
 	}
-	return c.FormatDSN(), nil
+	return mysqlConfig.FormatDSN(), nil
 }
 
 func (mysqlDriver) DefaultSchema(ctx context.Context, db *sql.DB) (string, error) {
-	var s sql.NullString
-	err := db.QueryRowContext(ctx, "select database()").Scan(&s)
-	return s.String, err
+	var schemaName sql.NullString
+	err := db.QueryRowContext(ctx, "select database()").Scan(&schemaName)
+	return schemaName.String, err
 }
 
 func (mysqlDriver) ListSchemas(ctx context.Context, db *sql.DB) ([]string, error) {
@@ -77,27 +77,27 @@ func (mysqlDriver) Columns(ctx context.Context, db *sql.DB, schema, table string
 		order by table_name, ordinal_position`, schema, table, table)
 }
 
-func (d mysqlDriver) TableDDL(ctx context.Context, db *sql.DB, schema, table, typ string) (string, error) {
-	kw := "TABLE"
-	if typ == "view" {
-		kw = "VIEW"
+func (dialect mysqlDriver) TableDDL(ctx context.Context, db *sql.DB, schema, table, objectType string) (string, error) {
+	keyword := "TABLE"
+	if objectType == "view" {
+		keyword = "VIEW"
 	}
-	rows, err := db.QueryContext(ctx, fmt.Sprintf("SHOW CREATE %s %s.%s", kw, d.QuoteIdent(schema), d.QuoteIdent(table)))
+	rows, err := db.QueryContext(ctx, fmt.Sprintf("SHOW CREATE %s %s.%s", keyword, dialect.QuoteIdent(schema), dialect.QuoteIdent(table)))
 	if err != nil {
 		return "", err
 	}
 	defer rows.Close()
-	cols, _ := rows.Columns()
+	columnNames, _ := rows.Columns()
 	if !rows.Next() {
 		return "", fmt.Errorf("no DDL returned for %s.%s", schema, table)
 	}
-	vals := make([]sql.NullString, len(cols))
-	ptrs := make([]any, len(cols))
-	for i := range vals {
-		ptrs[i] = &vals[i]
+	values := make([]sql.NullString, len(columnNames))
+	destinations := make([]any, len(columnNames))
+	for index := range values {
+		destinations[index] = &values[index]
 	}
-	if err := rows.Scan(ptrs...); err != nil {
+	if err := rows.Scan(destinations...); err != nil {
 		return "", err
 	}
-	return vals[1].String + ";", nil
+	return values[1].String + ";", nil
 }

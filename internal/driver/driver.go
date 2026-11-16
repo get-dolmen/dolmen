@@ -68,7 +68,7 @@ type Driver interface {
 	SQLDriverName() string
 	// DSN builds the data source name; read-only connections get
 	// session-level protection here whenever the engine supports it.
-	DSN(cfg Config) (string, error)
+	DSN(config Config) (string, error)
 	// ReadOnlyTxStatement returns a statement that must open every
 	// transaction on a read-only connection ("" if the DSN already covers it).
 	ReadOnlyTxStatement() string
@@ -78,7 +78,7 @@ type Driver interface {
 	// Columns lists the columns of one table, or of every table in the
 	// schema when table is "".
 	Columns(ctx context.Context, db *sql.DB, schema, table string) ([]Column, error)
-	TableDDL(ctx context.Context, db *sql.DB, schema, table, typ string) (string, error)
+	TableDDL(ctx context.Context, db *sql.DB, schema, table, objectType string) (string, error)
 	QuoteIdent(name string) string
 }
 
@@ -118,8 +118,8 @@ func DefaultPort(kind Kind) int {
 
 // --- helpers shared by implementations ---
 
-func queryStrings(ctx context.Context, db *sql.DB, query string, args ...any) ([]string, error) {
-	rows, err := db.QueryContext(ctx, query, args...)
+func queryStrings(ctx context.Context, db *sql.DB, query string, arguments ...any) ([]string, error) {
+	rows, err := db.QueryContext(ctx, query, arguments...)
 	if err != nil {
 		return nil, err
 	}
@@ -135,8 +135,8 @@ func queryStrings(ctx context.Context, db *sql.DB, query string, args ...any) ([
 	return names, rows.Err()
 }
 
-func queryTables(ctx context.Context, db *sql.DB, schema, query string, args ...any) ([]Table, error) {
-	rows, err := db.QueryContext(ctx, query, args...)
+func queryTables(ctx context.Context, db *sql.DB, schema, query string, arguments ...any) ([]Table, error) {
+	rows, err := db.QueryContext(ctx, query, arguments...)
 	if err != nil {
 		return nil, err
 	}
@@ -157,8 +157,8 @@ func queryTables(ctx context.Context, db *sql.DB, schema, query string, args ...
 }
 
 // queryColumns expects rows of (table, column, type, nullable bool-ish, pk bool-ish).
-func queryColumns(ctx context.Context, db *sql.DB, query string, args ...any) ([]Column, error) {
-	rows, err := db.QueryContext(ctx, query, args...)
+func queryColumns(ctx context.Context, db *sql.DB, query string, arguments ...any) ([]Column, error) {
+	rows, err := db.QueryContext(ctx, query, arguments...)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +216,9 @@ func buildTableDDL(databaseDriver Driver, schema, table string, columns []Column
 }
 
 func sortTables(tables []Table) {
-	sort.Slice(tables, func(i, j int) bool { return strings.ToLower(tables[i].Name) < strings.ToLower(tables[j].Name) })
+	sort.Slice(tables, func(left, right int) bool {
+		return strings.ToLower(tables[left].Name) < strings.ToLower(tables[right].Name)
+	})
 }
 
 func quoteWith(name, quote string) string {

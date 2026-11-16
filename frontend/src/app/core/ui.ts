@@ -1,4 +1,5 @@
 import { Injectable, effect, signal } from '@angular/core';
+import { readJson, writeJson } from './storage';
 
 const STORAGE_KEY = 'dolmen.ui';
 
@@ -20,11 +21,7 @@ interface Persisted {
 }
 
 function loadPersisted(): Partial<Persisted> {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
-  } catch {
-    return {};
-  }
+  return readJson<Partial<Persisted>>(STORAGE_KEY, {});
 }
 
 function isTheme(value: unknown): value is Theme {
@@ -103,11 +100,7 @@ export class Ui {
         scratchOpen: this.scratchOpen(),
         inlineResults: this.inlineResults(),
       };
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
-      } catch {
-        /* storage unavailable */
-      }
+      writeJson(STORAGE_KEY, persisted);
     });
   }
 

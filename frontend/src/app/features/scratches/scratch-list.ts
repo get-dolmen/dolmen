@@ -5,6 +5,7 @@ import { ScratchStore } from '../../core/scratch.store';
 import { SchemaStore } from '../../core/schema.store';
 import { TabStore } from '../../core/tab.store';
 import { Ui } from '../../core/ui';
+import { readJson, readString, writeJson, writeString } from '../../core/storage';
 import { ClickOutside, clampMenu } from '../../shared/click-outside';
 import { Autofocus } from '../../shared/autofocus';
 import { Icon } from '../../shared/icon';
@@ -26,11 +27,7 @@ export function relativeTime(timestamp: number, now = Date.now()): string {
 }
 
 function loadSet(key: string): Set<string> {
-  try {
-    return new Set(JSON.parse(localStorage.getItem(key) ?? '[]'));
-  } catch {
-    return new Set();
-  }
+  return new Set(readJson<string[]>(key, []));
 }
 
 type ContextMenu =
@@ -53,7 +50,7 @@ export class ScratchList {
   private schemaStore = inject(SchemaStore);
 
   public readonly filter = input('');
-  public readonly collapsed = signal(localStorage.getItem(COLLAPSED_KEY) === '1');
+  public readonly collapsed = signal(readString(COLLAPSED_KEY) === '1');
   /** Collapsed folder keys (folders start expanded). */
   public readonly folded = signal<ReadonlySet<string>>(loadSet(FOLDERS_KEY));
   public readonly editingId = signal('');
@@ -82,11 +79,7 @@ export class ScratchList {
     // In the left dock the whole panel collapses, so there is no header left to click.
     if (this.isDockedLeft()) return this.uiState.scratchOpen.set(false);
     this.collapsed.update((value) => !value);
-    try {
-      localStorage.setItem(COLLAPSED_KEY, this.collapsed() ? '1' : '0');
-    } catch {
-      /* storage unavailable */
-    }
+    writeString(COLLAPSED_KEY, this.collapsed() ? '1' : '0');
   }
 
   public toggleFolder(key: string) {
@@ -98,11 +91,7 @@ export class ScratchList {
 
   private setFolded(folded: Set<string>) {
     this.folded.set(folded);
-    try {
-      localStorage.setItem(FOLDERS_KEY, JSON.stringify([...folded]));
-    } catch {
-      /* storage unavailable */
-    }
+    writeJson(FOLDERS_KEY, [...folded]);
   }
 
   public folderTitle(folder: FolderNode) {

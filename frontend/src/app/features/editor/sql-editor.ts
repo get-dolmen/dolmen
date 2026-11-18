@@ -118,6 +118,10 @@ export class SqlEditor implements EditorHandle, OnDestroy {
       padding: { top: 8 },
       tabSize: 2,
       fixedOverflowWidgets: true,
+      // With a shadow DOM, Monaco mounts the context menu in a shadow root appended
+      // to <body> (fixedOverflowWidgets), where the theme's --vscode-* variables do
+      // not exist: the menu renders transparent. Styles are loaded globally anyway.
+      useShadowDOM: false,
       automaticLayout: false,
       suggest: { showWords: false },
       quickSuggestions: { other: true, comments: false, strings: false },

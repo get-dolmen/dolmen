@@ -1,5 +1,5 @@
 import type { CellClassParams, Column, GridApi } from 'ag-grid-community';
-import { isMac } from '../../core/ui';
+import { isMac } from '../core/ui';
 
 interface CellPosition {
   row: number;

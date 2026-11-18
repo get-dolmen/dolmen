@@ -42,6 +42,7 @@ The macOS build is not signed or notarized. The install script clears the quaran
 | Run whole script          | ⌘⇧↵                 | Ctrl+Shift+Enter |
 | Cancel query              | Esc                 | Esc              |
 | New / close tab           | ⌘T / ⌘W             | Ctrl+T / Ctrl+W  |
+| Format SQL                | ⌘⇧F                 | Ctrl+Shift+F     |
 | Next / previous tab       | Ctrl+Tab, ⌘⇧] / ⌘⇧[ | Ctrl+Tab         |
 | Toggle explorer           | ⌘B                  | Ctrl+B           |
 | Settings                  | ⌘,                  | Ctrl+,           |

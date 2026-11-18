@@ -120,7 +120,7 @@ export class TabBar {
 
   public openTabMenu(event: MouseEvent, tab: EditorTab) {
     event.preventDefault();
-    this.tabMenu.set({ ...clampMenu(event.clientX, event.clientY, 210, 240), tab });
+    this.tabMenu.set({ ...clampMenu(event.clientX, event.clientY, 210, 280), tab });
   }
 
   public async runMenuAction(action: string) {
@@ -131,6 +131,9 @@ export class TabBar {
     switch (action) {
       case 'rename':
         return this.editingTabId.set(tabId);
+      case 'format':
+        this.tabStore.activate(tabId);
+        return this.commandService.formatSql(tabId);
       case 'save':
         return void this.scratchStore.save(tabId);
       case 'export':

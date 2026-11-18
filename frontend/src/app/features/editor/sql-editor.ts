@@ -18,6 +18,7 @@ import { SchemaStore } from '../../core/schema.store';
 import { TabStore } from '../../core/tab.store';
 import { Ui, applyThemeAttribute } from '../../core/ui';
 import { monacoLanguage } from '../../core/sql';
+import { formatSql } from '../../core/sql-format';
 import { InlineZones } from './inline-zones';
 import { applyTheme, initMonaco, monaco, setCompletionSource } from './monaco-setup';
 
@@ -261,6 +262,34 @@ export class SqlEditor implements EditorHandle, OnDestroy {
     const selection = editor?.getSelection();
     if (!editor || !selection) return;
     editor.executeEdits('dolmen', [{ range: selection, text, forceMoveMarkers: true }]);
+  }
+
+  public format(tabId = this.currentTabId) {
+    const editor = this.editor;
+    if (!editor || !this.tabStore.get(tabId)) return;
+    const model = this.modelFor(tabId);
+    const active = editor.getModel() === model;
+    const selection = active ? editor.getSelection() : null;
+    const range = selection && !selection.isEmpty() ? selection : model.getFullModelRange();
+    const source = model.getValueInRange(range);
+    const formatted = formatSql(
+      this.connectionStore.get(this.tabStore.get(tabId)?.connId)?.kind,
+      source,
+    );
+    if (formatted === source) return;
+    // Keep the caret at the same offset when the whole script was reformatted.
+    const cursor = active && (!selection || selection.isEmpty()) ? editor.getPosition() : null;
+    const cursorOffset = cursor ? model.getOffsetAt(cursor) : 0;
+    if (active) {
+      editor.pushUndoStop();
+      editor.executeEdits('dolmen.format', [{ range, text: formatted, forceMoveMarkers: true }]);
+      editor.pushUndoStop();
+      if (cursor)
+        editor.setPosition(model.getPositionAt(Math.min(cursorOffset, model.getValueLength())));
+      editor.focus();
+    } else {
+      model.pushEditOperations([], [{ range, text: formatted }], () => null);
+    }
   }
 
   public replaceContent(tabId: string, content: string) {

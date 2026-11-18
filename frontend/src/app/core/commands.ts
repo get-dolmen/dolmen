@@ -85,6 +85,12 @@ export class Commands {
     if (active?.kind === 'sql') {
       commands.push(
         {
+          id: 'format-sql',
+          label: 'Format SQL',
+          hint: `${MOD}⇧F`,
+          run: () => this.formatSql(active.id),
+        },
+        {
           id: 'save-scratch',
           label: `Save ${active.name}`,
           hint: `${MOD}S`,
@@ -193,6 +199,17 @@ export class Commands {
     if (handle) handle.apply();
     else if (this.tabStore.active()?.kind === 'sql')
       void this.scratchStore.save(this.tabStore.activeId());
+  }
+
+  /** ⌘⇧F: reformats the selection, or the whole script, in its connection's dialect. */
+  public formatSql(tabId = this.tabStore.activeId()) {
+    if (this.tabStore.get(tabId)?.kind !== 'sql') return;
+    try {
+      this.editorBridge.format(tabId);
+    } catch (error) {
+      this.editorBridge.flashError();
+      this.toastService.error(`Cannot format this SQL: ${errorText(error)}`);
+    }
   }
 
   private tableHandle() {

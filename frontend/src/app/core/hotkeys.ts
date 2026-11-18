@@ -41,6 +41,8 @@ export class Hotkeys {
       this.uiState.sidebarOpen.update((open) => !open);
     } else if (modifierPressed && !event.shiftKey && key === 's') {
       this.commandService.save();
+    } else if (modifierPressed && event.shiftKey && key === 'f') {
+      this.commandService.formatSql();
     } else if (modifierPressed && !event.shiftKey && key === ',') {
       this.commandService.openSettings();
     } else if (event.ctrlKey && key === 'tab') {

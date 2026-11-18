@@ -12,6 +12,8 @@ export interface RunTarget {
 export interface EditorHandle {
   runTarget(mode: 'cursor' | 'all'): RunTarget | null;
   insert(text: string): void;
+  /** Reformats the selection, or the whole script, in the dialect of its connection. */
+  format(tabId?: string): void;
   /** Replaces a tab's model after its file changed on disk (git sync). */
   replaceContent(tabId: string, content: string): void;
   focus(): void;
@@ -35,6 +37,9 @@ export class EditorBridge {
   }
   public insert(text: string) {
     this.editorHandle?.insert(text);
+  }
+  public format(tabId?: string) {
+    this.editorHandle?.format(tabId);
   }
   public replaceContent(tabId: string, content: string) {
     this.editorHandle?.replaceContent(tabId, content);

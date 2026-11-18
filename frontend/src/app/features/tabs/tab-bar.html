@@ -75,6 +75,9 @@
   >
     <button class="menu-item" (click)="runMenuAction('rename')">Rename</button>
     @if (menuPosition.tab.kind === 'sql') {
+      <button class="menu-item" (click)="runMenuAction('format')">
+        Format SQL<span class="hint">{{ modifierKey }}⇧F</span>
+      </button>
       <button class="menu-item" (click)="runMenuAction('save')">
         Save<span class="hint">{{ modifierKey }}S</span>
       </button>

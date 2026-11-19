@@ -20,6 +20,21 @@ import (
 
 const DefaultMaxRows = 1000
 
+// TxIdleTimeout is how long a manual transaction may stay untouched before it
+// is rolled back: an open transaction keeps locks and can block other sessions.
+const TxIdleTimeout = 10 * time.Minute
+
+// txReapInterval is how often open transactions are checked for inactivity.
+const txReapInterval = 30 * time.Second
+
+// TxExpired describes a manual transaction rolled back for inactivity.
+type TxExpired struct {
+	TabID      string `json:"tabId"`
+	Statements int    `json:"statements"`
+	StartedAt  int64  `json:"startedAt"` // unix ms
+	TimeoutMs  int64  `json:"timeoutMs"`
+}
+
 type ExecRequest struct {
 	TabID  string `json:"tabId"`
 	ConnID string `json:"connId"`
@@ -113,6 +128,7 @@ type session struct {
 	tx           *sql.Tx
 	txStatements int
 	txSince      time.Time
+	txLastUsed   time.Time
 }
 
 func (tabSession *session) txStatus() TxStatus {
@@ -133,6 +149,7 @@ func (tabSession *session) beginTx() error {
 		return err
 	}
 	tabSession.tx, tabSession.txStatements, tabSession.txSince = tx, 0, time.Now()
+	tabSession.txLastUsed = tabSession.txSince
 	return nil
 }
 
@@ -146,8 +163,30 @@ func (tabSession *session) endTx(commit bool) error {
 	} else {
 		err = tabSession.tx.Rollback()
 	}
-	tabSession.tx = nil
+	tabSession.tx, tabSession.txStatements = nil, 0
+	tabSession.txSince, tabSession.txLastUsed = time.Time{}, time.Time{}
 	return err
+}
+
+// expireIdleTx rolls back a transaction left untouched for longer than timeout.
+// It returns what was rolled back when the transaction expired.
+func (tabSession *session) expireIdleTx(timeout time.Duration) *TxExpired {
+	if tabSession.tx == nil || timeout <= 0 || time.Since(tabSession.txLastUsed) < timeout {
+		return nil
+	}
+	expired := &TxExpired{
+		Statements: tabSession.txStatements,
+		StartedAt:  tabSession.txSince.UnixMilli(),
+		TimeoutMs:  timeout.Milliseconds(),
+	}
+	tabSession.closeCursor() // an open result set would block the rollback
+	if err := tabSession.tx.Rollback(); err != nil {
+		tabSession.reset() // the connection may be gone: start the next run clean
+	} else {
+		tabSession.tx, tabSession.txStatements = nil, 0
+		tabSession.txSince, tabSession.txLastUsed = time.Time{}, time.Time{}
+	}
+	return expired
 }
 
 // reset discards the database session (and any transaction on it).
@@ -155,7 +194,8 @@ func (tabSession *session) reset() {
 	tabSession.closeCursor()
 	if tabSession.tx != nil {
 		tabSession.tx.Rollback()
-		tabSession.tx = nil
+		tabSession.tx, tabSession.txStatements = nil, 0
+		tabSession.txSince, tabSession.txLastUsed = time.Time{}, time.Time{}
 	}
 	if tabSession.connection != nil {
 		tabSession.connection.Close()
@@ -177,10 +217,79 @@ type Executor struct {
 	mu           sync.Mutex
 	tabs         map[string]*session
 	counter      atomic.Int64
+	idleTimeout  time.Duration
+	onTxExpired  func(TxExpired)
+	stop         chan struct{}
+	stopOnce     sync.Once
 }
 
 func NewExecutor(connections *conn.Manager, historyStore *history.Store) *Executor {
-	return &Executor{connections: connections, historyStore: historyStore, tabs: map[string]*session{}}
+	executor := &Executor{
+		connections:  connections,
+		historyStore: historyStore,
+		tabs:         map[string]*session{},
+		idleTimeout:  TxIdleTimeout,
+		stop:         make(chan struct{}),
+	}
+	go executor.reapTransactions()
+	return executor
+}
+
+// Close stops the transaction reaper. Open transactions are rolled back by
+// CloseAll / CloseTab.
+func (e *Executor) Close() {
+	e.stopOnce.Do(func() { close(e.stop) })
+}
+
+// SetTxExpiredHandler registers what to do when a transaction is rolled back
+// for inactivity (the app emits it to the frontend).
+func (e *Executor) SetTxExpiredHandler(handler func(TxExpired)) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.onTxExpired = handler
+}
+
+func (e *Executor) reapTransactions() {
+	ticker := time.NewTicker(txReapInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			e.expireIdleTransactions()
+		case <-e.stop:
+			return
+		}
+	}
+}
+
+// expireIdleTransactions rolls back the transactions left untouched for longer
+// than the executor's timeout.
+func (e *Executor) expireIdleTransactions() {
+	e.mu.Lock()
+	candidates := make(map[string]*session, len(e.tabs))
+	for tabID, tabSession := range e.tabs {
+		candidates[tabID] = tabSession
+	}
+	e.mu.Unlock()
+
+	for tabID, tabSession := range candidates {
+		if !tabSession.busy.TryLock() {
+			continue // a statement is running; the next tick will check again
+		}
+		expired := tabSession.expireIdleTx(e.idleTimeout)
+		tabSession.busy.Unlock()
+		if expired == nil {
+			continue
+		}
+		expired.TabID = tabID
+		e.mu.Lock()
+		handler := e.onTxExpired
+		live := e.tabs[tabID] == tabSession
+		e.mu.Unlock()
+		if live && handler != nil {
+			handler(*expired)
+		}
+	}
 }
 
 func (e *Executor) newID() string { return "r" + strconv.FormatInt(e.counter.Add(1), 36) }
@@ -370,6 +479,9 @@ func (e *Executor) Execute(request ExecRequest) (*ExecResponse, error) {
 			tabSession.txStatements++
 		}
 		result, resultCursor = e.runOne(ctx, queryRunner, dialect, statement.Text, maxRows, last)
+		if manual && tabSession.tx != nil {
+			tabSession.txLastUsed = time.Now()
+		}
 		result.DurationMs = time.Since(start).Milliseconds()
 		result.End = end
 		response.Results = append(response.Results, result)
@@ -527,11 +639,13 @@ func (e *Executor) WithSession(ctx context.Context, tabID, connID, database stri
 			return tabSession.txStatus(), err
 		}
 		tabSession.txStatements += statementCount
+		tabSession.txLastUsed = time.Now()
 	case manual && tabSession.tx != nil:
 		// Reads go through the open transaction so they see its changes.
 		if _, err := operation(ctx, opened, tabSession.tx); err != nil {
 			return tabSession.txStatus(), err
 		}
+		tabSession.txLastUsed = time.Now()
 	case write:
 		tx, err := tabSession.connection.BeginTx(ctx, nil)
 		if err != nil {

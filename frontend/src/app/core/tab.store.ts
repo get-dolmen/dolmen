@@ -9,13 +9,15 @@ export interface EditorTab {
   connId: string;
   /** another database of the connection's server (Postgres); '' = the connection's own */
   database: string;
-  /** 'sql' = scratch file; 'table' = data editor for `table` */
-  kind: 'sql' | 'table';
+  /** 'sql' = scratch file; 'table' = data editor for `table`; 'diagram' = the schema's tables and foreign keys */
+  kind: 'sql' | 'table' | 'diagram';
   /** 'manual' keeps a transaction open across runs until Commit / Rollback */
   txMode: TxMode;
   /** SQL tabs: pins the connection and database so they cannot be switched by accident. */
   locked: boolean;
   table?: { schema: string; name: string; type: string };
+  /** diagram tabs: the schema whose tables and foreign keys are shown */
+  diagram?: { schema: string };
   content: string;
   /** content changed and not yet written to disk */
   dirty: boolean;
@@ -51,13 +53,14 @@ export class TabStore {
           database: tab.database ?? '',
           content: tab.content ?? '',
           dirty: false,
-          kind: tab.kind === 'table' ? 'table' : 'sql',
+          kind: tab.kind === 'table' ? 'table' : tab.kind === 'diagram' ? 'diagram' : 'sql',
           txMode: tab.txMode === 'manual' ? 'manual' : 'auto',
           locked: !!tab.locked,
           table:
             tab.kind === 'table'
               ? { schema: tab.schema ?? '', name: tab.table ?? '', type: tab.tableType ?? 'table' }
               : undefined,
+          diagram: tab.kind === 'diagram' ? { schema: tab.schema ?? '' } : undefined,
         })),
       );
       this.activeId.set(
@@ -132,6 +135,22 @@ export class TabStore {
       txMode: 'auto',
       locked: false,
       table,
+      content: '',
+      dirty: false,
+    });
+  }
+
+  /** Opens a diagram tab: the tables of a schema and their foreign-key links. */
+  public createDiagram(connId: string, database: string, schema: string): EditorTab {
+    return this.insert({
+      id: crypto.randomUUID(),
+      name: `${schema} diagram`,
+      connId,
+      database,
+      kind: 'diagram',
+      txMode: 'auto',
+      locked: false,
+      diagram: { schema },
       content: '',
       dirty: false,
     });
@@ -323,8 +342,8 @@ export class TabStore {
         name: tab.name,
         connId: tab.connId,
         database: tab.database || undefined,
-        kind: tab.kind === 'table' ? ('table' as const) : undefined,
-        schema: tab.table?.schema,
+        kind: tab.kind === 'sql' ? undefined : tab.kind,
+        schema: tab.table?.schema ?? tab.diagram?.schema,
         table: tab.table?.name,
         tableType: tab.table?.type,
         txMode: tab.txMode === 'manual' ? ('manual' as const) : undefined,

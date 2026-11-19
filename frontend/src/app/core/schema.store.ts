@@ -2,7 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { Api, errorText } from './api';
 import { ConnectionStore } from './connection.store';
 import { Toasts } from './toast';
-import type { DbColumn, DbTable } from './models';
+import type { DbColumn, DbForeignKey, DbTable } from './models';
 
 export interface ConnectionSchema {
   loaded: boolean;
@@ -12,6 +12,8 @@ export interface ConnectionSchema {
   tables: Record<string, DbTable[]>;
   /** "schema.table" -> columns, filled lazily */
   columns: Record<string, DbColumn[]>;
+  /** schema -> foreign keys of every table, filled lazily */
+  foreignKeys: Record<string, DbForeignKey[]>;
   /** schemas whose full column list was loaded (for autocomplete) */
   fullColumns: Record<string, boolean>;
 }
@@ -156,8 +158,23 @@ export class SchemaStore {
     });
   }
 
-  /** Loads every column of a schema in one query (used by autocomplete). */
-  public loadAllColumns(scope: string, schema: string): Promise<unknown> {
+  /** Loads the foreign keys of every table in a schema (used by the diagram). */
+  public loadForeignKeys(scope: string, schema: string): Promise<unknown> {
+    if (this.get(scope)?.foreignKeys[schema]) return Promise.resolve();
+    const { connId, database } = parseConnectionScope(scope);
+    return this.once(`${scope}|fks|${schema}`, async () => {
+      const foreignKeys = await this.api.listForeignKeys(connId, database, schema);
+      this.update(scope, (cached) => ({
+        ...cached,
+        foreignKeys: { ...cached.foreignKeys, [schema]: foreignKeys },
+      }));
+    });
+  }
+
+  /** Loads every column of a schema in one query (used by autocomplete). */ public loadAllColumns(
+    scope: string,
+    schema: string,
+  ): Promise<unknown> {
     if (this.get(scope)?.fullColumns[schema]) return Promise.resolve();
     const { connId, database } = parseConnectionScope(scope);
     return this.once(`${scope}|allcols|${schema}`, async () => {
@@ -212,6 +229,7 @@ export class SchemaStore {
       defaultSchema: '',
       tables: {},
       columns: {},
+      foreignKeys: {},
       fullColumns: {},
     };
     this.schemasByScope.set({ ...this.schemasByScope(), [scope]: transform(current) });

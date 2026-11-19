@@ -33,7 +33,8 @@ type Tab struct {
 	ConnID string `json:"connId"`
 	// Database is another database of the connection's server (Postgres); "" = the connection's own.
 	Database string `json:"database,omitempty"`
-	// Kind is "sql" (scratch file, the default) or "table" (data editor for Schema.Table).
+	// Kind is "sql" (scratch file, the default), "table" (data editor for
+	// Schema.Table) or "diagram" (the schema's table and foreign-key overview).
 	Kind      string `json:"kind,omitempty"`
 	Schema    string `json:"schema,omitempty"`
 	Table     string `json:"table,omitempty"`
@@ -196,7 +197,7 @@ func (s *Store) Load() (Workspace, error) {
 	}
 	tabs := workspace.Tabs[:0]
 	for _, tab := range workspace.Tabs {
-		if tab.Kind != "table" {
+		if tab.Kind == "" || tab.Kind == "sql" {
 			record := s.index[tab.ID]
 			if record == nil {
 				continue // its scratch was deleted
@@ -226,7 +227,7 @@ func (s *Store) SaveLayout(workspace Workspace) error {
 			return err
 		}
 		tab.Content = ""
-		if tab.Kind != "table" {
+		if tab.Kind == "" || tab.Kind == "sql" {
 			record := s.index[tab.ID]
 			if record == nil {
 				// A new scratch is pinned to the link it was created with; only a
@@ -511,8 +512,15 @@ func (s *Store) Delete(id string) error {
 	return s.writeIndex()
 }
 
-// IsBlank reports whether a scratch is empty (only whitespace).
+// IsBlank reports whether a scratch is empty (only whitespace). Tabs without a
+// scratch file (data editors, diagrams) are never blank scratches.
 func (s *Store) IsBlank(id string) bool {
+	s.mu.Lock()
+	_, tracked := s.index[id]
+	s.mu.Unlock()
+	if !tracked {
+		return false
+	}
 	path, err := s.filePath(id)
 	if err != nil {
 		return false

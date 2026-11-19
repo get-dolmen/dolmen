@@ -179,6 +179,16 @@ export class Commands {
           run: () => void this.schemaStore.refresh(connection.id),
         },
       );
+      const diagramSchema = active
+        ? (active.diagram?.schema ??
+          this.schemaStore.defaultSchemaFor(active.connId, active.database))
+        : undefined;
+      if (active && diagramSchema)
+        commands.push({
+          id: 'open-diagram',
+          label: `Table diagram of ${diagramSchema}`,
+          run: () => this.openDiagram(active.connId, diagramSchema, active.database),
+        });
     }
     return commands;
   }
@@ -236,6 +246,21 @@ export class Commands {
       type: table.type,
     });
   }
+  /** Opens (or focuses) the macro view of a schema: its tables and their foreign keys. */
+  public openDiagram(connectionId: string, schema: string, database = '') {
+    const existing = this.tabStore
+      .tabs()
+      .find(
+        (tab) =>
+          tab.kind === 'diagram' &&
+          tab.connId === connectionId &&
+          (tab.database || '') === (database || '') &&
+          tab.diagram?.schema === schema,
+      );
+    if (existing) return this.tabStore.activate(existing.id);
+    this.tabStore.createDiagram(connectionId, database, schema);
+  }
+
   public cancel() {
     this.runStore.cancel();
   }

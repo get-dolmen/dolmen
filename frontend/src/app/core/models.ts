@@ -63,6 +63,16 @@ export interface DbColumn {
   nullable: boolean;
   pk: boolean;
 }
+/** One column of a foreign key: `table.column` references `refSchema.refTable.refColumn`. */
+export interface DbForeignKey {
+  constraint?: string;
+  schema: string;
+  table: string;
+  column: string;
+  refSchema: string;
+  refTable: string;
+  refColumn: string;
+}
 export interface SchemaList {
   schemas: string[];
   default: string;
@@ -119,7 +129,7 @@ export interface TabState {
   connId: string;
   database?: string;
   content?: string;
-  kind?: 'sql' | 'table';
+  kind?: 'sql' | 'table' | 'diagram';
   schema?: string;
   table?: string;
   tableType?: string;

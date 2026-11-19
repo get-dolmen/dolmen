@@ -19,6 +19,8 @@ const PATHS: Record<string, string> = {
   sort: 'M3 4h10M3 8h7M3 12h4',
   key: 'M10 9.5a3.5 3.5 0 1 0-3.4-2.7L2 11.4V14h2.6v-1.5h1.5V11h1.5l1-1a3.5 3.5 0 0 0 1.4.5ZM10.8 5.2h.01',
   table: 'M2 3h12v10H2zM2 6.5h12M2 10h12M6.5 6.5V13',
+  diagram:
+    'M2.5 2.5h3.5v3H2.5zM10 2.5h3.5v3H10zM6.25 10.5H9.75v3H6.25zM4.25 5.5v2.5h7.5V5.5M8 8v2.5',
   column: 'M3 2.5h10v11H3zM3 6h10',
   x: 'M4 4l8 8M12 4l-8 8',
   arrowUp: 'M8 13V3M4.5 6.5 8 3l3.5 3.5',

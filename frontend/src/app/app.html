@@ -14,7 +14,7 @@
   <section class="work" [class.ro]="readOnly()">
     <dm-tab-bar />
     <!-- SQL tabs share one editor; it stays mounted (hidden) while a data tab is active. -->
-    <div class="sql" #work [hidden]="!tabStore.active() || tabStore.active()?.kind === 'table'">
+    <div class="sql" #work [hidden]="tabStore.active()?.kind !== 'sql'">
       <!-- Inline mode shows results inside the editor, so it takes the whole height. -->
       <dm-sql-editor
         class="editor"
@@ -46,6 +46,14 @@
     <!-- One data editor per table tab, kept alive so pending edits survive tab switches. -->
     @for (tableTab of tableTabs(); track tableTab.id) {
       <dm-table-data class="data" [tab]="tableTab" [hidden]="tableTab.id !== tabStore.activeId()" />
+    }
+    <!-- One diagram per schema, also kept alive so its pan and zoom survive tab switches. -->
+    @for (diagramTab of diagramTabs(); track diagramTab.id) {
+      <dm-schema-diagram
+        class="diagram"
+        [tab]="diagramTab"
+        [hidden]="diagramTab.id !== tabStore.activeId()"
+      />
     }
   </section>
   @if (uiState.sidebarOpen()) {

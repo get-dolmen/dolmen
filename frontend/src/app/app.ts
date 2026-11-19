@@ -4,6 +4,7 @@ import { ConnectionStore } from './core/connection.store';
 import { Hotkeys } from './core/hotkeys';
 import { TabStore } from './core/tab.store';
 import { Ui } from './core/ui';
+import { SchemaDiagram } from './features/diagram/schema-diagram';
 import { SqlEditor } from './features/editor/sql-editor';
 import { Palette } from './features/palette/palette';
 import { ResultsPanelComponent } from './features/results/results-panel';
@@ -26,6 +27,7 @@ import { Topbar } from './features/topbar/topbar';
     Statusbar,
     Palette,
     TableData,
+    SchemaDiagram,
   ],
   templateUrl: './app.html',
   styleUrl: './app.scss',
@@ -39,6 +41,9 @@ export class App {
 
   public readonly tableTabs = computed(() =>
     this.tabStore.tabs().filter((tab) => tab.kind === 'table'),
+  );
+  public readonly diagramTabs = computed(() =>
+    this.tabStore.tabs().filter((tab) => tab.kind === 'diagram'),
   );
   public readonly readOnly = computed(
     () => !!this.connectionStore.get(this.tabStore.active()?.connId)?.readOnly,

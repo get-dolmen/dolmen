@@ -5,6 +5,7 @@ import type {
   ConnectionFolder,
   ConnectionView,
   DbColumn,
+  DbForeignKey,
   DbTable,
   ExecResponse,
   FetchResult,
@@ -54,6 +55,8 @@ export class Api {
     App.ListTables(connectionId, database, schema) as Promise<DbTable[]>;
   public listColumns = (connectionId: string, database: string, schema: string, table = '') =>
     App.ListColumns(connectionId, database, schema, table) as Promise<DbColumn[]>;
+  public listForeignKeys = (connectionId: string, database: string, schema: string) =>
+    App.ListForeignKeys(connectionId, database, schema) as Promise<DbForeignKey[]>;
   public tableDDL = (
     connectionId: string,
     database: string,

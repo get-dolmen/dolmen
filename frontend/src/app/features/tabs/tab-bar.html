@@ -25,6 +25,8 @@
           <span class="spin" aria-label="Running"></span>
         } @else if (tab.kind === 'table') {
           <span class="tbl" aria-hidden="true">▦</span>
+        } @else if (tab.kind === 'diagram') {
+          <dm-icon class="tbl" name="diagram" [size]="12" />
         }
         @if (editingTabId() === tab.id) {
           <input
@@ -154,64 +156,66 @@
 }
 @if (activeTab(); as tab) {
   <div class="actions" role="toolbar" aria-label="Tab actions">
-    @if (isRunning(tab)) {
-      <button class="btn danger sm" (click)="commandService.cancel()" title="Cancel (Esc)">
-        ■ Stop
-      </button>
-    } @else {
-      <button
-        class="btn primary sm run"
-        (click)="commandService.run()"
-        [title]="'Run statement at cursor (' + modifierKey + '↵)'"
-      >
-        ▶ Run
-      </button>
-      <button
-        class="btn sm"
-        (click)="commandService.runAll()"
-        [title]="'Run whole script (' + modifierKey + '⇧↵)'"
-      >
-        Run all
-      </button>
-    }
-    <span class="vsep"></span>
-    @if (!readOnly()) {
-      <button
-        class="txmode"
-        (click)="openTransactionMenu($event)"
-        [class.manual]="tab.txMode === 'manual'"
-        title="Transaction mode for this tab"
-      >
-        Tx: {{ tab.txMode === 'manual' ? 'Manual' : 'Auto' }} <span class="caret">▾</span>
-      </button>
-      @if (transactionState().open) {
-        <span class="txopen" [title]="'Transaction open since ' + startedAtLabel()">
-          <span class="pulse"></span>{{ transactionState().statements }}
-        </span>
-        <button class="btn sm" (click)="transactionStore.commit()" title="Commit the transaction">
-          ✓ Commit
+    @if (tab.kind !== 'diagram') {
+      @if (isRunning(tab)) {
+        <button class="btn danger sm" (click)="commandService.cancel()" title="Cancel (Esc)">
+          ■ Stop
+        </button>
+      } @else {
+        <button
+          class="btn primary sm run"
+          (click)="commandService.run()"
+          [title]="'Run statement at cursor (' + modifierKey + '↵)'"
+        >
+          ▶ Run
         </button>
         <button
           class="btn sm"
-          (click)="transactionStore.rollback()"
-          title="Roll back the transaction"
+          (click)="commandService.runAll()"
+          [title]="'Run whole script (' + modifierKey + '⇧↵)'"
         >
-          ↶ Rollback
+          Run all
         </button>
       }
+      <span class="vsep"></span>
+      @if (!readOnly()) {
+        <button
+          class="txmode"
+          (click)="openTransactionMenu($event)"
+          [class.manual]="tab.txMode === 'manual'"
+          title="Transaction mode for this tab"
+        >
+          Tx: {{ tab.txMode === 'manual' ? 'Manual' : 'Auto' }} <span class="caret">▾</span>
+        </button>
+        @if (transactionState().open) {
+          <span class="txopen" [title]="'Transaction open since ' + startedAtLabel()">
+            <span class="pulse"></span>{{ transactionState().statements }}
+          </span>
+          <button class="btn sm" (click)="transactionStore.commit()" title="Commit the transaction">
+            ✓ Commit
+          </button>
+          <button
+            class="btn sm"
+            (click)="transactionStore.rollback()"
+            title="Roll back the transaction"
+          >
+            ↶ Rollback
+          </button>
+        }
+      }
+      <button
+        class="txmode"
+        (click)="uiState.inlineResults.set(!uiState.inlineResults())"
+        [attr.aria-pressed]="uiState.inlineResults()"
+        [title]="
+          uiState.inlineResults()
+            ? 'Results show under each statement. Click to use the bottom panel.'
+            : 'Results show in the bottom panel. Click to show them under each statement.'
+        "
+      >
+        Results: {{ uiState.inlineResults() ? 'Inline' : 'Panel' }}
+      </button>
     }
-    <button
-      class="txmode"
-      (click)="uiState.inlineResults.set(!uiState.inlineResults())"
-      [attr.aria-pressed]="uiState.inlineResults()"
-      [title]="
-        uiState.inlineResults()
-          ? 'Results show under each statement. Click to use the bottom panel.'
-          : 'Results show in the bottom panel. Click to show them under each statement.'
-      "
-    >
-      Results: {{ uiState.inlineResults() ? 'Inline' : 'Panel' }}
-    </button>
     @if (tab.kind === 'sql') {
       <span class="spacer"></span>
       @if (showDatabasePicker()) {

@@ -1,0 +1,101 @@
+<div class="toolbar" role="toolbar" aria-label="Table diagram">
+  <span class="title"><dm-icon name="diagram" [size]="14" /> {{ schema() }}</span>
+  <span class="count"
+    >{{ scene().boxes.length }} table{{ scene().boxes.length === 1 ? '' : 's' }}</span
+  >
+  @if (loading()) {
+    <span class="spin" aria-label="Loading"></span>
+  }
+  <span class="spacer"></span>
+  <button
+    class="ib"
+    [class.on]="showAllColumns()"
+    (click)="toggleColumns()"
+    [title]="showAllColumns() ? 'Show key columns only' : 'Show every column'"
+    aria-label="Toggle all columns"
+  >
+    <dm-icon name="eye" />
+  </button>
+  <button class="ib" (click)="reload()" title="Reload the schema" aria-label="Reload">
+    <dm-icon name="refresh" />
+  </button>
+  <span class="vsep"></span>
+  <button class="ib" (click)="zoomBy(0.9)" title="Zoom out" aria-label="Zoom out">
+    <dm-icon name="minus" />
+  </button>
+  <button class="ib" (click)="zoomBy(1.1)" title="Zoom in" aria-label="Zoom in">
+    <dm-icon name="plus" />
+  </button>
+  <button class="ib wide" (click)="fit()" title="Fit the diagram to the view">Fit</button>
+</div>
+<div class="canvas-wrap">
+  <svg
+    #viewport
+    class="canvas"
+    (pointerdown)="startPan($event)"
+    (pointermove)="onPointerMove($event)"
+    (pointerup)="endDrag()"
+    (pointercancel)="endDrag()"
+    (pointerleave)="endDrag()"
+    (wheel)="onWheel($event)"
+  >
+    <defs>
+      <marker
+        id="dm-diagram-arrow"
+        viewBox="0 0 10 10"
+        refX="9"
+        refY="5"
+        markerWidth="7"
+        markerHeight="7"
+        markerUnits="userSpaceOnUse"
+        orient="auto-start-reverse"
+      >
+        <path d="M 0 0 L 10 5 L 0 10 z" />
+      </marker>
+    </defs>
+    <g [attr.transform]="'translate(' + pan().x + ',' + pan().y + ') scale(' + zoom() + ')'">
+      @for (edge of scene().edges; track edge.key) {
+        <path class="edge" [attr.d]="edge.path" marker-end="url(#dm-diagram-arrow)">
+          <title>{{ edge.title }}</title>
+        </path>
+      }
+      @for (box of scene().boxes; track box.key) {
+        <g
+          class="table"
+          [attr.transform]="'translate(' + box.x + ',' + box.y + ')'"
+          (pointerdown)="startNodeDrag($event, box)"
+          (dblclick)="openTable(box)"
+        >
+          <title>{{ box.name }} — double-click to open its data</title>
+          <rect class="box" [attr.width]="box.width" [attr.height]="box.height" rx="7" />
+          <rect class="box-head" [attr.width]="box.width" height="32" rx="7" />
+          <line class="sep" x1="0" y1="32" y2="32" [attr.x2]="box.width" />
+          <text class="box-name" x="12" y="21">{{ shortName(box.name) }}</text>
+          <text class="box-kind" [attr.x]="box.width - 12" y="21" text-anchor="end">
+            {{ box.type === 'view' ? 'view' : 'table' }}
+          </text>
+          @for (column of box.columns; track column.name; let index = $index) {
+            <text
+              class="col"
+              [class.key]="column.key"
+              [class.pk]="column.pk"
+              x="12"
+              [attr.y]="38 + index * 20 + 14"
+            >
+              <tspan class="glyph">{{ column.pk ? '⚿' : column.key ? '↗' : '·' }}</tspan>
+              {{ shortColumn(column.name) }}
+            </text>
+          }
+          @if (box.hiddenColumns) {
+            <text class="col more" x="12" [attr.y]="38 + box.columns.length * 20 + 14">
+              +{{ box.hiddenColumns }} column{{ box.hiddenColumns === 1 ? '' : 's' }}
+            </text>
+          }
+        </g>
+      }
+    </g>
+  </svg>
+  @if (!scene().boxes.length && !loading()) {
+    <p class="empty">No table in this schema.</p>
+  }
+</div>

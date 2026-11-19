@@ -1,0 +1,164 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg);
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 38px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  flex: none;
+}
+.title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+  color: var(--text);
+  font-weight: 600;
+}
+.count {
+  padding-left: 4px;
+  color: var(--text-faint);
+  font-size: var(--fs-sm);
+}
+.spacer {
+  flex: 1;
+}
+.vsep {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--border);
+}
+.ib {
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.ib:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.ib.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.ib.wide {
+  padding: 0 10px;
+}
+.canvas-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.canvas:active {
+  cursor: grabbing;
+}
+.edge {
+  fill: none;
+  stroke: var(--border-strong);
+  stroke-width: 1.4;
+}
+marker path {
+  fill: var(--border-strong);
+}
+.table {
+  cursor: pointer;
+}
+.table:active {
+  cursor: grabbing;
+}
+.box {
+  fill: var(--bg-panel);
+  stroke: var(--border-strong);
+  stroke-width: 1.2;
+}
+.table:hover .box {
+  stroke: var(--accent);
+}
+.box-head {
+  fill: var(--bg-sunken);
+  stroke: none;
+}
+.sep {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.box-name {
+  fill: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+}
+.box-kind {
+  fill: var(--text-faint);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.col {
+  fill: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.col.key {
+  fill: var(--text);
+}
+.col.pk {
+  font-weight: 600;
+}
+.col .glyph {
+  fill: var(--text-faint);
+}
+.col.pk .glyph {
+  fill: var(--accent);
+}
+.col.more {
+  fill: var(--text-faint);
+  font-style: italic;
+}
+.empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.spin {
+  width: 10px;
+  height: 10px;
+  margin-left: 8px;
+  border: 1.5px solid var(--accent-soft);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -175,6 +175,15 @@
           [class.sel]="selectedKey() === row.key"
           (click)="toggle(row)"
           (focus)="selectedKey.set(row.key)"
+          (contextmenu)="
+            openContextMenu($event, {
+              kind: 'schema',
+              schema: row.schema,
+              connId: row.connId,
+              database: row.database,
+              scope: row.scope,
+            })
+          "
         >
           <span class="chev" [class.open]="row.open">›</span>
           <span class="icon schema" aria-hidden="true">◫</span>
@@ -299,6 +308,12 @@
         <button class="menu-item danger" (click)="runMenuAction('drop')">
           Drop {{ menuPosition.table.type === 'view' ? 'view' : 'table' }}…
         </button>
+      }
+      @case ('schema') {
+        <button class="menu-item" (click)="runMenuAction('diagram')">
+          Open table diagram<span class="hint">FK</span>
+        </button>
+        <button class="menu-item" (click)="runMenuAction('refresh')">Refresh</button>
       }
       @case ('db') {
         <button class="menu-item" (click)="runMenuAction('newtab')">

@@ -80,6 +80,7 @@ type MenuTarget =
   | { kind: 'folder'; folder: ConnectionFolder }
   | { kind: 'conn'; connection: ConnectionView }
   | ({ kind: 'db' } & NodePlace)
+  | ({ kind: 'schema'; schema: string } & NodePlace)
   | ({ kind: 'table'; table: DbTable } & NodePlace);
 
 type ContextMenu = MenuTarget & { x: number; y: number };
@@ -575,6 +576,14 @@ export class SchemaSidebar {
         }
         return;
       }
+      case 'schema':
+        switch (action) {
+          case 'diagram':
+            return this.commandService.openDiagram(menu.connId, menu.schema, menu.database);
+          case 'refresh':
+            return void this.schemaStore.refreshScope(menu.scope);
+        }
+        return;
       case 'db': {
         const databaseName =
           menu.database || this.schemaStore.databases()[menu.connId]?.current || '';

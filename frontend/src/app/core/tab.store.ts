@@ -15,6 +15,8 @@ export interface EditorTab {
   txMode: TxMode;
   /** SQL tabs: pins the connection and database so they cannot be switched by accident. */
   locked: boolean;
+  /** Keeps the tab at the front of the tab bar. */
+  pinned: boolean;
   table?: { schema: string; name: string; type: string };
   /** diagram tabs: the schema whose tables and foreign keys are shown */
   diagram?: { schema: string };
@@ -45,24 +47,25 @@ export class TabStore {
   public async load() {
     try {
       const workspace = await this.api.loadWorkspace();
-      this.tabs.set(
-        workspace.tabs.map((tab) => ({
-          id: tab.id,
-          name: tab.name,
-          connId: tab.connId,
-          database: tab.database ?? '',
-          content: tab.content ?? '',
-          dirty: false,
-          kind: tab.kind === 'table' ? 'table' : tab.kind === 'diagram' ? 'diagram' : 'sql',
-          txMode: tab.txMode === 'manual' ? 'manual' : 'auto',
-          locked: !!tab.locked,
-          table:
-            tab.kind === 'table'
-              ? { schema: tab.schema ?? '', name: tab.table ?? '', type: tab.tableType ?? 'table' }
-              : undefined,
-          diagram: tab.kind === 'diagram' ? { schema: tab.schema ?? '' } : undefined,
-        })),
-      );
+      const tabs: EditorTab[] = workspace.tabs.map((tab) => ({
+        id: tab.id,
+        name: tab.name,
+        connId: tab.connId,
+        database: tab.database ?? '',
+        content: tab.content ?? '',
+        dirty: false,
+        kind: tab.kind === 'table' ? 'table' : tab.kind === 'diagram' ? 'diagram' : 'sql',
+        txMode: tab.txMode === 'manual' ? 'manual' : 'auto',
+        locked: !!tab.locked,
+        pinned: !!tab.pinned,
+        table:
+          tab.kind === 'table'
+            ? { schema: tab.schema ?? '', name: tab.table ?? '', type: tab.tableType ?? 'table' }
+            : undefined,
+        diagram: tab.kind === 'diagram' ? { schema: tab.schema ?? '' } : undefined,
+      }));
+      // Pinned tabs always sit first; the sort is stable, so each group keeps its order.
+      this.tabs.set(tabs.sort((a, b) => Number(b.pinned) - Number(a.pinned)));
       this.activeId.set(
         workspace.tabs.some((tab) => tab.id === workspace.activeId)
           ? workspace.activeId
@@ -88,6 +91,7 @@ export class TabStore {
       kind: 'sql',
       txMode: 'auto',
       locked: !!connId,
+      pinned: false,
       content,
       dirty: !!content,
     });
@@ -104,6 +108,7 @@ export class TabStore {
         kind: 'sql',
         txMode: 'auto',
         locked: !!tab.locked,
+        pinned: false,
         content: tab.content ?? '',
         dirty: false,
       },
@@ -134,6 +139,7 @@ export class TabStore {
       kind: 'table',
       txMode: 'auto',
       locked: false,
+      pinned: false,
       table,
       content: '',
       dirty: false,
@@ -150,6 +156,7 @@ export class TabStore {
       kind: 'diagram',
       txMode: 'auto',
       locked: false,
+      pinned: false,
       diagram: { schema },
       content: '',
       dirty: false,
@@ -158,8 +165,12 @@ export class TabStore {
 
   private insert(tab: EditorTab, save = true): EditorTab {
     const content = save ? tab.content : '';
-    const insertionIndex = this.tabs().findIndex((tab) => tab.id === this.activeId());
-    const nextTabs = [...this.tabs()];
+    const tabs = this.tabs();
+    const activeIndex = tabs.findIndex((candidate) => candidate.id === this.activeId());
+    const pinnedCount = tabs.filter((candidate) => candidate.pinned).length;
+    // New tabs are never pinned: keep them after the pinned group.
+    const insertionIndex = Math.max(activeIndex, pinnedCount - 1);
+    const nextTabs = [...tabs];
     nextTabs.splice(insertionIndex + 1, 0, tab);
     this.tabs.set(nextTabs);
     this.activeId.set(tab.id);
@@ -215,7 +226,13 @@ export class TabStore {
   public move(fromIndex: number, toIndex: number) {
     const nextTabs = [...this.tabs()];
     const [movedTab] = nextTabs.splice(fromIndex, 1);
-    nextTabs.splice(toIndex, 0, movedTab);
+    if (!movedTab) return;
+    // Pinned tabs stay in front: clamp drops that would cross the group.
+    const pinnedCount = nextTabs.filter((tab) => tab.pinned).length;
+    const target = movedTab.pinned
+      ? Math.min(toIndex, pinnedCount)
+      : Math.max(pinnedCount, Math.min(toIndex, nextTabs.length));
+    nextTabs.splice(target, 0, movedTab);
     this.tabs.set(nextTabs);
     this.saveLayoutSoon();
   }
@@ -230,6 +247,18 @@ export class TabStore {
     if (tab.connId === connectionId && tab.database === database) return;
     this.patch(id, { connId: connectionId, database });
     void this.api.releaseTabSession(id);
+    this.saveLayoutSoon();
+  }
+
+  /** Keeps a tab at the front of the tab bar, or releases it to the other tabs. */
+  public setPinned(id: string, pinned: boolean) {
+    const tabs = this.tabs();
+    const tab = tabs.find((candidate) => candidate.id === id);
+    if (!tab || tab.pinned === pinned) return;
+    const nextTabs = tabs.filter((candidate) => candidate.id !== id);
+    const pinnedCount = nextTabs.filter((candidate) => candidate.pinned).length;
+    nextTabs.splice(pinnedCount, 0, { ...tab, pinned });
+    this.tabs.set(nextTabs);
     this.saveLayoutSoon();
   }
 
@@ -348,6 +377,7 @@ export class TabStore {
         tableType: tab.table?.type,
         txMode: tab.txMode === 'manual' ? ('manual' as const) : undefined,
         locked: tab.locked || undefined,
+        pinned: tab.pinned || undefined,
       })),
     };
     try {

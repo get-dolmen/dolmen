@@ -104,7 +104,8 @@ export class TabBar {
 
   public tooltip(tab: EditorTab) {
     const connection = this.connectionStore.get(tab.connId);
-    return `${tab.name}${connection ? ' · ' + connection.name : ''}\nDouble-click to rename`;
+    const pinned = tab.pinned ? ' · pinned' : '';
+    return `${tab.name}${connection ? ' · ' + connection.name : ''}${pinned}\nDouble-click to rename`;
   }
 
   public renameTab(tab: EditorTab, name: string) {
@@ -129,6 +130,8 @@ export class TabBar {
     if (!menu) return;
     const tabId = menu.tab.id;
     switch (action) {
+      case 'pin':
+        return this.tabStore.setPinned(tabId, !menu.tab.pinned);
       case 'rename':
         return this.editingTabId.set(tabId);
       case 'format':
@@ -144,7 +147,7 @@ export class TabBar {
         return void this.commandService.closeTab(tabId);
       case 'others':
         for (const tab of this.tabStore.tabs())
-          if (tab.id !== tabId) await this.commandService.closeTab(tab.id);
+          if (tab.id !== tabId && !tab.pinned) await this.commandService.closeTab(tab.id);
         return;
       case 'delete':
         return void this.scratchStore.remove(tabId);

@@ -13,14 +13,18 @@
         cdkDrag
         cdkDragLockAxis="x"
         [class.on]="tab.id === tabStore.activeId()"
+        [class.pinned]="tab.pinned"
         [attr.aria-selected]="tab.id === tabStore.activeId()"
         [style.--conn]="connectionColor(tab)"
         (mousedown)="$event.button === 0 && tabStore.activate(tab.id)"
-        (auxclick)="$event.button === 1 && commandService.closeTab(tab.id)"
+        (auxclick)="$event.button === 1 && !tab.pinned && commandService.closeTab(tab.id)"
         (dblclick)="editingTabId.set(tab.id)"
         (contextmenu)="openTabMenu($event, tab)"
         [title]="tooltip(tab)"
       >
+        @if (tab.pinned) {
+          <dm-icon class="pin" name="pin" [size]="11" />
+        }
         @if (isRunning(tab)) {
           <span class="spin" aria-label="Running"></span>
         } @else if (tab.kind === 'table') {
@@ -46,16 +50,18 @@
             }
           </span>
         }
-        <button
-          class="close"
-          [class.dirty]="tab.dirty"
-          (mousedown)="$event.stopPropagation()"
-          (click)="commandService.closeTab(tab.id)"
-          [attr.aria-label]="'Close ' + tab.name"
-          [title]="'Close (' + modifierKey + 'W)'"
-        >
-          <span class="x">×</span><span class="d" aria-hidden="true">●</span>
-        </button>
+        @if (!tab.pinned) {
+          <button
+            class="close"
+            [class.dirty]="tab.dirty"
+            (mousedown)="$event.stopPropagation()"
+            (click)="commandService.closeTab(tab.id)"
+            [attr.aria-label]="'Close ' + tab.name"
+            [title]="'Close (' + modifierKey + 'W)'"
+          >
+            <span class="x">×</span><span class="d" aria-hidden="true">●</span>
+          </button>
+        }
       </div>
     }
   </div>
@@ -75,6 +81,10 @@
     [style.top.px]="menuPosition.y"
     (dmClickOutside)="tabMenu.set(null)"
   >
+    <button class="menu-item" (click)="runMenuAction('pin')">
+      {{ menuPosition.tab.pinned ? 'Unpin tab' : 'Pin tab' }}
+    </button>
+    <div class="menu-sep"></div>
     <button class="menu-item" (click)="runMenuAction('rename')">Rename</button>
     @if (menuPosition.tab.kind === 'sql') {
       <button class="menu-item" (click)="runMenuAction('format')">

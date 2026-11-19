@@ -136,6 +136,8 @@ export interface TabState {
   txMode?: 'manual';
   /** SQL tabs: the connection and database are pinned. */
   locked?: boolean;
+  /** The tab stays at the front of the tab bar. */
+  pinned?: boolean;
 }
 
 export type TxMode = 'auto' | 'manual';

@@ -799,6 +799,7 @@ export namespace scratch {
     tableType?: string;
     txMode?: string;
     locked?: boolean;
+    pinned?: boolean;
     content?: string;
 
     static createFrom(source: any = {}) {
@@ -817,6 +818,7 @@ export namespace scratch {
       this.tableType = source['tableType'];
       this.txMode = source['txMode'];
       this.locked = source['locked'];
+      this.pinned = source['pinned'];
       this.content = source['content'];
     }
   }

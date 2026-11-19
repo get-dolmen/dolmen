@@ -118,6 +118,22 @@ func TestTableLink(t *testing.T) {
 	}
 }
 
+func TestPinnedTabsPersist(t *testing.T) {
+	s, _ := NewStore(t.TempDir())
+	workspace := Workspace{ActiveID: "t", Tabs: []Tab{
+		{ID: "a", Name: "a.sql", ConnID: "c1", Pinned: true},
+		{ID: "t", Kind: "table", Name: "users", Table: "users", Pinned: true},
+		{ID: "b", Name: "b.sql", ConnID: "c1"},
+	}}
+	if err := s.SaveLayout(workspace); err != nil {
+		t.Fatal(err)
+	}
+	ws, _ := s.Load()
+	if len(ws.Tabs) != 3 || !ws.Tabs[0].Pinned || !ws.Tabs[1].Pinned || ws.Tabs[2].Pinned {
+		t.Fatalf("pinned tabs: %+v", ws.Tabs)
+	}
+}
+
 func TestLockPinsLink(t *testing.T) {
 	s, _ := NewStore(t.TempDir())
 	if _, err := s.Create("a", "a.sql", "c1", "db1", "", "", "select 1"); err != nil {

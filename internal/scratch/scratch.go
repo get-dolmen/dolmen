@@ -43,7 +43,9 @@ type Tab struct {
 	TxMode string `json:"txMode,omitempty"`
 	// Locked pins the scratch to its connection, database and folder, so it
 	// cannot be moved or retargeted by accident. New scratches start locked.
-	Locked  bool   `json:"locked,omitempty"`
+	Locked bool `json:"locked,omitempty"`
+	// Pinned keeps the tab at the front of the tab bar.
+	Pinned  bool   `json:"pinned,omitempty"`
 	Content string `json:"content,omitempty"` // not stored in the manifest
 }
 

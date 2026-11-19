@@ -135,6 +135,14 @@ export interface TxStatus {
   startedAt: number;
 }
 
+/** Emitted when a manual transaction is rolled back for inactivity. */
+export interface TxExpiredEvent {
+  tabId: string;
+  statements: number;
+  startedAt: number;
+  timeoutMs: number;
+}
+
 export interface TableColumn {
   name: string;
   type: string;

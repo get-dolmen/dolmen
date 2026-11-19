@@ -1,10 +1,11 @@
 import { Injectable, inject, signal } from '@angular/core';
+import { EventsOn } from '../../../wailsjs/runtime';
 import { Api, errorText } from './api';
 import { TabStore } from './tab.store';
 import { TableBridge } from './table-bridge';
 import { Toasts } from './toast';
 import { Confirm } from '../shared/confirm';
-import type { TxMode, TxStatus } from './models';
+import type { TxExpiredEvent, TxMode, TxStatus } from './models';
 
 const CLOSED: TxStatus = { open: false, statements: 0, startedAt: 0 };
 
@@ -18,6 +19,19 @@ export class TxStore {
   private confirmDialog = inject(Confirm);
 
   public readonly status = signal<Record<string, TxStatus>>({});
+
+  public constructor() {
+    // The backend rolls back transactions left idle: reflect it and explain why.
+    EventsOn('tx:expired', (event: TxExpiredEvent) => {
+      this.set(event.tabId, undefined);
+      this.tables.get(event.tabId)?.refresh();
+      const minutes = Math.round(event.timeoutMs / 60_000);
+      const statements = `${event.statements} statement${event.statements === 1 ? '' : 's'}`;
+      this.toastService.error(
+        `Transaction rolled back after ${minutes} minutes of inactivity (${statements}).`,
+      );
+    });
+  }
 
   public get(tabId: string): TxStatus {
     return this.status()[tabId] ?? CLOSED;

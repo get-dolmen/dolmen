@@ -69,6 +69,9 @@ func (a *App) init() error {
 		return fmt.Errorf("opening history: %w", err)
 	}
 	a.executor = query.NewExecutor(a.connections, a.history)
+	a.executor.SetTxExpiredHandler(func(expired query.TxExpired) {
+		runtime.EventsEmit(a.ctx, "tx:expired", expired)
+	})
 	if a.scratch, err = scratch.NewStore(filepath.Join(dir, "scratch")); err != nil {
 		return err
 	}
@@ -86,6 +89,9 @@ func (a *App) init() error {
 func (a *App) shutdown(context.Context) {
 	if a.mcp != nil {
 		a.mcp.Stop()
+	}
+	if a.executor != nil {
+		a.executor.Close()
 	}
 	if a.connections != nil {
 		a.connections.CloseAll()

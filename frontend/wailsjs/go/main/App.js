@@ -114,6 +114,10 @@ export function ListFolders() {
   return window['go']['main']['App']['ListFolders']();
 }
 
+export function ListForeignKeys(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ListForeignKeys'](arg1, arg2, arg3);
+}
+
 export function ListHistory(arg1, arg2, arg3) {
   return window['go']['main']['App']['ListHistory'](arg1, arg2, arg3);
 }

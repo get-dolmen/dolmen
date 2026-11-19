@@ -61,6 +61,18 @@ type Column struct {
 	PK       bool   `json:"pk"`
 }
 
+// ForeignKey is one column of a foreign-key constraint: Table.Column
+// references RefSchema.RefTable.RefColumn.
+type ForeignKey struct {
+	Constraint string `json:"constraint,omitempty"`
+	Schema     string `json:"schema"`
+	Table      string `json:"table"`
+	Column     string `json:"column"`
+	RefSchema  string `json:"refSchema"`
+	RefTable   string `json:"refTable"`
+	RefColumn  string `json:"refColumn"`
+}
+
 // Driver is implemented once per database engine.
 type Driver interface {
 	Kind() Kind
@@ -88,6 +100,11 @@ type Driver interface {
 type DatabaseLister interface {
 	ListDatabases(ctx context.Context, db *sql.DB) ([]string, error)
 	CurrentDatabase(ctx context.Context, db *sql.DB) (string, error)
+}
+
+// ForeignKeyLister is implemented by every engine: it feeds the table diagram.
+type ForeignKeyLister interface {
+	ListForeignKeys(ctx context.Context, db *sql.DB, schema string) ([]ForeignKey, error)
 }
 
 var registry = map[Kind]Driver{}
@@ -175,6 +192,28 @@ func queryColumns(ctx context.Context, db *sql.DB, query string, arguments ...an
 		columns = append(columns, column)
 	}
 	return columns, rows.Err()
+}
+
+// queryForeignKeys expects rows of
+// (constraint, schema, table, column, refSchema, refTable, refColumn).
+func queryForeignKeys(ctx context.Context, db *sql.DB, query string, arguments ...any) ([]ForeignKey, error) {
+	rows, err := db.QueryContext(ctx, query, arguments...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var foreignKeys []ForeignKey
+	for rows.Next() {
+		var foreignKey ForeignKey
+		var refColumn sql.NullString
+		if err := rows.Scan(&foreignKey.Constraint, &foreignKey.Schema, &foreignKey.Table, &foreignKey.Column,
+			&foreignKey.RefSchema, &foreignKey.RefTable, &refColumn); err != nil {
+			return nil, err
+		}
+		foreignKey.RefColumn = refColumn.String
+		foreignKeys = append(foreignKeys, foreignKey)
+	}
+	return foreignKeys, rows.Err()
 }
 
 func truthy(value any) bool {

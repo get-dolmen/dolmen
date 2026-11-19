@@ -77,6 +77,30 @@ export namespace driver {
       return a;
     }
   }
+  export class ForeignKey {
+    constraint?: string;
+    schema: string;
+    table: string;
+    column: string;
+    refSchema: string;
+    refTable: string;
+    refColumn: string;
+
+    static createFrom(source: any = {}) {
+      return new ForeignKey(source);
+    }
+
+    constructor(source: any = {}) {
+      if ('string' === typeof source) source = JSON.parse(source);
+      this.constraint = source['constraint'];
+      this.schema = source['schema'];
+      this.table = source['table'];
+      this.column = source['column'];
+      this.refSchema = source['refSchema'];
+      this.refTable = source['refTable'];
+      this.refColumn = source['refColumn'];
+    }
+  }
   export class Table {
     schema: string;
     name: string;

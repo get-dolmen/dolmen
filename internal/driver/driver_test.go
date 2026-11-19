@@ -1,6 +1,9 @@
 package driver
 
 import (
+	"context"
+	"database/sql"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -51,5 +54,51 @@ func TestOracleDSNPrefersExplicitPort(t *testing.T) {
 	}
 	if !strings.Contains(dsn, ":1522/") {
 		t.Errorf("DSN %q does not use port 1522", dsn)
+	}
+}
+
+func TestSQLiteForeignKeys(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "fk.db")
+	dsn, err := sqliteDriver{}.DSN(Config{FilePath: file})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	if _, err := db.Exec(`
+		create table accounts (id integer primary key);
+		create table orders (
+			id integer primary key,
+			account_id integer references accounts(id),
+			owner integer,
+			constraint fk_owner foreign key (owner) references accounts(id)
+		);`); err != nil {
+		t.Fatal(err)
+	}
+
+	foreignKeys, err := sqliteDriver{}.ListForeignKeys(context.Background(), db, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(foreignKeys) != 2 {
+		t.Fatalf("want 2 foreign-key columns, got %+v", foreignKeys)
+	}
+	want := map[string]bool{"account_id": true, "owner": true}
+	constraints := map[string]bool{}
+	for _, foreignKey := range foreignKeys {
+		if foreignKey.Schema != "main" || foreignKey.Table != "orders" ||
+			foreignKey.RefSchema != "main" || foreignKey.RefTable != "accounts" || foreignKey.RefColumn != "id" {
+			t.Errorf("unexpected foreign key: %+v", foreignKey)
+		}
+		if !want[foreignKey.Column] {
+			t.Errorf("unexpected column %q", foreignKey.Column)
+		}
+		if foreignKey.Constraint == "" || constraints[foreignKey.Constraint] {
+			t.Errorf("constraint %q should uniquely name column %q", foreignKey.Constraint, foreignKey.Column)
+		}
+		constraints[foreignKey.Constraint] = true
 	}
 }

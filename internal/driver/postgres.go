@@ -104,6 +104,24 @@ func (postgres) Columns(ctx context.Context, db *sql.DB, schema, table string) (
 		order by c.relname, a.attnum`, schema, table)
 }
 
+func (postgres) ListForeignKeys(ctx context.Context, db *sql.DB, schema string) ([]ForeignKey, error) {
+	return queryForeignKeys(ctx, db, `
+		select con.conname,
+		       n.nspname, c.relname, a.attname,
+		       rn.nspname, rc.relname, ra.attname
+		from pg_catalog.pg_constraint con
+		join pg_catalog.pg_class c on c.oid = con.conrelid
+		join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+		join pg_catalog.pg_class rc on rc.oid = con.confrelid
+		join pg_catalog.pg_namespace rn on rn.oid = rc.relnamespace
+		join unnest(con.conkey) with ordinality as k(attnum, ord) on true
+		join pg_catalog.pg_attribute a on a.attrelid = c.oid and a.attnum = k.attnum
+		join unnest(con.confkey) with ordinality as rk(attnum, ord) on rk.ord = k.ord
+		join pg_catalog.pg_attribute ra on ra.attrelid = rc.oid and ra.attnum = rk.attnum
+		where con.contype = 'f' and n.nspname = $1
+		order by c.relname, con.conname, k.ord`, schema)
+}
+
 func (dialect postgres) TableDDL(ctx context.Context, db *sql.DB, schema, table, objectType string) (string, error) {
 	if objectType == "view" {
 		var definition string

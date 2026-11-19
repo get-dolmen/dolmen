@@ -77,6 +77,15 @@ func (mysqlDriver) Columns(ctx context.Context, db *sql.DB, schema, table string
 		order by table_name, ordinal_position`, schema, table, table)
 }
 
+func (mysqlDriver) ListForeignKeys(ctx context.Context, db *sql.DB, schema string) ([]ForeignKey, error) {
+	return queryForeignKeys(ctx, db, `
+		select constraint_name, table_schema, table_name, column_name,
+		       referenced_table_schema, referenced_table_name, referenced_column_name
+		from information_schema.key_column_usage
+		where table_schema = ? and referenced_table_name is not null
+		order by table_name, constraint_name, ordinal_position`, schema)
+}
+
 func (dialect mysqlDriver) TableDDL(ctx context.Context, db *sql.DB, schema, table, objectType string) (string, error) {
 	keyword := "TABLE"
 	if objectType == "view" {

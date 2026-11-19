@@ -59,6 +59,15 @@ func (dialect sqliteDriver) Columns(ctx context.Context, db *sql.DB, schema, tab
 		order by m.name, p.cid`, dialect.QuoteIdent(schema)), schema, table, table)
 }
 
+func (dialect sqliteDriver) ListForeignKeys(ctx context.Context, db *sql.DB, schema string) ([]ForeignKey, error) {
+	return queryForeignKeys(ctx, db, fmt.Sprintf(`
+		select 'fk_' || fk.id, ?, m.name, fk."from", ?, fk."table", coalesce(fk."to", '')
+		from %s.sqlite_master m
+		join pragma_foreign_key_list(m.name, ?) fk
+		where m.type = 'table' and m.name not like 'sqlite\_%%' escape '\'
+		order by m.name, fk.id, fk.seq`, dialect.QuoteIdent(schema)), schema, schema, schema)
+}
+
 func (dialect sqliteDriver) TableDDL(ctx context.Context, db *sql.DB, schema, table, _ string) (string, error) {
 	var definition sql.NullString
 	err := db.QueryRowContext(ctx, fmt.Sprintf(`select sql from %s.sqlite_master where name = ?`, dialect.QuoteIdent(schema)), table).Scan(&definition)

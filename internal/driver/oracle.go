@@ -85,6 +85,22 @@ func (oracle) Columns(ctx context.Context, db *sql.DB, schema, table string) ([]
 	return queryColumns(ctx, db, statement, arguments...)
 }
 
+func (oracle) ListForeignKeys(ctx context.Context, db *sql.DB, schema string) ([]ForeignKey, error) {
+	return queryForeignKeys(ctx, db, `
+		select c.constraint_name, c.owner, c.table_name, cc.column_name,
+		       r.owner, r.table_name, rc.column_name
+		from all_constraints c
+		join all_cons_columns cc
+		  on cc.owner = c.owner and cc.constraint_name = c.constraint_name
+		join all_constraints r
+		  on r.owner = c.r_owner and r.constraint_name = c.r_constraint_name
+		join all_cons_columns rc
+		  on rc.owner = r.owner and rc.constraint_name = r.constraint_name
+		 and rc.position = cc.position
+		where c.constraint_type = 'R' and c.owner = :1
+		order by c.table_name, c.constraint_name, cc.position`, schema)
+}
+
 func (oracle) TableDDL(ctx context.Context, db *sql.DB, schema, table, objectType string) (string, error) {
 	var definition string
 	err := db.QueryRowContext(ctx, "select dbms_metadata.get_ddl(:1, :2, :3) from dual",

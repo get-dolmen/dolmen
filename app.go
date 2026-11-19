@@ -516,6 +516,26 @@ func (a *App) ListColumns(connID, database, schema, table string) ([]driver.Colu
 	return columns, err
 }
 
+// ListForeignKeys returns the foreign keys declared in a schema: one row per
+// column of each constraint.
+func (a *App) ListForeignKeys(connID, database, schema string) ([]driver.ForeignKey, error) {
+	opened, err := a.open(connID, database)
+	if err != nil {
+		return nil, err
+	}
+	lister, ok := opened.Driver.(driver.ForeignKeyLister)
+	if !ok {
+		return []driver.ForeignKey{}, nil
+	}
+	ctx, cancel := metaCtx()
+	defer cancel()
+	foreignKeys, err := lister.ListForeignKeys(ctx, opened.DB, schema)
+	if foreignKeys == nil {
+		foreignKeys = []driver.ForeignKey{}
+	}
+	return foreignKeys, err
+}
+
 func (a *App) TableDDL(connID, database, schema, table, objectType string) (string, error) {
 	opened, err := a.open(connID, database)
 	if err != nil {

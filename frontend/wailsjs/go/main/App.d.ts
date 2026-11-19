@@ -103,6 +103,12 @@ export function ListDatabases(arg1: string): Promise<main.DatabaseList>;
 
 export function ListFolders(): Promise<Array<folder.Folder>>;
 
+export function ListForeignKeys(
+  arg1: string,
+  arg2: string,
+  arg3: string,
+): Promise<Array<driver.ForeignKey>>;
+
 export function ListHistory(
   arg1: string,
   arg2: string,

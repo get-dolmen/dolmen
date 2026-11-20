@@ -348,7 +348,9 @@
           <button class="menu-item" (click)="runMenuAction('newtab')">
             New tab on this connection
           </button>
-          <button class="menu-item" (click)="runMenuAction('use')">Use in current tab</button>
+          @if (hasDatabaseLevel(menuPosition.connection)) {
+            <button class="menu-item" (click)="runMenuAction('newdb')">New database…</button>
+          }
           <button class="menu-item" (click)="runMenuAction('refresh')">Refresh</button>
           <button class="menu-item" (click)="runMenuAction('disconnect')">Disconnect</button>
         } @else {

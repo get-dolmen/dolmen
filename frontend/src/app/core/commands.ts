@@ -13,7 +13,7 @@ import { Toasts } from './toast';
 import { Ui, MOD } from './ui';
 import { Confirm } from '../shared/confirm';
 import { Prompt } from '../shared/prompt';
-import { createTableTemplate, qualified, selectTop } from './sql';
+import { createDatabaseTemplate, createTableTemplate, qualified, selectTop } from './sql';
 import type { ConnectionView, DbTable } from './models';
 import { ClipboardSetText } from '../../../wailsjs/runtime/runtime';
 import { ConnectionDialog } from '../features/connections/connection-dialog';
@@ -471,17 +471,28 @@ export class Commands {
     );
   }
 
-  /** Creates a database on the connection's server, then shows it in the explorer. */
+  /** Creates a database on the connection's server, or opens a CREATE DATABASE script. */
   public async createDatabase(connectionId: string) {
-    const name = await this.promptDialog.ask({
+    const connection = this.connectionStore.get(connectionId);
+    if (!connection) return;
+    const answer = await this.promptDialog.open({
       title: 'New database',
       label: 'Database name',
       confirmLabel: 'Create',
+      secondaryLabel: 'Open script',
     });
-    if (!name) return;
+    if (!answer) return;
+    if (answer.action === 'secondary') {
+      await this.scratchStore.createIn(
+        { connId: connectionId, database: '' },
+        createDatabaseTemplate(connection.kind, answer.value),
+        this.scratchStore.freeName(`create_${answer.value}`),
+      );
+      return;
+    }
     try {
-      await this.api.createDatabase(connectionId, name);
-      this.toastService.success(`Created database ${name}`);
+      await this.api.createDatabase(connectionId, answer.value);
+      this.toastService.success(`Created database ${answer.value}`);
       await this.schemaStore.refresh(connectionId);
     } catch (error) {
       this.toastService.error(errorText(error));

@@ -32,6 +32,11 @@ export function selectTop(kind: DbKind, target: string, limit = 100): string {
     : `SELECT *\nFROM ${target}\nLIMIT ${limit};`;
 }
 
+/** A CREATE DATABASE to review and run, quoted for the dialect. */
+export function createDatabaseTemplate(kind: DbKind, name: string): string {
+  return `CREATE DATABASE ${quoteIdentifier(kind, name)};\n`;
+}
+
 /** A CREATE TABLE to fill in, with the dialect's usual auto-increment key. */
 export function createTableTemplate(kind: DbKind, target: string): string {
   const [idDefinition, textDefinition] = {

@@ -608,8 +608,8 @@ export class SchemaSidebar {
         switch (action) {
           case 'newtab':
             return this.commandService.newTab(connection.id, '');
-          case 'use':
-            return this.useInCurrentTab(connection.id, '');
+          case 'newdb':
+            return void this.commandService.createDatabase(connection.id);
           case 'refresh':
             return void this.schemaStore.refresh(connection.id);
           case 'disconnect':
@@ -623,6 +623,11 @@ export class SchemaSidebar {
         }
       }
     }
+  }
+
+  /** Engines with a database level (Postgres) can create and list databases. */
+  public hasDatabaseLevel(connection: ConnectionView): boolean {
+    return this.schemaStore.databases()[connection.id]?.supported ?? connection.kind === 'postgres';
   }
 
   /** The database the connection itself is opened on (it cannot be dropped from here). */

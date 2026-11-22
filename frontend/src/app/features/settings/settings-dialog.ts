@@ -12,7 +12,30 @@ import { Ui, type Theme } from '../../core/ui';
 import type { McpStatus, SyncConfig } from '../../core/models';
 import { Clipboard } from '@wailsio/runtime';
 
-/** Application settings. Appearance applies as soon as it is picked. */
+export type SettingsSection = 'appearance' | 'layout' | 'editor' | 'sync' | 'mcp';
+
+const SECTION_GROUPS: { label: string; sections: { id: SettingsSection; label: string }[] }[] = [
+  {
+    label: 'Interface',
+    sections: [
+      { id: 'appearance', label: 'Appearance' },
+      { id: 'layout', label: 'Layout' },
+      { id: 'editor', label: 'Editor' },
+    ],
+  },
+  {
+    label: 'Integrations',
+    sections: [
+      { id: 'sync', label: 'Git sync' },
+      { id: 'mcp', label: 'MCP server' },
+    ],
+  },
+];
+
+/** Reopening the dialog returns to the section shown last in this session. */
+let lastSection: SettingsSection = 'appearance';
+
+/** Application settings, one section at a time. Interface choices apply as soon as they are picked. */
 @Component({
   selector: 'dm-settings-dialog',
   imports: [FormsModule],
@@ -28,6 +51,14 @@ export class SettingsDialog {
   private tabStore = inject(TabStore);
   private syncStore = inject(SyncStore);
   private toastService = inject(Toasts);
+
+  public readonly sectionGroups = SECTION_GROUPS;
+  public readonly section = signal<SettingsSection>(lastSection);
+
+  public showSection(section: SettingsSection) {
+    lastSection = section;
+    this.section.set(section);
+  }
 
   public readonly formatWidthBounds = FORMAT_WIDTH;
 

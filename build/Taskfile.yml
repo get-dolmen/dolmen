@@ -81,7 +81,9 @@ tasks:
       - task: install:frontend:deps
     dir: frontend
     cmds:
-      - npx ng serve --port {{.VITE_PORT}}
+      # Bind IPv4 explicitly: "localhost" resolves to ::1 on macOS, while the
+      # Wails dev proxy dials 127.0.0.1.
+      - npx ng serve --host 127.0.0.1 --port {{.VITE_PORT}}
 
   update:build-assets:
     summary: Updates the build assets from config.yml

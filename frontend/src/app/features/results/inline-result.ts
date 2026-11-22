@@ -1,4 +1,17 @@
-import { Component, inject, input, output, signal, viewChild } from '@angular/core';
+import {
+  ApplicationRef,
+  Component,
+  EnvironmentInjector,
+  OnDestroy,
+  TemplateRef,
+  ViewContainerRef,
+  inject,
+  input,
+  output,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { DomPortalOutlet, TemplatePortal } from '@angular/cdk/portal';
 import { Commands } from '../../core/commands';
 import { RunStore, type InlineBlock } from '../../core/run.store';
 import { ClickOutside, clampMenuRight } from '../../shared/click-outside';
@@ -40,9 +53,12 @@ export function inlineHeight(result: QueryResult): number {
   styleUrl: './inline-result.scss',
   host: { '[class.has-error]': '!!block().result.error' },
 })
-export class InlineResult {
+export class InlineResult implements OnDestroy {
   private runStore = inject(RunStore);
   private commandService = inject(Commands);
+  private applicationRef = inject(ApplicationRef);
+  private environmentInjector = inject(EnvironmentInjector);
+  private viewContainerRef = inject(ViewContainerRef);
   public readonly tabId = input.required<string>();
   public readonly block = input.required<InlineBlock>();
   /** From the tab's latest run: the backend still holds its rows for export. */
@@ -52,6 +68,8 @@ export class InlineResult {
   public readonly resetHeight = output<void>();
 
   private resultGrid = viewChild(ResultGrid);
+  private menuTemplate = viewChild.required<TemplateRef<unknown>>('menuTemplate');
+  private menuOutlet?: DomPortalOutlet;
   public readonly fetching = signal(false);
   public readonly menu = signal<{ x: number; y: number; kind: 'copy' | 'export' } | null>(null);
   public readonly copyFormats = COPY_FORMATS;
@@ -70,17 +88,43 @@ export class InlineResult {
   public openMenu(event: MouseEvent, kind: 'copy' | 'export') {
     const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
     this.menu.set({ ...clampMenuRight(bounds, 220, kind === 'copy' ? 330 : 80), kind });
+    this.attachMenu();
+  }
+
+  public closeMenu() {
+    this.menu.set(null);
+    this.menuOutlet?.dispose();
+    this.menuOutlet = undefined;
   }
 
   public copy(scope: 'all' | 'selected', format: CopyFormat) {
-    this.menu.set(null);
+    this.closeMenu();
     const result = this.block().result;
     const rows = scope === 'all' ? result.rows : (this.resultGrid()?.selectedRows() ?? []);
     void this.commandService.copy(formatRows(format, result.columns, rows, true));
   }
 
   public export(format: 'csv' | 'json') {
-    this.menu.set(null);
+    this.closeMenu();
     void this.runStore.export(this.tabId(), this.block().id, format);
+  }
+
+  public ngOnDestroy() {
+    this.menuOutlet?.dispose();
+  }
+
+  /**
+   * The inline result is moved with a transform (and clipped), so its menus
+   * are portaled to the body: a viewport-fixed menu in a transformed host
+   * would be positioned and clipped relative to that host. Each menu gets its
+   * own container: DomPortalOutlet.dispose() removes the outlet element, which
+   * must never be <body> itself.
+   */
+  private attachMenu() {
+    this.menuOutlet?.dispose();
+    const container = document.body.appendChild(document.createElement('div'));
+    const outlet = new DomPortalOutlet(container, this.applicationRef, this.environmentInjector);
+    outlet.attachTemplatePortal(new TemplatePortal(this.menuTemplate(), this.viewContainerRef));
+    this.menuOutlet = outlet;
   }
 }

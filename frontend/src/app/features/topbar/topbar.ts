@@ -8,7 +8,7 @@ import { Toasts } from '../../core/toast';
 import { ClickOutside, toggleMenuAt, type MenuPos } from '../../shared/click-outside';
 import { Icon } from '../../shared/icon';
 import { KIND_LABELS, type ConnectionView } from '../../core/models';
-import { WindowToggleMaximise } from '../../../../wailsjs/runtime';
+import { Window as WailsWindow } from '@wailsio/runtime';
 
 /** Room kept for the connection menu when it is placed under its button. */
 const MENU_WIDTH = 260;
@@ -44,7 +44,7 @@ export class Topbar {
     if (!isMac) return;
     const target = event.target as HTMLElement;
     if (target.closest('.nodrag, button, input, textarea, select, a')) return;
-    WindowToggleMaximise();
+    void WailsWindow.ToggleMaximise();
   }
 
   public kindLabel(connection: ConnectionView) {

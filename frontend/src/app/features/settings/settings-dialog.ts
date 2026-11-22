@@ -9,7 +9,7 @@ import { TabStore } from '../../core/tab.store';
 import { Toasts } from '../../core/toast';
 import { Ui, type Theme } from '../../core/ui';
 import type { McpStatus, SyncConfig } from '../../core/models';
-import { ClipboardSetText } from '../../../../wailsjs/runtime/runtime';
+import { Clipboard } from '@wailsio/runtime';
 
 /** Application settings. Appearance applies as soon as it is picked. */
 @Component({
@@ -207,7 +207,8 @@ export class SettingsDialog {
 
   private async copyText(text: string): Promise<boolean> {
     try {
-      if (await ClipboardSetText(text)) return true;
+      await Clipboard.SetText(text);
+      return true;
     } catch {
       // Fall through to the browser clipboard.
     }

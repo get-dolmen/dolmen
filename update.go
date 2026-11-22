@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"dolmen/internal/selfupdate"
 )
@@ -123,8 +122,7 @@ func (a *App) OpenReleasePage(link string) error {
 	if err != nil || parsed.Scheme != "https" || parsed.Host != "github.com" || (repo != "" && !strings.HasPrefix(parsed.Path, "/"+repo+"/")) {
 		return errors.New("refusing to open a non-release link")
 	}
-	wailsruntime.BrowserOpenURL(a.ctx, link)
-	return nil
+	return a.app.Browser.OpenURL(link)
 }
 
 // InstallResult reports an installed update.
@@ -190,7 +188,7 @@ func (a *App) InstallUpdate(tag string) (InstallResult, error) {
 		Tag:   latest.TagName,
 		Asset: name,
 		Progress: func(phase string, done, total int64) {
-			wailsruntime.EventsEmit(a.ctx, "update:progress", InstallProgress{Phase: phase, Received: done, Total: total})
+			a.app.Event.Emit("update:progress", InstallProgress{Phase: phase, Received: done, Total: total})
 		},
 	})
 	if err != nil {
@@ -220,7 +218,7 @@ func (a *App) RestartApp() error {
 	go func() {
 		// Let the frontend show the update message first.
 		time.Sleep(800 * time.Millisecond)
-		wailsruntime.Quit(a.ctx)
+		a.app.Quit()
 	}()
 	return nil
 }

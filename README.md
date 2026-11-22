@@ -1,6 +1,6 @@
 # Dolmen
 
-A desktop SQL client for **PostgreSQL, MySQL, Oracle and SQLite**, built with Go ([Wails v2](https://wails.io)) and Angular.
+A desktop SQL client for **PostgreSQL, MySQL, Oracle and SQLite**, built with Go ([Wails v3](https://v3.wails.io)) and Angular.
 
 - **Scratch files:** SQL files linked to a connection (and database), autosaved, kept when their tab closes. The _Scratches_ section of the explorer files them in connection → database → table folders (drag a scratch onto a folder to move it; _Select top 100_, _Show DDL_ and _New scratch for this table_ file theirs under the table): open, rename (F2), duplicate, save as a `.sql` file, delete; or open a `.sql` file from disk as a scratch. ⌘S saves immediately.
 - **Explorer on the right:** connections (grouped in nested folders) → schemas → tables/views → columns, lazy-loaded, with a filter. The context menu has _Select top 100_, _Show DDL_, _Drop table/view_, _Insert name_ and _Copy name_.
@@ -78,13 +78,17 @@ The endpoint binds to `127.0.0.1` only. Settings and the token live in `mcp.json
 
 ## Development
 
-Requirements: Go 1.25+, Node 22+, the Wails CLI (`go install github.com/wailsapp/wails/v2/cmd/wails@latest`).
+Requirements: Go 1.26+, Node 22+, the Wails v3 CLI (`go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0`). On Linux, also `libgtk-4-dev` and `libwebkitgtk-6.0-dev`.
 
 ```sh
-wails dev          # app window + http://localhost:34115 in a browser, with live Go bindings
-wails build        # build/bin/dolmen.app (or .exe)
-wails build -nsis  # Windows only: build/bin/dolmen-amd64-installer.exe
+wails3 dev                          # app window on the Angular dev server, rebuilt on Go changes
+wails3 build                        # bin/dolmen
+wails3 package                      # macOS: bin/dolmen.app; Windows: bin/dolmen-amd64-installer.exe (NSIS)
+wails3 task darwin:package:universal  # macOS universal .app, as released
+wails3 task common:generate:bindings  # refresh frontend/bindings after changing a bound Go method
 ```
+
+The tasks live in `Taskfile.yml` and `build/*/Taskfile.yml`; project metadata is in `build/config.yml`.
 
 All database drivers are pure Go (pgx, go-sql-driver/mysql, go-ora, modernc.org/sqlite): no Oracle Instant Client and no CGO for the drivers.
 

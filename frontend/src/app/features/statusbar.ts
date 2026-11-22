@@ -12,7 +12,7 @@ import { MOD } from '../core/ui';
 import { Api, errorText } from '../core/api';
 import { ClickOutside } from '../shared/click-outside';
 import { formatCount, formatDuration } from '../shared/format';
-import { EventsOn } from '../../../wailsjs/runtime';
+import { Events } from '@wailsio/runtime';
 
 export type UpdateState =
   'checking' | 'latest' | 'newer' | 'downloading' | 'installing' | 'installed' | 'error';
@@ -162,9 +162,9 @@ export class Statusbar implements OnDestroy {
       .version()
       .then((version) => this.info.set(version))
       .catch(() => this.info.set({ version: 'dev', repo: '', commit: '' }));
-    this.stopProgress = EventsOn(
+    this.stopProgress = Events.On(
       'update:progress',
-      (progressEvent: { phase: string; received: number; total: number }) => {
+      ({ data: progressEvent }: { data: { phase: string; received: number; total: number } }) => {
         const update = this.update();
         if (update.state !== 'downloading' && update.state !== 'installing') return;
         if (progressEvent.phase === 'download') {

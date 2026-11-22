@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import * as App from '../../../wailsjs/go/main/App';
+import * as App from '../../../bindings/dolmen/app';
 import type {
   ConnectionConfig,
   ConnectionFolder,
@@ -215,7 +215,7 @@ export class Api {
   public releaseTabSession = (tabId: string) => App.ReleaseTabSession(tabId);
 }
 
-/** Errors from Wails arrive as plain strings. */
+/** Wails rejects calls with an Error carrying the Go error text. */
 export function errorText(error: unknown): string {
   if (typeof error === 'string') return error;
   if (error instanceof Error) return error.message;

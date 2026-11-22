@@ -15,7 +15,7 @@ import { Confirm } from '../shared/confirm';
 import { Prompt } from '../shared/prompt';
 import { createDatabaseTemplate, createTableTemplate, qualified, selectTop } from './sql';
 import type { ConnectionView, DbTable } from './models';
-import { ClipboardSetText } from '../../../wailsjs/runtime/runtime';
+import { Clipboard } from '@wailsio/runtime';
 import { ConnectionDialog } from '../features/connections/connection-dialog';
 import { SettingsDialog } from '../features/settings/settings-dialog';
 
@@ -555,7 +555,7 @@ export class Commands {
   /** Copies text to the clipboard; false (after a toast) when it failed. */
   public async copy(text: string): Promise<boolean> {
     try {
-      if (!(await ClipboardSetText(text))) throw new Error();
+      await Clipboard.SetText(text);
       return true;
     } catch {
       try {

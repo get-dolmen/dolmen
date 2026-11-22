@@ -1,0 +1,90 @@
+version: '3'
+
+tasks:
+  go:mod:tidy:
+    summary: Runs `go mod tidy`
+    internal: true
+    # Universal builds call this from parallel deps; two `go mod tidy` runs
+    # racing on go.mod can corrupt it.
+    run: once
+    cmds:
+      - go mod tidy
+
+  install:frontend:deps:
+    summary: Install frontend dependencies
+    run: once
+    dir: frontend
+    sources:
+      - package.json
+      - package-lock.json
+    generates:
+      - node_modules
+    preconditions:
+      - sh: npm version
+        msg: "Looks like npm isn't installed. Npm is part of the Node installer: https://nodejs.org/en/download/"
+    cmds:
+      - npm install
+
+  build:frontend:
+    label: build:frontend (DEV={{.DEV}})
+    summary: Build the frontend project
+    # Parallel per-arch builds depend on this task; run it once so one does
+    # not regenerate the bindings while the other bundles them.
+    run: once
+    dir: frontend
+    sources:
+      - "**/*"
+      - exclude: node_modules/**/*
+      - exclude: .angular/**/*
+      - exclude: dist/**/*
+    generates:
+      - dist/**/*
+    deps:
+      - task: install:frontend:deps
+      - task: generate:bindings
+        vars:
+          BUILD_FLAGS:
+            ref: .BUILD_FLAGS
+    cmds:
+      - npm run {{if eq .DEV "true"}}build:dev{{else}}build{{end}} -q
+
+  generate:bindings:
+    summary: Generates the TypeScript bindings for the frontend
+    run: once
+    deps:
+      - task: go:mod:tidy
+    sources:
+      - "**/*.go"
+      - go.mod
+      - go.sum
+      - frontend/bindings/**/*
+    generates:
+      - frontend/bindings/**/*
+    cmds:
+      - wails3 generate bindings -f '{{.BUILD_FLAGS}}' -clean=true -ts -i
+
+  generate:icons:
+    summary: Generates Windows `.ico` and Mac `.icns` from appicon.png
+    run: once
+    dir: build
+    sources:
+      - "appicon.png"
+    generates:
+      - "darwin/icons.icns"
+      - "windows/icon.ico"
+    cmds:
+      - wails3 generate icons -input appicon.png -macfilename darwin/icons.icns -windowsfilename windows/icon.ico
+
+  dev:frontend:
+    summary: Runs the Angular dev server for `wails3 dev`
+    deps:
+      - task: install:frontend:deps
+    dir: frontend
+    cmds:
+      - npx ng serve --port {{.VITE_PORT}}
+
+  update:build-assets:
+    summary: Updates the build assets from config.yml
+    dir: build
+    cmds:
+      - wails3 update build-assets -name "{{.APP_NAME}}" -binaryname "{{.APP_NAME}}" -config config.yml -dir .

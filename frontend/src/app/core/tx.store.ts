@@ -1,5 +1,5 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { EventsOn } from '../../../wailsjs/runtime';
+import { Events } from '@wailsio/runtime';
 import { Api, errorText } from './api';
 import { TabStore } from './tab.store';
 import { TableBridge } from './table-bridge';
@@ -22,7 +22,7 @@ export class TxStore {
 
   public constructor() {
     // The backend rolls back transactions left idle: reflect it and explain why.
-    EventsOn('tx:expired', (event: TxExpiredEvent) => {
+    Events.On('tx:expired', ({ data: event }: { data: TxExpiredEvent }) => {
       this.set(event.tabId, undefined);
       this.tables.get(event.tabId)?.refresh();
       const minutes = Math.round(event.timeoutMs / 60_000);

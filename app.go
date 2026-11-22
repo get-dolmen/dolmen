@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"dolmen/internal/conn"
 	"dolmen/internal/driver"
@@ -27,9 +27,9 @@ import (
 const metaTimeout = 30 * time.Second
 
 // App holds the services bound to the frontend. Every exported method is
-// callable from Angular through the generated wailsjs bindings.
+// callable from Angular through the generated Wails bindings.
 type App struct {
-	ctx         context.Context
+	app         *application.App
 	store       *conn.Store
 	connections *conn.Manager
 	history     *history.Store
@@ -49,9 +49,12 @@ type App struct {
 
 func NewApp() *App { return &App{} }
 
-func (a *App) startup(ctx context.Context) {
-	a.ctx = ctx
+// ServiceStartup runs once the Wails application starts. A failed init is
+// kept in initErr and reported by every call instead of aborting startup, so
+// the window can still show the error.
+func (a *App) ServiceStartup(context.Context, application.ServiceOptions) error {
 	a.initErr = a.init()
+	return nil
 }
 
 func (a *App) init() error {
@@ -70,7 +73,7 @@ func (a *App) init() error {
 	}
 	a.executor = query.NewExecutor(a.connections, a.history)
 	a.executor.SetTxExpiredHandler(func(expired query.TxExpired) {
-		runtime.EventsEmit(a.ctx, "tx:expired", expired)
+		a.app.Event.Emit("tx:expired", expired)
 	})
 	if a.scratch, err = scratch.NewStore(filepath.Join(dir, "scratch")); err != nil {
 		return err
@@ -86,7 +89,8 @@ func (a *App) init() error {
 	return nil
 }
 
-func (a *App) shutdown(context.Context) {
+// ServiceShutdown releases connections and stores when the application quits.
+func (a *App) ServiceShutdown() error {
 	if a.mcp != nil {
 		a.mcp.Stop()
 	}
@@ -99,6 +103,7 @@ func (a *App) shutdown(context.Context) {
 	if a.history != nil {
 		a.history.Close()
 	}
+	return nil
 }
 
 func (a *App) ready() error {
@@ -397,30 +402,30 @@ func (a *App) Disconnect(id string) {
 
 // PickSQLiteFile shows a native open dialog; "" when cancelled.
 func (a *App) PickSQLiteFile() (string, error) {
-	return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+	return a.app.Dialog.OpenFileWithOptions(&application.OpenFileDialogOptions{
 		Title: "Choose a SQLite database",
-		Filters: []runtime.FileFilter{
+		Filters: []application.FileFilter{
 			{DisplayName: "SQLite databases", Pattern: "*.db;*.sqlite;*.sqlite3;*.db3"},
 			{DisplayName: "All files", Pattern: "*"},
 		},
-	})
+	}).PromptForSingleSelection()
 }
 
 // PickSSHKey shows a native open dialog for an SSH private key; "" when cancelled.
 // No extension filter: keys come as id_rsa, id_ed25519, *.pem, *.ppk and
 // anything else. Hidden files are shown because keys usually live in ~/.ssh.
 func (a *App) PickSSHKey() (string, error) {
-	dialogOptions := runtime.OpenDialogOptions{
+	dialogOptions := &application.OpenFileDialogOptions{
 		Title:           "Choose an SSH private key",
 		ShowHiddenFiles: true,
 	}
 	if home, err := os.UserHomeDir(); err == nil {
 		dir := filepath.Join(home, ".ssh")
 		if info, err := os.Stat(dir); err == nil && info.IsDir() {
-			dialogOptions.DefaultDirectory = dir
+			dialogOptions.Directory = dir
 		}
 	}
-	return runtime.OpenFileDialog(a.ctx, dialogOptions)
+	return a.app.Dialog.OpenFileWithOptions(dialogOptions).PromptForSingleSelection()
 }
 
 // ---------- schema ----------
@@ -668,11 +673,11 @@ func (a *App) ExportResult(tabID, resultID, format string) (ExportResult, error)
 	if exportFormat != export.CSV && exportFormat != export.JSON {
 		return ExportResult{}, errors.New("unknown format")
 	}
-	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
-		Title:           "Export results",
-		DefaultFilename: "results-" + time.Now().Format("20060102-150405") + "." + format,
-		Filters:         []runtime.FileFilter{{DisplayName: strings.ToUpper(format), Pattern: "*." + format}},
-	})
+	path, err := a.app.Dialog.SaveFileWithOptions(&application.SaveFileDialogOptions{
+		Title:    "Export results",
+		Filename: "results-" + time.Now().Format("20060102-150405") + "." + format,
+		Filters:  []application.FileFilter{{DisplayName: strings.ToUpper(format), Pattern: "*." + format}},
+	}).PromptForSingleSelection()
 	if err != nil || path == "" {
 		return ExportResult{}, err
 	}
@@ -922,11 +927,11 @@ func (a *App) ExportScratch(id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
-		Title:           "Save scratch as",
-		DefaultFilename: source.Name,
-		Filters:         []runtime.FileFilter{{DisplayName: "SQL files", Pattern: "*.sql"}},
-	})
+	path, err := a.app.Dialog.SaveFileWithOptions(&application.SaveFileDialogOptions{
+		Title:    "Save scratch as",
+		Filename: source.Name,
+		Filters:  []application.FileFilter{{DisplayName: "SQL files", Pattern: "*.sql"}},
+	}).PromptForSingleSelection()
 	if err != nil || path == "" {
 		return "", err
 	}
@@ -939,10 +944,10 @@ func (a *App) ImportScratch(newID, connID, database string) (scratch.Tab, error)
 	if err := a.ready(); err != nil {
 		return scratch.Tab{}, err
 	}
-	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+	path, err := a.app.Dialog.OpenFileWithOptions(&application.OpenFileDialogOptions{
 		Title:   "Open a SQL file",
-		Filters: []runtime.FileFilter{{DisplayName: "SQL files", Pattern: "*.sql;*.txt"}, {DisplayName: "All files", Pattern: "*"}},
-	})
+		Filters: []application.FileFilter{{DisplayName: "SQL files", Pattern: "*.sql;*.txt"}, {DisplayName: "All files", Pattern: "*"}},
+	}).PromptForSingleSelection()
 	if err != nil || path == "" {
 		return scratch.Tab{}, err
 	}

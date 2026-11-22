@@ -165,7 +165,8 @@ export class SqlEditor implements EditorHandle, OnDestroy {
       if (!schemaCache) return undefined;
       return {
         kind: connection.kind,
-        defaultSchema: schemaCache.defaultSchema,
+        // Unqualified names resolve in the tab's schema when one is chosen.
+        defaultSchema: tab.schema || schemaCache.defaultSchema,
         schemas: schemaCache.schemas,
         tables: async (schema) => {
           await this.schemaStore.loadTables(scope, schema);

@@ -131,6 +131,7 @@ export class Api {
     cursor: number;
     maxRows: number;
     manual: boolean;
+    schema: string;
   }) => App.Execute(request as any) as unknown as Promise<ExecResponse>;
   public cancel = (tabId: string) => App.Cancel(tabId);
   public fetchMore = (tabId: string, resultId: string, rowCount: number) =>

@@ -110,6 +110,7 @@ export class RunStore {
         cursor: runTarget.cursor,
         maxRows: PAGE_SIZE,
         manual: tab.txMode === 'manual',
+        schema: tab.schema,
       });
       this.transactionStore.set(tab.id, response.tx);
       const now = Date.now();

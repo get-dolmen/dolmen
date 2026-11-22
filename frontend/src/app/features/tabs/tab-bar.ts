@@ -11,6 +11,7 @@ import { ClickOutside, clampMenu } from '../../shared/click-outside';
 import { ScratchStore } from '../../core/scratch.store';
 import { SchemaStore } from '../../core/schema.store';
 import { Icon } from '../../shared/icon';
+import { Toasts } from '../../core/toast';
 
 @Component({
   selector: 'dm-tab-bar',
@@ -25,12 +26,15 @@ export class TabBar {
   private runStore = inject(RunStore);
   private scratchStore = inject(ScratchStore);
   private schemaStore = inject(SchemaStore);
+  private toastService = inject(Toasts);
   public readonly transactionStore = inject(TxStore);
   public readonly uiState = inject(Ui);
   public readonly editingTabId = signal('');
   public readonly modifierKey = MOD;
   public readonly transactionMenu = signal<{ x: number; y: number } | null>(null);
   public readonly databaseMenu = signal<{ x: number; y: number } | null>(null);
+  public readonly schemaMenu = signal<{ x: number; y: number } | null>(null);
+  public readonly schemaFilter = signal('');
   public readonly activeTab = computed(() => this.tabStore.active());
   public readonly transactionState = computed(() =>
     this.transactionStore.get(this.tabStore.activeId()),
@@ -53,6 +57,54 @@ export class TabBar {
     if (!tab) return '';
     return tab.database || this.databaseInfo()?.current || 'default';
   });
+
+  /** The explorer cache of the active SQL tab's database. */
+  private readonly schemaScope = computed(() => {
+    const tab = this.activeTab();
+    return tab?.kind === 'sql' ? this.schemaStore.scopeFor(tab.connId, tab.database) : '';
+  });
+  public readonly schemaInfo = computed(() => this.schemaStore.get(this.schemaScope()));
+  /** SQLite has no current schema to switch: its schemas are attached files. */
+  public readonly showSchemaPicker = computed(() => {
+    const tab = this.activeTab();
+    const connection = this.connectionStore.get(tab?.connId);
+    return tab?.kind === 'sql' && !!connection?.connected && connection.kind !== 'sqlite';
+  });
+  public readonly schemaLabel = computed(
+    () => this.activeTab()?.schema || this.schemaInfo()?.defaultSchema || 'default schema',
+  );
+  public readonly schemaOptions = computed(() => {
+    const filter = this.schemaFilter().trim().toLowerCase();
+    const schemas = this.schemaInfo()?.schemas ?? [];
+    return filter ? schemas.filter((schema) => schema.toLowerCase().includes(filter)) : schemas;
+  });
+
+  public openSchemaMenu(event: MouseEvent) {
+    const tab = this.activeTab();
+    if (!tab) return;
+    void this.schemaStore.loadSchemas(this.schemaScope());
+    this.schemaFilter.set('');
+    const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.schemaMenu.set(clampMenu(bounds.right - 240, bounds.bottom + 4, 240, 320));
+  }
+
+  public isCurrentSchema(schema: string) {
+    return (this.activeTab()?.schema || this.schemaInfo()?.defaultSchema || '') === schema;
+  }
+
+  /** Runs the tab in another schema; picking the default schema clears the choice. */
+  public chooseSchema(schema: string) {
+    this.schemaMenu.set(null);
+    const tab = this.activeTab();
+    if (!tab) return;
+    const nextSchema = schema === this.schemaInfo()?.defaultSchema ? '' : schema;
+    if (tab.schema === nextSchema) return;
+    if (this.transactionStore.get(tab.id).open) {
+      this.toastService.error('Commit or roll back the open transaction before switching schema.');
+      return;
+    }
+    this.tabStore.setSchema(tab.id, nextSchema);
+  }
 
   public openTransactionMenu(event: MouseEvent) {
     const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();

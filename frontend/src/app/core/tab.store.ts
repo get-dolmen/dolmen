@@ -17,6 +17,8 @@ export interface EditorTab {
   locked: boolean;
   /** Keeps the tab at the front of the tab bar. */
   pinned: boolean;
+  /** SQL tabs: the schema unqualified names resolve to; '' = the connection's default. */
+  schema: string;
   table?: { schema: string; name: string; type: string };
   /** diagram tabs: the schema whose tables and foreign keys are shown */
   diagram?: { schema: string };
@@ -58,6 +60,7 @@ export class TabStore {
         txMode: tab.txMode === 'manual' ? 'manual' : 'auto',
         locked: !!tab.locked,
         pinned: !!tab.pinned,
+        schema: tab.kind === 'table' || tab.kind === 'diagram' ? '' : (tab.schema ?? ''),
         table:
           tab.kind === 'table'
             ? { schema: tab.schema ?? '', name: tab.table ?? '', type: tab.tableType ?? 'table' }
@@ -92,6 +95,7 @@ export class TabStore {
       txMode: 'auto',
       locked: !!connId,
       pinned: false,
+      schema: '',
       content,
       dirty: !!content,
     });
@@ -109,6 +113,8 @@ export class TabStore {
         txMode: 'auto',
         locked: !!tab.locked,
         pinned: false,
+        // A scratch filed under a table starts in that table's schema.
+        schema: tab.table ? (tab.schema ?? '') : '',
         content: tab.content ?? '',
         dirty: false,
       },
@@ -140,6 +146,7 @@ export class TabStore {
       txMode: 'auto',
       locked: false,
       pinned: false,
+      schema: '',
       table,
       content: '',
       dirty: false,
@@ -157,6 +164,7 @@ export class TabStore {
       txMode: 'auto',
       locked: false,
       pinned: false,
+      schema: '',
       diagram: { schema },
       content: '',
       dirty: false,
@@ -245,7 +253,8 @@ export class TabStore {
       return;
     }
     if (tab.connId === connectionId && tab.database === database) return;
-    this.patch(id, { connId: connectionId, database });
+    // A schema belongs to its connection and database: start from the default again.
+    this.patch(id, { connId: connectionId, database, schema: '' });
     void this.api.releaseTabSession(id);
     this.saveLayoutSoon();
   }
@@ -266,6 +275,13 @@ export class TabStore {
   public setLocked(id: string, locked: boolean) {
     if (this.get(id)?.locked === locked) return;
     this.patch(id, { locked });
+    this.saveLayoutSoon();
+  }
+
+  /** Sets the schema a SQL tab runs in; '' returns to the connection's default. */
+  public setSchema(id: string, schema: string) {
+    if (this.get(id)?.schema === schema) return;
+    this.patch(id, { schema });
     this.saveLayoutSoon();
   }
 
@@ -372,7 +388,7 @@ export class TabStore {
         connId: tab.connId,
         database: tab.database || undefined,
         kind: tab.kind === 'sql' ? undefined : tab.kind,
-        schema: tab.table?.schema ?? tab.diagram?.schema,
+        schema: tab.table?.schema ?? tab.diagram?.schema ?? (tab.schema || undefined),
         table: tab.table?.name,
         tableType: tab.table?.type,
         txMode: tab.txMode === 'manual' ? ('manual' as const) : undefined,

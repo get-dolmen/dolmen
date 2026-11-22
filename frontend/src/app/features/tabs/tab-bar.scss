@@ -163,6 +163,18 @@
 .dbmenu {
   width: 240px;
 }
+.dbtarget.chosen {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.schemafilter {
+  width: calc(100% - 8px);
+  margin: 2px 4px 4px;
+}
+.schemalist {
+  max-height: 260px;
+  overflow: auto;
+}
 .txmode {
   height: 24px;
   padding: 0 8px;

@@ -133,6 +133,43 @@
     }
   </div>
 }
+@if (schemaMenu(); as menuPosition) {
+  <div
+    class="menu dbmenu schemamenu"
+    [style.left.px]="menuPosition.x"
+    [style.top.px]="menuPosition.y"
+    (dmClickOutside)="schemaMenu.set(null)"
+  >
+    <div class="menu-label">Schema for this scratch</div>
+    @if ((schemaInfo()?.schemas?.length ?? 0) > 10) {
+      <input
+        class="input schemafilter"
+        placeholder="Filter schemas…"
+        spellcheck="false"
+        dmAutofocus
+        [value]="schemaFilter()"
+        (input)="schemaFilter.set($any($event.target).value)"
+        (keydown.enter)="schemaOptions().length === 1 && chooseSchema(schemaOptions()[0])"
+      />
+    }
+    <div class="schemalist">
+      @for (schema of schemaOptions(); track schema) {
+        <button
+          class="menu-item"
+          [class.active]="isCurrentSchema(schema)"
+          (click)="chooseSchema(schema)"
+        >
+          <span class="ellipsis">{{ schema }}</span>
+          @if (schema === schemaInfo()?.defaultSchema) {
+            <span class="hint">default</span>
+          }
+        </button>
+      } @empty {
+        <div class="menu-label">{{ schemaInfo() ? 'No matching schema' : 'Loading…' }}</div>
+      }
+    </div>
+  </div>
+}
 @if (transactionMenu(); as menuPosition) {
   <div
     class="menu txmenu"
@@ -228,6 +265,20 @@
     }
     @if (tab.kind === 'sql') {
       <span class="spacer"></span>
+      @if (showSchemaPicker()) {
+        <button
+          class="dbtarget"
+          [class.chosen]="!!tab.schema"
+          (click)="openSchemaMenu($event)"
+          [title]="
+            tab.schema
+              ? 'Unqualified names resolve in ' + tab.schema
+              : 'Runs in the connection\'s default schema'
+          "
+        >
+          <span class="dbname">{{ schemaLabel() }}</span><span class="caret">▾</span>
+        </button>
+      }
       @if (showDatabasePicker()) {
         <button
           class="dbtarget"

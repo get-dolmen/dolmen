@@ -11,6 +11,7 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
+import { Commands } from '../../core/commands';
 import { ConnectionStore } from '../../core/connection.store';
 import { EditorBridge, type EditorHandle, type RunTarget } from '../../core/editor-bridge';
 import { RunStore } from '../../core/run.store';
@@ -50,6 +51,7 @@ export class SqlEditor implements EditorHandle, OnDestroy {
   private editorBridge = inject(EditorBridge);
   private uiState = inject(Ui);
   private runStore = inject(RunStore);
+  private commandService = inject(Commands);
   private applicationRef = inject(ApplicationRef);
   private environmentInjector = inject(EnvironmentInjector);
   private hostElement = viewChild.required<ElementRef<HTMLDivElement>>('host');
@@ -132,6 +134,15 @@ export class SqlEditor implements EditorHandle, OnDestroy {
       'semanticHighlighting.enabled': false,
     });
     applyTheme();
+    this.editor.addAction({
+      id: 'dolmen.format',
+      label: 'Format SQL',
+      // Shown in the menu only: the global hotkey handler catches ⌘⇧F first.
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyF],
+      contextMenuGroupId: '1_modification',
+      contextMenuOrder: 0,
+      run: () => this.commandService.formatSql(),
+    });
     this.resizeObserver = new ResizeObserver(() => this.editor?.layout());
     this.resizeObserver.observe(this.hostElement().nativeElement);
     this.inlineZones = new InlineZones(

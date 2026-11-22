@@ -110,6 +110,11 @@ textarea,
   outline: none;
   box-shadow: var(--focus);
 }
+/* Monaco's context menu takes focus when it opens; it highlights its own items. */
+.monaco-menu-container:focus-visible,
+.monaco-menu-container :focus-visible {
+  box-shadow: none;
+}
 
 ::-webkit-scrollbar {
   width: 10px;

@@ -275,6 +275,7 @@ export class SqlEditor implements EditorHandle, OnDestroy {
     const formatted = formatSql(
       this.connectionStore.get(this.tabStore.get(tabId)?.connId)?.kind,
       source,
+      this.uiState.formatWidth(),
     );
     if (formatted === source) return;
     // Keep the caret at the same offset when the whole script was reformatted.

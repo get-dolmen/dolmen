@@ -7,6 +7,7 @@ import { ScratchStore } from '../../core/scratch.store';
 import { SyncStore } from '../../core/sync.store';
 import { TabStore } from '../../core/tab.store';
 import { Toasts } from '../../core/toast';
+import { FORMAT_WIDTH, clampFormatWidth } from '../../core/sql-format';
 import { Ui, type Theme } from '../../core/ui';
 import type { McpStatus, SyncConfig } from '../../core/models';
 import { Clipboard } from '@wailsio/runtime';
@@ -27,6 +28,16 @@ export class SettingsDialog {
   private tabStore = inject(TabStore);
   private syncStore = inject(SyncStore);
   private toastService = inject(Toasts);
+
+  public readonly formatWidthBounds = FORMAT_WIDTH;
+
+  /** Applies the typed width once the field is committed, clamped to the supported range. */
+  public setFormatWidth(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const width = clampFormatWidth(input.value);
+    this.uiState.formatWidth.set(width);
+    input.value = String(width);
+  }
 
   public readonly themeOptions: { value: Theme; label: string; hint: string }[] = [
     { value: 'system', label: 'System', hint: 'Follow the OS' },

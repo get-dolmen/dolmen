@@ -106,6 +106,28 @@
     </section>
 
     <section class="group">
+      <h3>Editor</h3>
+      <div class="form">
+        <label class="stack width"
+          >Formatter line width
+          <input
+            class="input mono"
+            type="number"
+            name="formatWidth"
+            [min]="formatWidthBounds.min"
+            [max]="formatWidthBounds.max"
+            [ngModel]="uiState.formatWidth()"
+            (change)="setFormatWidth($event)"
+          />
+          <small class="hint"
+            >Function arguments and <span class="mono">IN (…)</span> lists longer than this are
+            split one item per line ({{ formatWidthBounds.min }}–{{ formatWidthBounds.max }}).</small
+          >
+        </label>
+      </div>
+    </section>
+
+    <section class="group">
       <h3>Git sync</h3>
       <div class="form">
         <label class="check">

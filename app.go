@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -605,6 +606,44 @@ func (a *App) DropDatabase(connID, name string) error {
 	ctx, cancel := metaCtx()
 	defer cancel()
 	_, err = opened.DB.ExecContext(ctx, "DROP DATABASE "+opened.Driver.QuoteIdent(name))
+	return err
+}
+
+// oraclePlainName matches names Oracle would fold to upper case if unquoted.
+var oraclePlainName = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_$#]*$`)
+
+// CreateSchema creates a schema. Each engine means something different by it:
+// Postgres creates it in the given database, MySQL creates a database (its
+// schemas), Oracle creates a schema-only user (18c+). SQLite schemas are
+// attached files, so it is not supported there.
+func (a *App) CreateSchema(connID, database, name string) error {
+	if strings.TrimSpace(name) == "" {
+		return errors.New("a schema name is required")
+	}
+	opened, err := a.open(connID, database)
+	if err != nil {
+		return err
+	}
+	if opened.Config.ReadOnly {
+		return errors.New("read-only connection: cannot create schemas")
+	}
+	var statement string
+	switch opened.Driver.Kind() {
+	case driver.Postgres, driver.MySQL:
+		statement = "CREATE SCHEMA " + opened.Driver.QuoteIdent(name)
+	case driver.Oracle:
+		// Quoting keeps the name exactly as given, so fold plain names the way
+		// Oracle folds unquoted identifiers: "sales" becomes SALES.
+		if oraclePlainName.MatchString(name) {
+			name = strings.ToUpper(name)
+		}
+		statement = "CREATE USER " + opened.Driver.QuoteIdent(name) + " NO AUTHENTICATION"
+	default:
+		return fmt.Errorf("%s connections cannot create schemas", opened.Config.Kind)
+	}
+	ctx, cancel := metaCtx()
+	defer cancel()
+	_, err = opened.DB.ExecContext(ctx, statement)
 	return err
 }
 

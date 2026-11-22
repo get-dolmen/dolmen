@@ -13,7 +13,13 @@ import { Toasts } from './toast';
 import { Ui, MOD } from './ui';
 import { Confirm } from '../shared/confirm';
 import { Prompt } from '../shared/prompt';
-import { createDatabaseTemplate, createTableTemplate, qualified, selectTop } from './sql';
+import {
+  createDatabaseTemplate,
+  createSchemaTemplate,
+  createTableTemplate,
+  qualified,
+  selectTop,
+} from './sql';
 import type { ConnectionView, DbTable } from './models';
 import { Clipboard } from '@wailsio/runtime';
 import { ConnectionDialog } from '../features/connections/connection-dialog';
@@ -494,6 +500,38 @@ export class Commands {
       await this.api.createDatabase(connectionId, answer.value);
       this.toastService.success(`Created database ${answer.value}`);
       await this.schemaStore.refresh(connectionId);
+    } catch (error) {
+      this.toastService.error(errorText(error));
+    }
+  }
+
+  /**
+   * Creates a schema, or opens the statement as a script. `database` is the
+   * Postgres database to create it in ('' for the connection's own, and for
+   * engines without a database level); `scope` is the explorer cache to refresh.
+   */
+  public async createSchema(connectionId: string, database: string, scope: string) {
+    const connection = this.connectionStore.get(connectionId);
+    if (!connection) return;
+    const answer = await this.promptDialog.open({
+      title: connection.kind === 'oracle' ? 'New schema (user)' : 'New schema',
+      label: 'Schema name',
+      confirmLabel: 'Create',
+      secondaryLabel: 'Open script',
+    });
+    if (!answer) return;
+    if (answer.action === 'secondary') {
+      await this.scratchStore.createIn(
+        { connId: connectionId, database },
+        createSchemaTemplate(connection.kind, answer.value),
+        this.scratchStore.freeName(`create_${answer.value}`),
+      );
+      return;
+    }
+    try {
+      await this.api.createSchema(connectionId, database, answer.value);
+      this.toastService.success(`Created schema ${answer.value}`);
+      await this.schemaStore.refreshScope(scope);
     } catch (error) {
       this.toastService.error(errorText(error));
     }

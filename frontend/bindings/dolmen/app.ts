@@ -100,6 +100,16 @@ export function CreateDatabase(connID: string, name: string): $CancellablePromis
 }
 
 /**
+ * CreateSchema creates a schema. Each engine means something different by it:
+ * Postgres creates it in the given database, MySQL creates a database (its
+ * schemas), Oracle creates a schema-only user (18c+). SQLite schemas are
+ * attached files, so it is not supported there.
+ */
+export function CreateSchema(connID: string, database: string, name: string): $CancellablePromise<void> {
+    return $Call.ByID(3476084118, connID, database, name);
+}
+
+/**
  * CreateScratch creates a scratch filed under a connection, database and
  * optionally a table (schema + table).
  */

@@ -77,6 +77,8 @@ export class Api {
     App.CreateDatabase(connectionId, name);
   public dropDatabase = (connectionId: string, name: string) =>
     App.DropDatabase(connectionId, name);
+  public createSchema = (connectionId: string, database: string, name: string) =>
+    App.CreateSchema(connectionId, database, name);
 
   public readTable = (
     tabId: string,

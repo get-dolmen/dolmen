@@ -9,6 +9,7 @@ import { Ui } from '../../core/ui';
 import { TxStore } from '../../core/tx.store';
 import { ClickOutside, clampMenu } from '../../shared/click-outside';
 import { Confirm } from '../../shared/confirm';
+import { canCreateSchema } from '../../core/sql';
 import { Autofocus } from '../../shared/autofocus';
 import { Icon } from '../../shared/icon';
 import { ScratchList } from '../scratches/scratch-list';
@@ -582,6 +583,8 @@ export class SchemaSidebar {
             return this.commandService.openDiagram(menu.connId, menu.schema, menu.database);
           case 'refresh':
             return void this.schemaStore.refreshScope(menu.scope);
+          case 'newschema':
+            return void this.commandService.createSchema(menu.connId, menu.database, menu.scope);
         }
         return;
       case 'db': {
@@ -598,6 +601,8 @@ export class SchemaSidebar {
             return void this.schemaStore.refreshScope(menu.scope);
           case 'newdb':
             return void this.commandService.createDatabase(menu.connId);
+          case 'newschema':
+            return void this.commandService.createSchema(menu.connId, menu.database, menu.scope);
           case 'dropdb':
             return void this.commandService.dropDatabase(menu.connId, databaseName);
         }
@@ -610,6 +615,8 @@ export class SchemaSidebar {
             return this.commandService.newTab(connection.id, '');
           case 'newdb':
             return void this.commandService.createDatabase(connection.id);
+          case 'newschema':
+            return void this.commandService.createSchema(connection.id, '', connection.id);
           case 'refresh':
             return void this.schemaStore.refresh(connection.id);
           case 'disconnect':
@@ -628,6 +635,11 @@ export class SchemaSidebar {
   /** Engines with a database level (Postgres) can create and list databases. */
   public hasDatabaseLevel(connection: ConnectionView): boolean {
     return this.schemaStore.databases()[connection.id]?.supported ?? connection.kind === 'postgres';
+  }
+
+  /** Postgres, MySQL and Oracle can create schemas; SQLite schemas are attached files. */
+  public canCreateSchema(connectionId: string): boolean {
+    return canCreateSchema(this.connectionStore.get(connectionId)?.kind);
   }
 
   /** The database the connection itself is opened on (it cannot be dropped from here). */

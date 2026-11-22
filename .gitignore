@@ -1,5 +1,5 @@
 # Build output
-build/bin
+bin
 /dolmen
 frontend/dist
 frontend/.angular
@@ -8,8 +8,13 @@ frontend/out-tsc
 # Dependencies
 node_modules
 
-# Wails-generated checksum of frontend/package.json
-frontend/package.json.md5
+# Wails v3 / Task caches
+.task
+.wails
+*.syso
+
+# Generated from build/appicon.png at build time
+build/darwin/icons.icns
 
 # macOS
 .DS_Store

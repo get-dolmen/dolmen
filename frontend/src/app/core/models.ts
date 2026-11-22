@@ -1,5 +1,5 @@
 // Plain TypeScript shapes for data exchanged with the Go backend.
-// They mirror the generated classes in wailsjs/go/models.ts but as interfaces,
+// They mirror the generated classes in bindings/dolmen but as interfaces,
 // so components can build them as object literals.
 
 export type DbKind = 'postgres' | 'mysql' | 'oracle' | 'sqlite';

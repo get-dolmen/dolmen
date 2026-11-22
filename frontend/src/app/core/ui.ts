@@ -1,5 +1,6 @@
 import { Injectable, effect, signal } from '@angular/core';
 import { readJson, writeJson } from './storage';
+import { clampFormatWidth } from './sql-format';
 
 const STORAGE_KEY = 'dolmen.ui';
 
@@ -18,6 +19,8 @@ interface Persisted {
   scratchOpen: boolean;
   /** Query results shown in the editor under each statement instead of the bottom panel. */
   inlineResults: boolean;
+  /** Line width the SQL formatter fits parenthesised lists into. */
+  formatWidth: number;
 }
 
 function loadPersisted(): Partial<Persisted> {
@@ -75,6 +78,8 @@ export class Ui {
   public readonly scratchOpen = signal(this.saved.scratchOpen ?? true);
   /** Results under each statement in the editor (DataGrip style) instead of the bottom panel. */
   public readonly inlineResults = signal(this.saved.inlineResults ?? false);
+  /** How long a parenthesised list may get before the formatter splits it. */
+  public readonly formatWidth = signal(clampFormatWidth(this.saved.formatWidth));
   public readonly paletteOpen = signal(false);
   public readonly paletteQuery = signal('');
   /** Bumped to ask the sidebar to reveal a table. */
@@ -99,6 +104,7 @@ export class Ui {
         scratchWidth: this.scratchWidth(),
         scratchOpen: this.scratchOpen(),
         inlineResults: this.inlineResults(),
+        formatWidth: this.formatWidth(),
       };
       writeJson(STORAGE_KEY, persisted);
     });

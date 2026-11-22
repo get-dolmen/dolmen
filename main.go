@@ -1,47 +1,51 @@
 package main
 
 import (
-	"context"
 	"embed"
+	"log"
 
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/options/mac"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
 func main() {
-	app := NewApp()
+	dolmen := NewApp()
 
-	err := wails.Run(&options.App{
-		Title:     "Dolmen",
-		Width:     1440,
-		Height:    900,
-		MinWidth:  900,
-		MinHeight: 560,
-		AssetServer: &assetserver.Options{
-			Assets: assets,
+	app := application.New(application.Options{
+		Name:        "Dolmen",
+		Description: "A desktop SQL client for Oracle, Postgres, MySQL and SQLite.",
+		Services: []application.Service{
+			application.NewService(dolmen),
 		},
-		BackgroundColour: &options.RGBA{R: 24, G: 24, B: 27, A: 1},
-		OnStartup:        app.startup,
-		OnShutdown:       app.shutdown,
-		OnDomReady:       func(context.Context) { styleWindow() },
-		Bind:             []interface{}{app},
-		Mac: &mac.Options{
-			// Transparent, full-size title bar without a toolbar: window_darwin.go
-			// positions the traffic lights to match the 52pt web top bar.
-			TitleBar: &mac.TitleBar{
-				TitlebarAppearsTransparent: true,
-				HideTitle:                  true,
-				FullSizeContent:            true,
-			},
-			About: &mac.AboutInfo{Title: "Dolmen", Message: "A desktop SQL client for Oracle, Postgres, MySQL and SQLite."},
+		Assets: application.AssetOptions{
+			Handler: application.AssetFileServerFS(assets),
+		},
+		Mac: application.MacOptions{
+			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
 	})
-	if err != nil {
-		println("Error:", err.Error())
+	dolmen.app = app
+
+	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title:            "Dolmen",
+		Width:            1440,
+		Height:           900,
+		MinWidth:         900,
+		MinHeight:        560,
+		BackgroundColour: application.NewRGB(24, 24, 27),
+		URL:              "/",
+		Mac: application.MacWindow{
+			// Transparent, full-size title bar without a toolbar: window_darwin.go
+			// positions the traffic lights to match the 52pt web top bar.
+			TitleBar: application.MacTitleBarHidden,
+		},
+	})
+	window.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) { styleWindow() })
+
+	if err := app.Run(); err != nil {
+		log.Fatal(err)
 	}
 }

@@ -1,0 +1,41 @@
+# Project configuration for the Wails v3 CLI.
+# After changing `info`, run `wails3 task common:update:build-assets` to
+# refresh the generated assets (it overwrites manual edits to them, such as
+# the NSIS tweaks in windows/nsis/project.nsi).
+version: '3'
+
+info:
+  companyName: "Dolmen contributors"
+  productName: "Dolmen"
+  productIdentifier: "com.wails.dolmen"
+  description: "Desktop SQL client for PostgreSQL, MySQL, Oracle and SQLite"
+  copyright: "Copyright (c) 2026 Dolmen contributors"
+  comments: "Desktop SQL client for PostgreSQL, MySQL, Oracle and SQLite"
+  version: "0.0.0"
+
+dev_mode:
+  root_path: .
+  log_level: warn
+  debounce: 1000
+  ignore:
+    dir:
+      - .git
+      - node_modules
+      - frontend
+      - bin
+    file:
+      - .DS_Store
+      - .gitignore
+      - .gitkeep
+      - "*_test.go"
+    watched_extension:
+      - "*.go"
+    git_ignore: true
+  executes:
+    - cmd: wails3 build DEV=true
+      type: blocking
+    - cmd: wails3 task common:dev:frontend
+      type: background
+    - cmd: wails3 task run
+      type: primary
+      exit_policy: shutdown

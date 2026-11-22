@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 env:
-  WAILS_VERSION: v2.17.0
+  WAILS_VERSION: v3.1.0
   NODE_VERSION: "22"
 
 jobs:
@@ -45,7 +45,7 @@ jobs:
       - name: Linux build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgtk-3-dev libwebkit2gtk-4.1-dev
+          sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
 
       - name: Frontend tests
         working-directory: frontend
@@ -57,8 +57,8 @@ jobs:
         run: |
           # main embeds frontend/dist; the tests do not need the real bundle.
           mkdir -p frontend/dist && touch frontend/dist/.keep
-          go vet -tags webkit2_41 ./...
-          go test -tags webkit2_41 ./...
+          go vet ./...
+          go test ./...
 
   build:
     name: Build (${{ matrix.name }})
@@ -69,17 +69,16 @@ jobs:
         include:
           - name: macOS
             os: macos-latest
-            platform: darwin/universal
+            task: darwin:package:universal
             artifact: macos-universal
           - name: Linux
             os: ubuntu-24.04
-            platform: linux/amd64
+            task: linux:build
             artifact: linux-amd64
-            # Ubuntu 24.04 ships WebKitGTK 4.1 only.
-            tags: webkit2_41
           - name: Windows
             os: windows-latest
-            platform: windows/amd64
+            # Builds dolmen.exe, then the NSIS installer around it.
+            task: windows:package
             artifact: windows-amd64
     runs-on: ${{ matrix.os }}
     defaults:
@@ -103,10 +102,10 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgtk-3-dev libwebkit2gtk-4.1-dev
+          sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
 
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
 
       - name: Install NSIS
         if: runner.os == 'Windows'
@@ -144,21 +143,25 @@ jobs:
           echo "numeric=$numeric" >> "$GITHUB_OUTPUT"
           echo "Building $version ($numeric)"
 
-      - name: Stamp version into wails.json
+      - name: Stamp version into the build assets
         run: |
-          jq --arg v "${{ steps.version.outputs.numeric }}" \
-            '.info = ((.info // {}) + {productName: "Dolmen", productVersion: $v, companyName: "Dolmen", copyright: "Dolmen contributors"})' \
-            wails.json > wails.tmp.json
-          mv wails.tmp.json wails.json
+          numeric="${{ steps.version.outputs.numeric }}"
+          # macOS bundle version.
+          sed -i.bak -E "/<key>CFBundle(Short)?VersionString<\/key>|<key>CFBundleVersion<\/key>/{n;s|<string>[^<]*</string>|<string>${numeric}</string>|;}" build/darwin/Info.plist
+          # Windows file version resource and NSIS installer metadata.
+          jq --arg v "$numeric" '.fixed.file_version = $v | .fixed.product_version = $v | .info["0409"].FileVersion = $v | .info["0409"].ProductVersion = $v' \
+            build/windows/info.json > build/windows/info.tmp.json
+          mv build/windows/info.tmp.json build/windows/info.json
+          sed -i.bak -E "s|(define INFO_PRODUCTVERSION )\"[^\"]*\"|\1\"${numeric}\"|" build/windows/nsis/wails_tools.nsh
+          rm -f build/darwin/Info.plist.bak build/windows/nsis/wails_tools.nsh.bak
+          grep -A1 VersionString build/darwin/Info.plist
+          grep INFO_PRODUCTVERSION build/windows/nsis/wails_tools.nsh
 
       - name: Build
         run: |
-          ldflags="-s -w -X main.version=${{ steps.version.outputs.version }} -X main.repo=${{ github.repository }} -X main.commit=${GITHUB_SHA}"
-          tags=""
-          if [[ -n "${{ matrix.tags }}" ]]; then tags="-tags ${{ matrix.tags }}"; fi
-          nsis=""
-          if [[ "${{ runner.os }}" == "Windows" ]]; then nsis="-nsis"; fi
-          wails build -clean -trimpath -platform "${{ matrix.platform }}" $tags $nsis -ldflags "$ldflags"
+          # The platform Taskfiles already strip (-s -w) and trim paths.
+          ldflags="-X main.version=${{ steps.version.outputs.version }} -X main.repo=${{ github.repository }} -X main.commit=${GITHUB_SHA}"
+          wails3 task "${{ matrix.task }}" LDFLAGS="$ldflags"
 
       - name: Package
         id: package
@@ -168,16 +171,16 @@ jobs:
           case "${{ runner.os }}" in
             macOS)
               name="dolmen-${version}-macos-universal.zip"
-              ditto -c -k --keepParent build/bin/dolmen.app "dist/$name"
+              ditto -c -k --keepParent bin/dolmen.app "dist/$name"
               ;;
             Linux)
               name="dolmen-${version}-linux-amd64.tar.gz"
-              tar -C build/bin -czf "dist/$name" dolmen
+              tar -C bin -czf "dist/$name" dolmen
               ;;
             Windows)
               name="dolmen-${version}-windows-amd64.zip"
-              (cd build/bin && 7z a -tzip "../../dist/$name" dolmen.exe > /dev/null)
-              installer=$(ls build/bin/*-installer.exe 2>/dev/null | head -n 1)
+              (cd bin && 7z a -tzip "../dist/$name" dolmen.exe > /dev/null)
+              installer=$(ls bin/*-installer.exe 2>/dev/null | head -n 1)
               if [[ -z "$installer" ]]; then
                 echo "the NSIS installer was not produced" >&2
                 exit 1

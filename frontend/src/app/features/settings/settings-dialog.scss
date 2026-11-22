@@ -1,19 +1,75 @@
 .settings {
-  width: 600px;
+  width: 780px;
   max-width: 94vw;
+  /* Fixed height so the dialog does not jump when switching sections. */
+  height: min(620px, 86vh);
 }
-h3 {
-  margin: 2px 0 10px;
+.layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  border-top: 1px solid var(--border);
+}
+.nav {
+  display: flex;
+  flex: 0 0 176px;
+  flex-direction: column;
+  gap: 1px;
+  padding: 10px 8px;
+  overflow: auto;
+  border-right: 1px solid var(--border);
+  background: var(--bg);
+}
+.nav-group {
+  padding: 10px 8px 4px;
   font-size: var(--fs-xs);
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--text-faint);
 }
-.group + .group {
-  margin-top: 20px;
-  padding-top: 18px;
-  border-top: 1px solid var(--border);
+.nav-group:first-child {
+  padding-top: 2px;
+}
+.nav-item {
+  padding: 6px 8px;
+  text-align: left;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.nav-item.on {
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 600;
+}
+.pane {
+  flex: 1;
+  min-width: 0;
+  padding: 16px 20px;
+  overflow: auto;
+}
+.pane-head {
+  margin-bottom: 16px;
+}
+.pane-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.pane-head p {
+  margin: 3px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
 }
 .field {
   display: flex;
@@ -172,6 +228,9 @@ h3 {
   gap: 4px;
   font-size: var(--fs-sm);
   color: var(--text-muted);
+}
+.stack.width input {
+  width: 120px;
 }
 .two-col {
   display: grid;

@@ -7,11 +7,35 @@ import { ScratchStore } from '../../core/scratch.store';
 import { SyncStore } from '../../core/sync.store';
 import { TabStore } from '../../core/tab.store';
 import { Toasts } from '../../core/toast';
+import { FORMAT_WIDTH, clampFormatWidth } from '../../core/sql-format';
 import { Ui, type Theme } from '../../core/ui';
 import type { McpStatus, SyncConfig } from '../../core/models';
-import { ClipboardSetText } from '../../../../wailsjs/runtime/runtime';
+import { Clipboard } from '@wailsio/runtime';
 
-/** Application settings. Appearance applies as soon as it is picked. */
+export type SettingsSection = 'appearance' | 'layout' | 'editor' | 'sync' | 'mcp';
+
+const SECTION_GROUPS: { label: string; sections: { id: SettingsSection; label: string }[] }[] = [
+  {
+    label: 'Interface',
+    sections: [
+      { id: 'appearance', label: 'Appearance' },
+      { id: 'layout', label: 'Layout' },
+      { id: 'editor', label: 'Editor' },
+    ],
+  },
+  {
+    label: 'Integrations',
+    sections: [
+      { id: 'sync', label: 'Git sync' },
+      { id: 'mcp', label: 'MCP server' },
+    ],
+  },
+];
+
+/** Reopening the dialog returns to the section shown last in this session. */
+let lastSection: SettingsSection = 'appearance';
+
+/** Application settings, one section at a time. Interface choices apply as soon as they are picked. */
 @Component({
   selector: 'dm-settings-dialog',
   imports: [FormsModule],
@@ -27,6 +51,24 @@ export class SettingsDialog {
   private tabStore = inject(TabStore);
   private syncStore = inject(SyncStore);
   private toastService = inject(Toasts);
+
+  public readonly sectionGroups = SECTION_GROUPS;
+  public readonly section = signal<SettingsSection>(lastSection);
+
+  public showSection(section: SettingsSection) {
+    lastSection = section;
+    this.section.set(section);
+  }
+
+  public readonly formatWidthBounds = FORMAT_WIDTH;
+
+  /** Applies the typed width once the field is committed, clamped to the supported range. */
+  public setFormatWidth(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const width = clampFormatWidth(input.value);
+    this.uiState.formatWidth.set(width);
+    input.value = String(width);
+  }
 
   public readonly themeOptions: { value: Theme; label: string; hint: string }[] = [
     { value: 'system', label: 'System', hint: 'Follow the OS' },
@@ -207,7 +249,8 @@ export class SettingsDialog {
 
   private async copyText(text: string): Promise<boolean> {
     try {
-      if (await ClipboardSetText(text)) return true;
+      await Clipboard.SetText(text);
+      return true;
     } catch {
       // Fall through to the browser clipboard.
     }

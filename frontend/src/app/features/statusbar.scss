@@ -159,7 +159,6 @@ p + .again {
   border-radius: var(--radius);
   background: var(--bg-raised);
   border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
   box-shadow: var(--shadow);
   color: var(--text);
   font-size: var(--fs-sm);
@@ -167,9 +166,6 @@ p + .again {
   user-select: text;
   word-break: break-word;
   animation: in 0.15s ease-out;
-}
-.toast[data-kind='error'] {
-  border-left-color: var(--danger);
 }
 @keyframes in {
   from {

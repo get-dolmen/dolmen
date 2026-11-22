@@ -18,6 +18,9 @@
         [placeholder]="options.placeholder ?? ''"
         spellcheck="false"
         autocomplete="off"
+        [class.invalid]="invalid()"
+        [attr.aria-invalid]="invalid()"
+        (input)="clearInvalid()"
         dmAutofocus
       />
     </label>
@@ -25,6 +28,11 @@
   <footer>
     <span class="spacer"></span>
     <button class="btn" type="button" (click)="dialogRef.close(null)">Cancel</button>
+    @if (options.secondaryLabel) {
+      <button class="btn" type="button" (click)="submit(input.value, 'secondary')">
+        {{ options.secondaryLabel }}
+      </button>
+    }
     <button class="btn primary" type="submit">{{ options.confirmLabel || 'OK' }}</button>
   </footer>
 </form>

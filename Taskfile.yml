@@ -1,0 +1,43 @@
+version: '3'
+
+# Run through the Wails CLI: `wails3 dev`, `wails3 build`, `wails3 package`,
+# or `wails3 task <name>` for any task below or in build/*/Taskfile.yml.
+
+vars:
+  APP_NAME: "dolmen"
+  BIN_DIR: "bin"
+  PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "npm"}}'
+  # Port of the Angular dev server that `wails3 dev` proxies to.
+  VITE_PORT: '{{.WAILS_VITE_PORT | default 4200}}'
+  # Extra linker flags for release builds, e.g. the version stamp:
+  # wails3 task package LDFLAGS="-X main.version=v1.2.3 -X main.repo=owner/dolmen"
+  LDFLAGS: '{{.LDFLAGS | default ""}}'
+  # Target OS for build/package/run; overridden by `wails3 build GOOS=...`.
+  GOOS: '{{.GOOS | default OS}}'
+
+includes:
+  common: ./build/Taskfile.yml
+  windows: ./build/windows/Taskfile.yml
+  darwin: ./build/darwin/Taskfile.yml
+  linux: ./build/linux/Taskfile.yml
+
+tasks:
+  build:
+    summary: Builds the application
+    cmds:
+      - task: "{{.GOOS}}:build"
+
+  package:
+    summary: Packages a production build of the application
+    cmds:
+      - task: "{{.GOOS}}:package"
+
+  run:
+    summary: Runs the application
+    cmds:
+      - task: "{{.GOOS}}:run"
+
+  dev:
+    summary: Runs the application in development mode
+    cmds:
+      - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}

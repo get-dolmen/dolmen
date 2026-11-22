@@ -32,6 +32,37 @@ export function selectTop(kind: DbKind, target: string, limit = 100): string {
     : `SELECT *\nFROM ${target}\nLIMIT ${limit};`;
 }
 
+/** A CREATE DATABASE to review and run, quoted for the dialect. */
+export function createDatabaseTemplate(kind: DbKind, name: string): string {
+  return `CREATE DATABASE ${quoteIdentifier(kind, name)};\n`;
+}
+
+/** Engines where Dolmen can create a schema (SQLite schemas are attached files). */
+export function canCreateSchema(kind: DbKind | undefined): boolean {
+  return kind === 'postgres' || kind === 'mysql' || kind === 'oracle';
+}
+
+/**
+ * The statement that creates a schema, to review and run. On MySQL a schema is
+ * a database; on Oracle it is a user, created here as a schema-only account
+ * (18c+) with the name folded to upper case like an unquoted identifier.
+ */
+export function createSchemaTemplate(kind: DbKind, name: string): string {
+  if (kind !== 'oracle') return `CREATE SCHEMA ${quoteIdentifier(kind, name)};\n`;
+  const user = quoteIdentifier(
+    kind,
+    /^[A-Za-z][A-Za-z0-9_$#]*$/.test(name) ? name.toUpperCase() : name,
+  );
+  return [
+    '-- In Oracle a schema is a user. NO AUTHENTICATION (18c+) creates a schema-only',
+    '-- account: nobody can log in as it, but it can own tables.',
+    `CREATE USER ${user} NO AUTHENTICATION;`,
+    '-- Let it store data in its default tablespace:',
+    `-- ALTER USER ${user} QUOTA UNLIMITED ON USERS;`,
+    '',
+  ].join('\n');
+}
+
 /** A CREATE TABLE to fill in, with the dialect's usual auto-increment key. */
 export function createTableTemplate(kind: DbKind, target: string): string {
   const [idDefinition, textDefinition] = {

@@ -314,6 +314,13 @@
           Open table diagram<span class="hint">FK</span>
         </button>
         <button class="menu-item" (click)="runMenuAction('refresh')">Refresh</button>
+        <div class="menu-sep"></div>
+        <div class="menu-sub">
+          <button class="menu-item">New<span class="hint">‹</span></button>
+          <div class="menu sub">
+            <button class="menu-item" (click)="runMenuAction('newtable')">Table…</button>
+          </div>
+        </div>
       }
       @case ('db') {
         <button class="menu-item" (click)="runMenuAction('newtab')">
@@ -326,7 +333,7 @@
         <div class="menu-sub">
           <button class="menu-item">New<span class="hint">‹</span></button>
           <div class="menu sub">
-            <button class="menu-item" (click)="runMenuAction('newdb')">Database…</button>
+            <button class="menu-item" (click)="runMenuAction('newschema')">Schema…</button>
           </div>
         </div>
         <div class="menu-sep"></div>
@@ -348,7 +355,12 @@
           <button class="menu-item" (click)="runMenuAction('newtab')">
             New tab on this connection
           </button>
-          <button class="menu-item" (click)="runMenuAction('use')">Use in current tab</button>
+          @if (hasDatabaseLevel(menuPosition.connection)) {
+            <button class="menu-item" (click)="runMenuAction('newdb')">New database…</button>
+          } @else if (canCreateSchema(menuPosition.connection.id)) {
+            <!-- MySQL and Oracle list their schemas right under the connection. -->
+            <button class="menu-item" (click)="runMenuAction('newschema')">New schema…</button>
+          }
           <button class="menu-item" (click)="runMenuAction('refresh')">Refresh</button>
           <button class="menu-item" (click)="runMenuAction('disconnect')">Disconnect</button>
         } @else {

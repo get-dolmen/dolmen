@@ -57,7 +57,7 @@ export class InlineZones {
     );
     // Monaco shifts zones on its own, but splitting a statement's line keeps
     // the zone under the first half: follow the anchors instead.
-    this.subscriptions.push(editor.onDidChangeModelContent(() => this.followAnchors()));
+    this.subscriptions.push(editor.onDidChangeModelContent((event) => this.followAnchors(event)));
   }
 
   /** Brings the zones in line with the runs, for the tab shown in the editor. */
@@ -94,11 +94,25 @@ export class InlineZones {
     }
   }
 
-  private followAnchors() {
+  private followAnchors(event: monaco.editor.IModelContentChangedEvent) {
+    // A pure deletion can remove the statement a block belongs to: move the
+    // zone away with the text, or drop the block when no text is left.
+    const deleted = event.changes.some(
+      (change) => change.rangeLength > 0 && change.text.length === 0,
+    );
+    const dismissedIds: string[] = [];
     const movedZones = [...this.zonesByBlockId.values()].filter((blockZone) => {
+      if (deleted && this.anchorIsBlank(blockZone.block.id)) {
+        dismissedIds.push(blockZone.block.id);
+        return false;
+      }
       const line = this.lineFor(blockZone.block.id);
       return line > 0 && line !== blockZone.viewZone.afterLineNumber;
     });
+    if (dismissedIds.length) {
+      const tabId = this.currentTabId;
+      queueMicrotask(() => this.runStore.dismissInline(tabId, dismissedIds));
+    }
     if (!movedZones.length) return;
     this.editor.changeViewZones((accessor) => {
       for (const blockZone of movedZones) {
@@ -106,6 +120,14 @@ export class InlineZones {
         accessor.layoutZone(blockZone.zoneId);
       }
     });
+  }
+
+  /** True when the text under an anchor is gone (only whitespace remains). */
+  private anchorIsBlank(blockId: string): boolean {
+    const anchor = this.anchorsByBlockId.get(blockId);
+    if (!anchor || anchor.model.isDisposed()) return false;
+    const range = anchor.model.getDecorationRange(anchor.decoration);
+    return !!range && anchor.model.getValueInRange(range).trim() === '';
   }
 
   /** Removes every zone from the editor (before a model switch). */

@@ -583,8 +583,8 @@ export class SchemaSidebar {
             return this.commandService.openDiagram(menu.connId, menu.schema, menu.database);
           case 'refresh':
             return void this.schemaStore.refreshScope(menu.scope);
-          case 'newschema':
-            return void this.commandService.createSchema(menu.connId, menu.database, menu.scope);
+          case 'newtable':
+            return void this.commandService.newTable(menu.connId, menu.schema, menu.database);
         }
         return;
       case 'db': {
@@ -599,8 +599,6 @@ export class SchemaSidebar {
             return void this.commandService.copy(databaseName);
           case 'refresh':
             return void this.schemaStore.refreshScope(menu.scope);
-          case 'newdb':
-            return void this.commandService.createDatabase(menu.connId);
           case 'newschema':
             return void this.commandService.createSchema(menu.connId, menu.database, menu.scope);
           case 'dropdb':

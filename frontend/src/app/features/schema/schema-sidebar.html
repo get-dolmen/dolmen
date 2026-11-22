@@ -314,10 +314,13 @@
           Open table diagram<span class="hint">FK</span>
         </button>
         <button class="menu-item" (click)="runMenuAction('refresh')">Refresh</button>
-        @if (canCreateSchema(menuPosition.connId)) {
-          <div class="menu-sep"></div>
-          <button class="menu-item" (click)="runMenuAction('newschema')">New schema…</button>
-        }
+        <div class="menu-sep"></div>
+        <div class="menu-sub">
+          <button class="menu-item">New<span class="hint">‹</span></button>
+          <div class="menu sub">
+            <button class="menu-item" (click)="runMenuAction('newtable')">Table…</button>
+          </div>
+        </div>
       }
       @case ('db') {
         <button class="menu-item" (click)="runMenuAction('newtab')">
@@ -331,7 +334,6 @@
           <button class="menu-item">New<span class="hint">‹</span></button>
           <div class="menu sub">
             <button class="menu-item" (click)="runMenuAction('newschema')">Schema…</button>
-            <button class="menu-item" (click)="runMenuAction('newdb')">Database…</button>
           </div>
         </div>
         <div class="menu-sep"></div>

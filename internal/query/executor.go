@@ -5,7 +5,7 @@ package query
 import (
 	"context"
 	"database/sql"
-	"database/sql/driver"
+	sqldriver "database/sql/driver"
 	"errors"
 	"fmt"
 	"strconv"
@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"dolmen/internal/conn"
+	"dolmen/internal/driver"
 	"dolmen/internal/history"
 	"dolmen/internal/sqlsplit"
 )
@@ -48,6 +49,9 @@ type ExecRequest struct {
 	// Manual keeps a transaction open across runs until Commit / Rollback.
 	// Ignored on read-only connections.
 	Manual bool `json:"manual"`
+	// Schema is the schema unqualified names resolve to in this tab's session;
+	// "" keeps the connection's default. Ignored by engines without one (SQLite).
+	Schema string `json:"schema"`
 }
 
 // TxStatus describes a tab's manual transaction.
@@ -124,6 +128,8 @@ type session struct {
 	cancel     atomic.Pointer[context.CancelFunc]
 	cursor     *cursor
 	results    map[string]*cached
+	// schema was set on connection by Dolmen ("" = the connection's default).
+	schema string
 	// Manual-mode transaction, kept across runs.
 	tx           *sql.Tx
 	txStatements int
@@ -198,9 +204,37 @@ func (tabSession *session) reset() {
 		tabSession.txSince, tabSession.txLastUsed = time.Time{}, time.Time{}
 	}
 	if tabSession.connection != nil {
+		if tabSession.schema != "" {
+			// Close would hand the connection back to the pool still pointed at
+			// the tab's schema; discard it instead.
+			_ = tabSession.connection.Raw(func(any) error { return sqldriver.ErrBadConn })
+		}
 		tabSession.connection.Close()
 		tabSession.connection = nil
 	}
+	tabSession.schema = ""
+}
+
+// useSchema points the session at schema before a run, unless it already is.
+func (tabSession *session) useSchema(ctx context.Context, opened *conn.Open, schema string) error {
+	if schema == tabSession.schema {
+		return nil
+	}
+	setter, ok := opened.Driver.(driver.SchemaSetter)
+	if !ok {
+		return nil
+	}
+	if tabSession.tx != nil {
+		return errors.New("this tab has an open transaction: commit or roll back before switching schema")
+	}
+	if err := setter.SetSchema(ctx, tabSession.connection, opened.Config, schema); err != nil {
+		if schema == "" {
+			return fmt.Errorf("restoring the default schema: %w", err)
+		}
+		return fmt.Errorf("switching to schema %s: %w", schema, err)
+	}
+	tabSession.schema = schema
+	return nil
 }
 
 func (tabSession *session) closeCursor() {
@@ -436,6 +470,9 @@ func (e *Executor) Execute(request ExecRequest) (*ExecResponse, error) {
 	manual := request.Manual && !opened.Config.ReadOnly
 	if !manual && tabSession.tx != nil {
 		return nil, errors.New("this tab has an open transaction: commit or roll back before switching to auto-commit")
+	}
+	if err := tabSession.useSchema(ctx, opened, request.Schema); err != nil {
+		return nil, err
 	}
 
 	var queryRunner querier = tabSession.connection
@@ -867,5 +904,5 @@ func errText(ctx context.Context, err error) string {
 }
 
 func isBadConn(message string) bool {
-	return message == driver.ErrBadConn.Error() || message == sql.ErrConnDone.Error() || message == "invalid connection"
+	return message == sqldriver.ErrBadConn.Error() || message == sql.ErrConnDone.Error() || message == "invalid connection"
 }

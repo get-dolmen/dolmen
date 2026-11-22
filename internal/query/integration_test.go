@@ -172,3 +172,44 @@ func testServer(t *testing.T, cfg driver.Config) {
 		t.Error("delete succeeded on a read-only session")
 	}
 }
+
+// TestIntegrationSchema switches a tab's schema to one every user can see,
+// then back to the connection's default.
+func TestIntegrationSchema(t *testing.T) {
+	probes := map[driver.Kind]struct{ schema, current string }{
+		driver.Postgres: {"pg_catalog", "select current_schema()"},
+		driver.MySQL:    {"information_schema", "select database()"},
+		driver.Oracle:   {"SYS", "select sys_context('USERENV', 'CURRENT_SCHEMA') from dual"},
+	}
+	for _, cfg := range servers {
+		t.Run(string(cfg.Kind), func(t *testing.T) {
+			ctx := context.Background()
+			m := conn.NewManager()
+			defer m.CloseAll()
+			if _, err := m.Connect(ctx, cfg); err != nil {
+				t.Skipf("%s not reachable: %v", cfg.Kind, err)
+			}
+			e := query.NewExecutor(m, nil)
+			defer e.CloseConnection(cfg.ID)
+			probe := probes[cfg.Kind]
+			current := func(schema string) string {
+				t.Helper()
+				r, err := e.Execute(query.ExecRequest{TabID: "s", ConnID: cfg.ID, SQL: probe.current, Cursor: -1, MaxRows: 1, Schema: schema})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if result := r.Results[0]; result.Error != "" {
+					t.Fatal(result.Error)
+				}
+				return strings.ToLower(r.Results[0].Rows[0][0].(string))
+			}
+			initial := current("")
+			if got := current(probe.schema); got != strings.ToLower(probe.schema) {
+				t.Errorf("after switching to %s, current schema is %s", probe.schema, got)
+			}
+			if got := current(""); got != initial {
+				t.Errorf("after restoring the default, current schema is %s, want %s", got, initial)
+			}
+		})
+	}
+}

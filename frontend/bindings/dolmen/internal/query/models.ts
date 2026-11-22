@@ -28,6 +28,12 @@ export interface ExecRequest {
      * Ignored on read-only connections.
      */
     "manual": boolean;
+
+    /**
+     * Schema is the schema unqualified names resolve to in this tab's session;
+     * "" keeps the connection's default. Ignored by engines without one (SQLite).
+     */
+    "schema": string;
 }
 
 export interface ExecResponse {

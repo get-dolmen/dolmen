@@ -85,8 +85,41 @@ OutFile "..\..\..\bin\${INFO_PROJECTNAME}-${ARCH}-installer.exe" # Name of the i
 !endif
 ShowInstDetails show # This will always show the installation details.
 
+# Set by the in-app updater, which runs: setup.exe /S /UPDATE /D=<install folder>
+Var IsUpdate
+
 Function .onInit
    !insertmacro wails.checkArchitecture
+
+   ${GetParameters} $R0
+   ClearErrors
+   ${GetOptions} $R0 "/UPDATE" $R1
+   IfErrors initDone
+   StrCpy $IsUpdate 1
+
+   # Dolmen quits right after starting the update: wait (up to 30 s) until its
+   # executable is no longer locked, so the files can be replaced.
+   StrCpy $R2 0
+   waitForExit:
+      IfFileExists "$INSTDIR\${PRODUCT_EXECUTABLE}" 0 initDone
+      ClearErrors
+      FileOpen $R3 "$INSTDIR\${PRODUCT_EXECUTABLE}" a
+      IfErrors stillRunning
+      FileClose $R3
+      Goto initDone
+   stillRunning:
+      IntOp $R2 $R2 + 1
+      IntCmp $R2 60 initDone
+      Sleep 500
+      Goto waitForExit
+   initDone:
+FunctionEnd
+
+# After an update, start Dolmen again. Going through explorer.exe runs it as
+# the signed-in user rather than with the installer's elevated rights.
+Function .onInstSuccess
+   StrCmp $IsUpdate 1 0 +2
+   Exec '"$WINDIR\explorer.exe" "$INSTDIR\${PRODUCT_EXECUTABLE}"'
 FunctionEnd
 
 Section
@@ -100,6 +133,8 @@ Section
 
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$SMPROGRAMS\Uninstall ${INFO_PRODUCTNAME}.lnk" "$INSTDIR\uninstall.exe"
+    # An update leaves the desktop as the user arranged it.
+    StrCmp $IsUpdate 1 +2
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
 
     !insertmacro wails.associateFiles

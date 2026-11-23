@@ -172,6 +172,12 @@ func (s *Service) stopLocked() {
 	if s.server != nil {
 		_ = s.server.Close()
 	}
+	// Serve runs in a goroutine: if it has not registered the listener yet,
+	// server.Close misses it and the port stays bound until Serve gets to run.
+	// Close it here so a restart can listen on the same port right away.
+	if s.listener != nil {
+		_ = s.listener.Close()
+	}
 	s.server, s.listener, s.running = nil, nil, false
 }
 

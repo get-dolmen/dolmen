@@ -56,6 +56,8 @@ export function isDarkTheme(): boolean {
 }
 
 export const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+/** On Windows the window is frameless and the top bar carries the caption buttons. */
+export const isWindows = /Win/.test(navigator.platform || navigator.userAgent);
 /** Label for the platform's primary modifier. */
 export const MOD = isMac ? '⌘' : 'Ctrl+';
 

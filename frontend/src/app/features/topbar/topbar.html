@@ -67,6 +67,19 @@
   >
     <dm-icon name="settings" [size]="16" />
   </button>
+  @if (isWindowsPlatform) {
+    <div class="caption-buttons" (dblclick)="$event.stopPropagation()">
+      <button class="caption minimize" aria-label="Minimize" (click)="minimise()">&#xE921;</button>
+      <button
+        class="caption maximize"
+        [attr.aria-label]="maximised() ? 'Restore' : 'Maximize'"
+        (click)="toggleMaximise()"
+      >
+        {{ maximised() ? '\uE923' : '\uE922' }}
+      </button>
+      <button class="caption close" aria-label="Close" (click)="closeWindow()">&#xE8BB;</button>
+    </div>
+  }
 </div>
 
 @if (menu(); as menuPosition) {

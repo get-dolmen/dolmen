@@ -101,6 +101,57 @@
   gap: 6px;
   justify-self: end;
 }
+
+/*
+ * Windows caption buttons, flush with the window's top-right corner. Each one
+ * is declared to Windows as a native caption button (--wails-non-client-region),
+ * which gives the system hover feedback and the Snap Layouts flyout on maximise.
+ */
+:host(.win) {
+  padding-right: 0;
+}
+.caption-buttons {
+  display: flex;
+  align-self: stretch;
+  margin-left: 6px;
+  --wails-draggable: no-drag;
+}
+.caption {
+  width: 46px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: 'Segoe Fluent Icons', 'Segoe MDL2 Assets', sans-serif;
+  font-size: 10px;
+  line-height: 1;
+  cursor: default;
+}
+.caption:hover {
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+}
+.caption:active {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.caption.minimize {
+  --wails-non-client-region: minimize;
+}
+.caption.maximize {
+  --wails-non-client-region: maximize;
+}
+.caption.close {
+  --wails-non-client-region: close;
+}
+.caption.close:hover {
+  background: #c42b1c;
+  color: #fff;
+}
+.caption.close:active {
+  background: #c42b1ccc;
+  color: #fff;
+}
 .btn.icon.on {
   color: var(--accent);
 }

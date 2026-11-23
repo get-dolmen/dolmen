@@ -1,9 +1,9 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { Commands } from '../../core/commands';
 import { ConnectionStore } from '../../core/connection.store';
 import { TxStore } from '../../core/tx.store';
 import { TabStore } from '../../core/tab.store';
-import { Ui, MOD, isMac } from '../../core/ui';
+import { Ui, MOD, isMac, isWindows } from '../../core/ui';
 import { Toasts } from '../../core/toast';
 import { ClickOutside, toggleMenuAt, type MenuPos } from '../../shared/click-outside';
 import { Icon } from '../../shared/icon';
@@ -17,7 +17,11 @@ const MENU_HEIGHT = 320;
 @Component({
   selector: 'dm-topbar',
   imports: [ClickOutside, Icon],
-  host: { '[class.mac]': 'isMacPlatform', '(dblclick)': 'onDoubleClick($event)' },
+  host: {
+    '[class.mac]': 'isMacPlatform',
+    '[class.win]': 'isWindowsPlatform',
+    '(dblclick)': 'onDoubleClick($event)',
+  },
   templateUrl: './topbar.html',
   styleUrl: './topbar.scss',
 })
@@ -30,6 +34,9 @@ export class Topbar {
   private toastService = inject(Toasts);
   public readonly modifierKey = MOD;
   public readonly isMacPlatform = isMac;
+  public readonly isWindowsPlatform = isWindows;
+  /** Windows: shows the restore glyph instead of maximise. */
+  public readonly maximised = signal(false);
 
   public readonly connection = computed(() =>
     this.connectionStore.get(this.tabStore.active()?.connId),
@@ -39,12 +46,39 @@ export class Topbar {
   public readonly menu = signal<MenuPos | null>(null);
   public readonly menuOpen = computed(() => this.menu() !== null);
 
-  /** macOS zooms the window on a title-bar double-click; Wails does not do it by itself. */
+  public constructor() {
+    if (!isWindows) return;
+    const syncMaximised = () =>
+      void WailsWindow.IsMaximised()
+        .then((maximised) => this.maximised.set(maximised))
+        .catch(() => {});
+    syncMaximised();
+    window.addEventListener('resize', syncMaximised);
+    inject(DestroyRef).onDestroy(() => window.removeEventListener('resize', syncMaximised));
+  }
+
+  /**
+   * A title-bar double-click zooms (macOS) or maximises (Windows) the window;
+   * the top bar drags the window itself, so this is done here.
+   */
   public onDoubleClick(event: MouseEvent) {
-    if (!isMac) return;
+    if (!isMac && !isWindows) return;
     const target = event.target as HTMLElement;
     if (target.closest('.nodrag, button, input, textarea, select, a')) return;
     void WailsWindow.ToggleMaximise();
+  }
+
+  // Windows caption buttons. Their areas are also declared as native caption
+  // buttons (see topbar.scss), so Windows shows its hover states and Snap
+  // Layouts; the click itself still reaches these handlers.
+  public minimise() {
+    void WailsWindow.Minimise();
+  }
+  public toggleMaximise() {
+    void WailsWindow.ToggleMaximise();
+  }
+  public closeWindow() {
+    void WailsWindow.Close();
   }
 
   public kindLabel(connection: ConnectionView) {
